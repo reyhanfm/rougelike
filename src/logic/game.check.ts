@@ -95,10 +95,10 @@ assert.equal(plain.damage, base.damage);
 assert.ok(runStats(base, WEAPONS.kapak, []).damage > plain.damage);
 assert.ok(runStats(base, WEAPONS.belati, []).swingCooldown < plain.swingCooldown);
 const stacked = runStats(base, WEAPONS.pedang, ['batu', 'batu', 'jantung', 'sayap', 'sayap', 'sayap', 'duri']);
-assert.equal(stacked.damage, Math.round(base.damage * 1.25 * 1.25));
+assert.equal(stacked.damage, Math.round(base.damage * 1.15 * 1.15));
 assert.equal(stacked.maxHp, base.maxHp + 30);
 assert.equal(stacked.extraJumps, 3);
-assert.equal(stacked.thorns, 15);
+assert.equal(stacked.thorns, 8);
 assert.equal(runStats(base, WEAPONS.belati, Array(20).fill('sarung')).swingCooldown, 0.1);
 assert.equal(runStats(maxed, WEAPONS.belati, Array(10).fill('mata')).critChance, 0.9);
 
@@ -118,11 +118,11 @@ for (const w of Object.values(WEAPONS)) {
   assert.ok(w.combo.length >= 2, `${w.id}: combo too short`);
   assert.ok(new Set(w.combo.map((m) => JSON.stringify(m))).size >= 2, `${w.id}: combo is one repeated move`);
   assert.ok(w.skill.cd > 0 && w.skill.name && w.ult.name, `${w.id}: missing skill/ult`);
-  for (const m of w.combo) assert.ok(m.anim === 'shoot' ? m.arrows?.length : m.reach.w > 0, `${w.id}: move without a hit`);
+  for (const m of w.combo) assert.ok(m.anim === 'shoot' ? m.angles?.length : m.reach.w > 0, `${w.id}: move without a hit`);
 }
 
 // Air moves: every weapon has one, and hitboxes sit where the move says.
-for (const w of Object.values(WEAPONS)) assert.ok(w.air.name && (w.air.arrows?.length || w.air.reach.w > 0), `${w.id}: no air move`);
+for (const w of Object.values(WEAPONS)) assert.ok(w.air.name && (w.air.angles?.length || w.air.reach.w > 0), `${w.id}: no air move`);
 const below = moveHitbox(WEAPONS.tombak.air, 100, 50, 1);
 assert.ok(below.y > 50 && below.x < 100 && below.x + below.w > 100, 'below hitbox must be under the player');
 const around = moveHitbox(WEAPONS.pedang.air, 100, 50, -1);
@@ -184,11 +184,11 @@ const { CLASSES, CLASS_IDS, hasSynergy } = await import('./classes.ts');
 assert.equal(new Set(CLASS_IDS.map((c) => CLASSES[c].color)).size, CLASS_IDS.length, 'each class has its own color');
 for (const c of CLASS_IDS) assert.ok(CLASSES[c].weapon in WEAPONS && CLASSES[c].color in PALETTE_CHECK, `${c}: bad weapon/color`);
 assert.ok(hasSynergy('berserker', 'kapak') && !hasSynergy('berserker', 'pedang'));
-assert.equal(runStats(base, WEAPONS.kapak, [], 'berserker').lifesteal, 0.06);
+assert.equal(runStats(base, WEAPONS.kapak, [], 'berserker').lifesteal, 0.04);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').lifesteal, 0);
-assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').rage, 0.3, 'class trait applies with any weapon');
+assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').rage, 0.25, 'class trait applies with any weapon');
 assert.equal(runStats(base, WEAPONS.busur, [], 'pemburu').pierceArrows, 1);
-assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').maxHp, Math.round(base.maxHp * 1.3));
+assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').maxHp, Math.round(base.maxHp * 1.2));
 assert.equal(runStats(base, WEAPONS.belati, [], 'pembunuh').critMult, 2);
 // Magic Archer: homing is the class trait (any weapon), the extra arrow needs the bow.
 assert.equal(runStats(base, WEAPONS.pedang, [], 'magicArcher').homingArrows, 1);
@@ -196,7 +196,7 @@ assert.equal(runStats(base, WEAPONS.pedang, [], 'magicArcher').extraArrows, 0);
 assert.equal(runStats(base, WEAPONS.busur, [], 'magicArcher').extraArrows, 1);
 assert.equal(runStats(base, WEAPONS.busur, [], 'pemburu').homingArrows, 0);
 // Grim Reaper: kill heal anywhere, hunting souls only with the scythe; items stack souls but capped.
-assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').healOnKill, 3);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').healOnKill, 2);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').killSouls, 0);
 assert.equal(runStats(base, WEAPONS.sabit, [], 'reaper').killSouls, 1);
 assert.equal(runStats(base, WEAPONS.sabit, ['lentera', 'lentera', 'lentera'], 'reaper').killSouls, 3);
@@ -240,4 +240,42 @@ for (const [name, rows] of Object.entries(SPRITES)) {
   );
 }
 
+// Balance regression: same inventory in any pickup order gives the same stats.
+const build = ['tulang', 'batu', 'mahkota', 'jantung', 'batu'] as const;
+assert.deepEqual(runStats(base, WEAPONS.senapan, build, 'gunners'), runStats(base, WEAPONS.senapan, [...build].reverse(), 'gunners'));
+const capped = runStats(
+  base,
+  WEAPONS.senapan,
+  Array(30).fill('jubah').concat(Array(30).fill('cincin'), Array(30).fill('petir'), Array(30).fill('roti'), Array(30).fill('kalung')),
+);
+assert.ok(capped.dashCooldown > 0.15, 'dash recovery must outlast its invulnerability');
+assert.ok(capped.iframes <= 1400 && capped.regen <= 5 && capped.killBolt <= 3 && capped.critMult <= 3);
+assert.equal(runStats(base, WEAPONS.senapan, ['tulang'], 'gunners').damage, 8, 'flat damage must respect the rifle multiplier');
+const gunner = runStats(base, WEAPONS.senapan, [], 'gunners');
+assert.equal(gunner.maxHp, 110);
+assert.ok(gunner.swingCooldown < runStats(base, WEAPONS.senapan, []).swingCooldown);
+assert.ok(WEAPONS.senapan.automatic && WEAPONS.senapan.projectile?.texture === 'bullet');
+for (const w of Object.values(WEAPONS)) {
+  if (w.projectile) assert.ok(w.projectile.texture in S && w.projectile.speed > 0);
+  for (const m of [...w.combo, w.air]) if (m.anim === 'shoot') assert.ok(w.projectile && m.angles?.length);
+}
+for (const cls of CLASS_IDS) {
+  const w = WEAPONS[CLASSES[cls].weapon];
+  const st = runStats(base, w, [], cls);
+  // Ideal full-combo DPS, all projectiles connect; excludes skills, rage and kill effects.
+  const hits = w.combo.reduce((sum, m) => sum + m.dmg * (m.angles ? m.angles.length + st.extraArrows : 1), 0) + st.finisherWave;
+  const seconds = st.swingCooldown * w.combo.reduce((sum, m) => sum + m.cd, 0);
+  const dps = (st.damage * hits * (1 + st.critChance * (st.critMult - 1))) / seconds;
+  assert.ok(dps >= 20 && dps <= 38, `${cls}: baseline combo DPS outside budget: ${dps}`);
+}
+for (let round = 2; round <= 40; round++) {
+  const prev = roundConfig(round - 1),
+    current = roundConfig(round);
+  assert.ok(current.enemyHp >= prev.enemyHp && current.enemyDamage >= prev.enemyDamage);
+}
+assert.ok(roundConfig(20).enemyDamage < 25 && roundConfig(40).enemyHp < 600, 'late enemies must not return to exponential scaling');
+assert.ok(roundConfig(5).bossHp >= 240 && roundConfig(5).bossHp <= 280, 'first boss health budget');
+const soldierSave = { ...defaultSave(), cls: 'gunners' as const };
+writeSave(soldierSave);
+assert.deepEqual(loadSave(), soldierSave);
 console.log('game.check ok');

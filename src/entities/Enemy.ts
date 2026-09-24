@@ -48,7 +48,8 @@ export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   knockback(dir: number, force: number): void {
     this.setVelocity(dir * force, this.flying ? 0 : -force * 0.8);
-    this.stunUntil = this.scene.time.now + 250;
+    // Light bullets interrupt briefly; rapid fire must not permanently stun a target.
+    this.stunUntil = this.scene.time.now + Math.min(250, Math.abs(force) * 3);
   }
 
   protected get target(): Phaser.GameObjects.Sprite {

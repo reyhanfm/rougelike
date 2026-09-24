@@ -12,7 +12,6 @@ const DASH_SPEED = 280;
 const DASH_MS = 150;
 const COYOTE_MS = 80;
 const JUMP_BUFFER_MS = 100;
-const ARROW_SPEED = 260;
 
 type KeyName = 'left' | 'right' | 'a' | 'd' | 'up' | 'w' | 'space' | 'down' | 's' | 'attack' | 'dash' | 'skill' | 'ult';
 type Keys = Record<KeyName, Phaser.Input.Keyboard.Key>;
@@ -213,7 +212,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     if (dashing) this.ghost(0x29adff);
 
-    if (!locked && Phaser.Input.Keyboard.JustDown(k.attack) && time >= this.swingReadyAt) this.attack(time);
+    const attackPressed = Phaser.Input.Keyboard.JustDown(k.attack);
+    if (!locked && !dashing && (attackPressed || (this.weapon.automatic && k.attack.isDown)) && time >= this.swingReadyAt)
+      this.attack(time);
     if (!locked && Phaser.Input.Keyboard.JustDown(k.skill) && time >= this.skillReadyAt) this.useSkill(time, 'skill');
     if (!locked && Phaser.Input.Keyboard.JustDown(k.ult) && this.ult >= 100) this.useSkill(time, 'ult');
 
@@ -276,17 +277,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       });
     }
     // Extra arrows (Magic Archer synergy) fan out alongside the move's own.
-    const extra = m.arrows?.length ? Array.from({ length: this.stats.extraArrows }, (_, i) => (i % 2 ? -1 : 1) * 0.2 * (1 + (i >> 1))) : [];
-    for (const a of [...(m.arrows ?? []), ...extra]) {
+    const extra =
+      this.weapon.id === 'busur' && m.angles?.length
+        ? Array.from({ length: this.stats.extraArrows }, (_, i) => (i % 2 ? -1 : 1) * 0.2 * (1 + (i >> 1)))
+        : [];
+    const projectile = this.weapon.projectile;
+    for (const a of projectile ? [...(m.angles ?? []), ...extra] : []) {
       this.world.shot({
         x: this.x + this.facing * 6,
         y: this.y + 1,
-        vx: Math.cos(a) * ARROW_SPEED * this.facing,
-        vy: Math.sin(a) * ARROW_SPEED,
-        texture: 'arrow',
+        vx: Math.cos(a) * projectile!.speed * this.facing,
+        vy: Math.sin(a) * projectile!.speed,
+        texture: projectile!.texture,
         mult: m.dmg,
         source: 'basic',
-        pierce: this.stats.pierceArrows > 0,
+        pierce: this.weapon.id === 'busur' && this.stats.pierceArrows > 0,
+        knockback: m.knockback,
       });
     }
     // Ksatria synergy: the last hit of the ground combo throws a sword wave.
@@ -348,7 +354,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const active = time < this.swingUntil;
     const p = active ? 1 - (this.swingUntil - time) / m.ms : 1;
     let x = this.x + f * 3;
-    let angle = this.weapon.id === 'busur' ? 0 : this.weapon.id === 'tombak' ? 20 : 45;
+    let angle = this.weapon.projectile ? 0 : this.weapon.id === 'tombak' ? 20 : 45;
     if (active) {
       if (m.anim === 'down') angle = -100 + 150 * p;
       if (m.anim === 'up') angle = 60 - 160 * p;

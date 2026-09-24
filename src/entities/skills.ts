@@ -61,16 +61,16 @@ export const SKILLS: Record<WeaponId, { skill: SkillFn; ult: SkillFn }> = {
     ult: ({ p, world, scene, power }) => {
       const targets = world.targets(p.x, p.y).slice(0, 6);
       if (!targets.length) return false;
-      const ms = targets.length * 130 + 300;
+      const ms = 6 * 130 + 300;
       p.invuln(ms);
       p.lock(ms);
-      targets.forEach((t, i) =>
+      Array.from({ length: 6 }, (_, i) => targets[i % targets.length]).forEach((t, i) =>
         later(scene, i * 130, () => {
           if (!t.active) return;
           p.ghost(0x7e2553);
           p.facing = t.x >= p.x ? 1 : -1;
           p.body.reset(Phaser.Math.Clamp(t.x - p.facing * 12, 8, W - 8), Math.min(t.y, FLOOR_Y - 8));
-          world.strike(t, 1.5 * power, 'ult', true);
+          world.strike(t, 1.2 * power, 'ult', true);
         }),
       );
     },
@@ -91,10 +91,12 @@ export const SKILLS: Record<WeaponId, { skill: SkillFn; ult: SkillFn }> = {
         });
       });
     },
-    ult: ({ world, scene, power }) => {
+    ult: ({ p, world, scene, power }) => {
       const n = 14;
+      const targets = world.targets(p.x, p.y);
       for (let i = 0; i < n; i++) {
-        const x = 12 + (i * (W - 24)) / (n - 1) + Phaser.Math.Between(-6, 6);
+        // Four spears aim at current target positions; the rest cover the arena.
+        const x = i < 4 && targets.length ? targets[i % targets.length].x : 12 + (i * (W - 24)) / (n - 1) + Phaser.Math.Between(-6, 6);
         later(scene, Phaser.Math.Between(0, 900), () =>
           world.shot({ x, y: -12, vx: 0, vy: 320, texture: 'w_tombak', mult: 1.4 * power, source: 'ult', pierce: true }),
         );
@@ -193,6 +195,54 @@ export const SKILLS: Record<WeaponId, { skill: SkillFn; ult: SkillFn }> = {
           p.heal(5);
         }),
       );
+    },
+  },
+
+  senapan: {
+    skill: ({ p, world, scene, power }) => {
+      const target = world.targets(p.x, p.y).find((t) => Math.sign(t.x - p.x) === p.facing && Math.abs(t.x - p.x) <= 120);
+      const x = Phaser.Math.Clamp(target?.x ?? p.x + p.facing * 90, 8, W - 8);
+      const y = target?.y ?? FLOOR_Y - 5;
+      const fromX = p.x;
+      const fromY = p.y;
+      const grenade = scene.add.image(fromX, fromY, 'grenade').setDepth(12);
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration: 500,
+        onUpdate: (tween) => {
+          const progress = tween.getValue() ?? 0;
+          grenade.setPosition(fromX + (x - fromX) * progress, fromY + (y - fromY) * progress - Math.sin(progress * Math.PI) * 36);
+          grenade.setRotation(progress * Math.PI * 3);
+        },
+        onComplete: () => {
+          grenade.destroy();
+          world.area(x, y, 34, 3.8 * power, 140, 'skill');
+          scene.cameras.main.shake(100, 0.008);
+        },
+      });
+    },
+    ult: ({ p, world, scene, power }) => {
+      const facing = p.facing;
+      p.lock(950);
+      p.invuln(350);
+      p.setVelocityX(0);
+      for (let i = 0; i < 12; i++)
+        later(scene, i * 75, () => {
+          if (!p.active || p.hp <= 0) return;
+          world.shot({
+            x: p.x + facing * 10,
+            y: p.y + 1,
+            vx: facing * 360,
+            vy: ((i % 3) - 1) * 24,
+            texture: 'bullet',
+            tint: 0xffa300,
+            mult: 0.9 * power,
+            source: 'ult',
+            pierce: true,
+            knockback: 12,
+          });
+        });
     },
   },
 };

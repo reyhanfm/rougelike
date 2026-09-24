@@ -4,10 +4,10 @@ export type StatLevels = Record<StatKey, number>;
 export const STAT_KEYS: readonly StatKey[] = ['str', 'int', 'agi', 'dex'];
 
 export const STAT_INFO: Record<StatKey, { label: string; desc: string }> = {
-  str: { label: 'STR', desc: 'Damage pedang & max HP' },
+  str: { label: 'STR', desc: 'Damage senjata & max HP' },
   int: { label: 'INT', desc: 'Skill kuat, cooldown & soul' },
   agi: { label: 'AGI', desc: 'Lari cepat & dash sering' },
-  dex: { label: 'DEX', desc: 'Tebas cepat & peluang kritis' },
+  dex: { label: 'DEX', desc: 'Serang cepat & peluang kritis' },
 };
 
 export interface Derived {

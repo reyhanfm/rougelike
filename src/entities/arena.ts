@@ -11,7 +11,7 @@ export interface Arena {
   summon(kind: EnemyKind, x: number, y: number): void;
 }
 
-export type HitSource = 'basic' | 'skill' | 'ult';
+export type HitSource = 'basic' | 'skill' | 'ult' | 'proc';
 
 export interface ShotSpec {
   x: number;
@@ -24,6 +24,7 @@ export interface ShotSpec {
   source: HitSource;
   /** Passes through enemies, hitting each once. */
   pierce?: boolean;
+  knockback?: number;
   tint?: number;
   /** Steers toward the nearest enemy. Defaults to on for player arrows when the class has homing. */
   homing?: boolean;

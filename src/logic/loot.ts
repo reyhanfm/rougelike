@@ -1,7 +1,7 @@
 import type { Derived } from './stats.ts';
 import { CLASSES, hasSynergy, type ClassId } from './classes.ts';
 
-export type WeaponId = 'pedang' | 'belati' | 'tombak' | 'kapak' | 'busur' | 'sabit';
+export type WeaponId = 'pedang' | 'belati' | 'tombak' | 'kapak' | 'busur' | 'sabit' | 'senapan';
 
 export type MoveAnim = 'down' | 'up' | 'overhead' | 'thrust' | 'shoot' | 'spin' | 'plunge';
 
@@ -17,8 +17,8 @@ export interface Move {
   knockback: number;
   /** Forward push during the move, px/s. */
   lunge?: number;
-  /** Bow only: arrow angles (radians) relative to facing. */
-  arrows?: number[];
+  /** Ranged attack: projectile angles (radians) relative to facing. */
+  angles?: number[];
   /** Where the hitbox sits: in front (default), centered on the player, or under the feet. */
   hitbox?: 'front' | 'around' | 'below';
   /** Air moves: velocity forced for the move (vx is multiplied by facing). */
@@ -38,6 +38,9 @@ export interface Weapon {
   dmg: number;
   cd: number;
   crit: number;
+  /** Ranged weapons use the same shot pipeline with their own texture and speed. */
+  projectile?: { texture: string; speed: number };
+  automatic?: boolean;
   combo: Move[];
   /** Used instead of the combo when attacking in mid-air. */
   air: Move & { name: string };
@@ -109,7 +112,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     name: 'TOMBAK',
     desc: 'TUSUKAN JAUH, COMBO 3',
     dmg: 1.1,
-    cd: 1.25,
+    cd: 1.1,
     crit: 0,
     combo: [
       { anim: 'thrust', dmg: 1, cd: 1, ms: 140, reach: box(34, 8), knockback: 150 },
@@ -161,13 +164,14 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     id: 'busur',
     name: 'BUSUR',
     desc: 'PANAH JARAK JAUH',
+    projectile: { texture: 'arrow', speed: 260 },
     dmg: 0.8,
     cd: 1.1,
     crit: 0.05,
     combo: [
-      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, arrows: [0] },
-      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, arrows: [0] },
-      { anim: 'shoot', dmg: 0.9, cd: 1.5, ms: 140, reach: box(0, 0), knockback: 80, arrows: [-0.12, 0, 0.12] },
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0] },
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0] },
+      { anim: 'shoot', dmg: 0.9, cd: 1.5, ms: 140, reach: box(0, 0), knockback: 80, angles: [-0.12, 0, 0.12] },
     ],
     air: {
       name: 'PANAH MIRING',
@@ -177,7 +181,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       ms: 120,
       reach: box(0, 0),
       knockback: 60,
-      arrows: [0.45, 0.8, 1.15],
+      angles: [0.45, 0.8, 1.15],
       hover: 70,
     },
     skill: { name: 'PANAH KIPAS', desc: '5 PANAH MENYEBAR', cd: 4 },
@@ -208,6 +212,24 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     },
     skill: { name: 'TUAI JIWA', desc: 'TARIK MUSUH SEKITAR LALU TEBAS', cd: 5 },
     ult: { name: 'PANEN MAUT', desc: 'TEBAS SEMUA MUSUH, PULIH TIAP KENA' },
+  },
+  senapan: {
+    id: 'senapan',
+    name: 'SENAPAN',
+    desc: 'OTOMATIS, TAHAN SERANG',
+    dmg: 0.6,
+    cd: 0.65,
+    crit: 0.05,
+    projectile: { texture: 'bullet', speed: 360 },
+    automatic: true,
+    combo: [
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 65, reach: box(0, 0), knockback: 12, angles: [0] },
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 65, reach: box(0, 0), knockback: 12, angles: [0] },
+      { anim: 'shoot', dmg: 1.25, cd: 1.25, ms: 90, reach: box(0, 0), knockback: 18, angles: [0] },
+    ],
+    air: { name: 'TEMBAK MENUKIK', anim: 'shoot', dmg: 1, cd: 1.1, ms: 80, reach: box(0, 0), knockback: 12, angles: [0.35] },
+    skill: { name: 'GRANAT', desc: 'LEMPAR GRANAT, LEDAKAN AREA', cd: 5 },
+    ult: { name: 'TEMBAKAN PENEKAN', desc: '12 PELURU MENEMBUS, ARAH TERKUNCI' },
   },
 };
 
@@ -282,16 +304,16 @@ export interface Item {
 }
 
 export const ITEMS: Record<ItemId, Item> = {
-  batu: { name: 'BATU ASAH', desc: 'DAMAGE +25%', rarity: 'biasa', apply: (s) => void (s.damage *= 1.25) },
+  batu: { name: 'BATU ASAH', desc: 'DAMAGE +15%', rarity: 'biasa', apply: (s) => void (s.damage *= 1.15) },
   sepatu: { name: 'SEPATU ANGIN', desc: 'LARI +15%', rarity: 'biasa', apply: (s) => void (s.speed *= 1.15) },
   jantung: { name: 'JANTUNG NAGA', desc: 'MAX HP +30', rarity: 'biasa', apply: (s) => void (s.maxHp += 30) },
-  taring: { name: 'TARING VAMPIR', desc: '+4 HP TIAP MEMBUNUH', rarity: 'biasa', apply: (s) => void (s.healOnKill += 4) },
+  taring: { name: 'TARING VAMPIR', desc: '+2 HP TIAP MEMBUNUH', rarity: 'biasa', apply: (s) => void (s.healOnKill += 2) },
   mata: { name: 'MATA ELANG', desc: 'KRITIS +10%', rarity: 'biasa', apply: (s) => void (s.critChance += 0.1) },
-  sarung: { name: 'SARUNG BESI', desc: 'SERANG 15% LEBIH CEPAT', rarity: 'biasa', apply: (s) => void (s.swingCooldown *= 0.85) },
-  jubah: { name: 'JUBAH BAYANG', desc: 'COOLDOWN DASH -30%', rarity: 'biasa', apply: (s) => void (s.dashCooldown *= 0.7) },
+  sarung: { name: 'SARUNG BESI', desc: 'JEDA SERANG -12%', rarity: 'biasa', apply: (s) => void (s.swingCooldown *= 0.88) },
+  jubah: { name: 'JUBAH BAYANG', desc: 'COOLDOWN DASH -20%', rarity: 'biasa', apply: (s) => void (s.dashCooldown *= 0.8) },
   sayap: { name: 'SAYAP PERI', desc: '+1 LOMPAT DI UDARA', rarity: 'biasa', apply: (s) => void (s.extraJumps += 1) },
   kantong: { name: 'KANTONG JIWA', desc: 'SOUL +30%', rarity: 'biasa', apply: (s) => void (s.soulMult *= 1.3) },
-  duri: { name: 'BAJU DURI', desc: 'PANTUL 15 DAMAGE', rarity: 'biasa', apply: (s) => void (s.thorns += 15) },
+  duri: { name: 'BAJU DURI', desc: 'PANTUL 8 DAMAGE', rarity: 'biasa', apply: (s) => void (s.thorns += 8) },
   cincin: { name: 'CINCIN KEBAL', desc: 'KEBAL +0.3 DTK SETELAH KENA', rarity: 'biasa', apply: (s) => void (s.iframes += 300) },
   sabuk: {
     name: 'SABUK TITAN',
@@ -326,7 +348,7 @@ export const ITEMS: Record<ItemId, Item> = {
   jam: { name: 'JAM PASIR', desc: 'COOLDOWN SKILL -25%', rarity: 'rare', apply: (s) => void (s.skillCdMult *= 0.75) },
   kristal: { name: 'KRISTAL JIWA', desc: 'METER ULTI +50% CEPAT', rarity: 'rare', apply: (s) => void (s.ultGainMult *= 1.5) },
   perisai: { name: 'PERISAI TUA', desc: 'DAMAGE DITERIMA -15%', rarity: 'rare', apply: (s) => void (s.damageTaken *= 0.85) },
-  kalung: { name: 'KALUNG TAJAM', desc: 'DAMAGE KRITIS X2', rarity: 'rare', apply: (s) => void (s.critMult += 0.5) },
+  kalung: { name: 'KALUNG TAJAM', desc: 'PENGALI KRITIS +0.5', rarity: 'rare', apply: (s) => void (s.critMult += 0.5) },
 
   mahkota: {
     name: 'MAHKOTA RAJA',
@@ -340,7 +362,7 @@ export const ITEMS: Record<ItemId, Item> = {
   },
   // Consumed by RunScene when the player would die.
   phoenix: { name: 'BULU PHOENIX', desc: 'BANGKIT SEKALI, 50% HP', rarity: 'legend', apply: () => undefined },
-  gema: { name: 'GEMA PEDANG', desc: '30% SERANGAN MENEBAS 2X', rarity: 'legend', apply: (s) => void (s.echo += 0.3) },
+  gema: { name: 'GEMA PEDANG', desc: '30% HIT: ECHO 50% DAMAGE', rarity: 'legend', apply: (s) => void (s.echo += 0.3) },
   petir: { name: 'SEGEL PETIR', desc: 'MEMBUNUH = PETIR MENYAMBAR', rarity: 'legend', apply: (s) => void (s.killBolt += 1) },
 
   hatiDewa: {
@@ -354,7 +376,7 @@ export const ITEMS: Record<ItemId, Item> = {
   },
   mataDewa: {
     name: 'MATA DEWA',
-    desc: 'KRITIS +30%, KRITIS X2.5',
+    desc: 'KRITIS +30%, PENGALI KRITIS +1',
     rarity: 'godly',
     apply: (s) => {
       s.critChance += 0.3;
@@ -409,21 +431,32 @@ export function runStats(base: Derived, weapon: Weapon, items: readonly ItemId[]
     CLASSES[cls].apply(s);
     if (hasSynergy(cls, weapon.id)) CLASSES[cls].synergy.apply(s);
   }
+  // Fixed item order: pickup order must not change an identical build.
+  const counts = new Map<ItemId, number>();
+  for (const id of items) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const id of ITEM_IDS) for (let i = 0; i < (counts.get(id) ?? 0); i++) ITEMS[id].apply(s);
+  // Flat damage items scale with the weapon too, so rapid fire does not multiply their value.
   s.damage *= weapon.dmg;
   s.swingCooldown *= weapon.cd;
   s.critChance += weapon.crit;
-  for (const id of items) ITEMS[id].apply(s);
   s.damage = Math.max(1, Math.round(s.damage));
   s.maxHp = Math.round(s.maxHp);
   s.critChance = Math.min(0.9, s.critChance);
   s.swingCooldown = Math.max(0.1, s.swingCooldown);
-  s.dashCooldown = Math.max(0.15, s.dashCooldown);
+  s.dashCooldown = Math.max(0.35, s.dashCooldown);
   s.skillCdMult = Math.max(0.3, s.skillCdMult);
   s.damageTaken = Math.max(0.4, s.damageTaken);
   s.echo = Math.min(0.9, s.echo);
   s.speed = Math.min(190, s.speed);
   s.extraJumps = Math.min(3, s.extraJumps);
   s.killSouls = Math.min(3, s.killSouls);
+  s.killBolt = Math.min(3, s.killBolt);
+  s.iframes = Math.min(1400, s.iframes);
+  s.regen = Math.min(5, s.regen);
+  s.healOnKill = Math.min(12, s.healOnKill);
+  s.ultGainMult = Math.min(3, s.ultGainMult);
+  s.ultRegen = Math.min(8, s.ultRegen);
+  s.critMult = Math.min(3, s.critMult);
   return s;
 }
 

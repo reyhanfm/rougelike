@@ -73,6 +73,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private rewards?: Reward[];
   private rewardSel = 0;
   private regenAcc = 0;
+  private lifestealAcc = 0;
   private rewardUi?: Phaser.GameObjects.Container;
   private hud!: Phaser.GameObjects.Graphics;
   private hpText!: Phaser.GameObjects.Text;
@@ -91,6 +92,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     return this.player.stats;
   }
 
+  get touchMode(): 'play' | 'paused' | 'menu' {
+    return this.over ? 'menu' : this.paused ? 'paused' : this.rewards ? 'menu' : 'play';
+  }
+
   create(data: RunData): void {
     this.save = loadSave();
     this.base = derive(this.save.stats);
@@ -101,6 +106,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.runSouls = data.runSouls ?? 0;
     this.coins = data.coins ?? 0;
     this.cleared = this.over = this.paused = false;
+    this.regenAcc = this.lifestealAcc = 0;
     this.boss = this.portal = this.rewards = this.rewardUi = this.inventory = undefined;
     if (data.round > this.save.bestRound) {
       this.save.bestRound = data.round;
@@ -273,7 +279,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.shots.add(img);
     img.setVelocity(spec.vx, spec.vy).setData('shot', spec).setData('hits', new Set<object>()).setData('born', this.time.now);
     // Long thin projectiles point along their path; the rest just face their direction.
-    if (['arrow', 'w_belati', 'w_tombak'].includes(spec.texture)) img.setRotation(Math.atan2(spec.vy, spec.vx));
+    if (['arrow', 'bullet', 'w_belati', 'w_tombak'].includes(spec.texture)) img.setRotation(Math.atan2(spec.vy, spec.vx));
     else img.setFlipX(spec.vx < 0);
     if (spec.tint !== undefined) img.setTint(spec.tint);
   }
@@ -329,7 +335,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     hits.add(t);
     const spec = shot.getData('shot') as ShotSpec;
     if (!spec.pierce) shot.destroy();
-    this.attack(t, spec.mult, spec.source, 80, false, shot.x, shot.y);
+    this.attack(t, spec.mult, spec.source, spec.knockback ?? 80, false, shot.x, shot.y);
   }
 
   private swordHits(): void {
@@ -378,19 +384,25 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const dmg = Math.max(1, Math.round(st.damage * mult * (crit ? st.critMult : 1) * (enraged ? 1 + st.rage : 1)));
     if (crit) this.cameras.main.shake(60, 0.006);
     if (crit && st.critResetsDash) this.player.resetDash();
-    if (st.lifesteal) this.player.heal(Math.max(1, Math.round(dmg * st.lifesteal)));
+    if (st.lifesteal && source !== 'proc') {
+      this.lifestealAcc += Math.min(t.hp, dmg) * st.lifesteal;
+      if (this.lifestealAcc >= 1) {
+        this.player.heal(Math.floor(this.lifestealAcc));
+        this.lifestealAcc %= 1;
+      }
+    }
     const x = t.x;
     const y = t.y;
     const killed = this.damage(t, dmg, crit ? COLOR.gold : COLOR.text, knockback);
-    if (source !== 'ult') this.player.addUlt((ULT_GAIN[source] + (killed ? ULT_GAIN.kill : 0)) * st.ultGainMult);
+    if (source === 'basic' || source === 'skill') this.player.addUlt((ULT_GAIN[source] + (killed ? ULT_GAIN.kill : 0)) * st.ultGainMult);
     // Gema Pedang: a basic hit may strike again for half damage.
     if (source === 'basic' && !killed && Math.random() < st.echo) {
       this.time.delayedCall(90, () => t.active && this.damage(t, Math.max(1, Math.round(dmg / 2)), RARITY_COLOR.legend, 40));
     }
     // Segel Petir: each kill throws bolts at the nearest enemies.
-    if (killed) for (let i = 0; i < st.killBolt; i++) this.time.delayedCall(100 + i * 80, () => this.bolt(x, y));
+    if (killed && source !== 'proc') for (let i = 0; i < st.killBolt; i++) this.time.delayedCall(100 + i * 80, () => this.bolt(x, y));
     // Grim Reaper synergy / Lentera Jiwa: kills release souls that hunt the next enemy.
-    if (killed) {
+    if (killed && source !== 'proc') {
       for (let i = 0; i < st.killSouls; i++) {
         this.shot({
           x,
@@ -400,7 +412,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
           texture: 'soul',
           tint: 0xc2c3c7,
           mult: 1,
-          source: 'skill',
+          source: 'proc',
           homing: true,
         });
       }
@@ -419,7 +431,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     g.lineTo(t.x, t.y).strokePath();
     this.tweens.add({ targets: g, alpha: 0, duration: 250, onComplete: () => g.destroy() });
-    this.attack(t, 1.2, 'skill', 60);
+    this.attack(t, 1.2, 'proc', 60);
   }
 
   /** Hati Dewa / Jiwa Abadi: HP and ult meter over time. */
@@ -634,6 +646,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (this.over) return;
     this.over = true;
     this.paused = false;
+    this.time.paused = false;
+    this.tweens.resumeAll();
     this.pauseText.setVisible(false);
     this.physics.pause();
     this.player.setTint(0xff004d);
@@ -646,6 +660,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private togglePause(): void {
     if (this.over) return;
     this.paused = !this.paused;
+    this.time.paused = this.paused;
+    if (this.paused) this.tweens.pauseAll();
+    else this.tweens.resumeAll();
     if (this.paused) this.physics.pause();
     else this.physics.resume();
     this.pauseText.setVisible(this.paused);

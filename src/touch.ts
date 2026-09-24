@@ -12,15 +12,14 @@ const KEY_CODES: Record<KeyName, number> = { W: 87, A: 65, S: 83, D: 68, SPACE: 
 
 const LAYOUT = `
   <div class="t-top">
-    <button data-key="ESC">II</button>
-    <button data-key="Q">KELUAR</button>
-    <button data-action="fullscreen">[ ]</button>
+    <button data-key="ESC" aria-label="Jeda atau lanjutkan">JEDA</button>
+    <button data-key="Q">MENYERAH</button>
+    <button data-action="fullscreen" aria-label="Layar penuh">LAYAR</button>
   </div>
   <div class="t-pad">
-    <button data-key="W" class="up">&#9650;</button>
-    <button data-key="A" class="left">&#9664;</button>
-    <button data-key="D" class="right">&#9654;</button>
-    <button data-key="S" class="down">&#9660;</button>
+    <button data-key="A" class="left" aria-label="Gerak kiri">&#9664;</button>
+    <button data-key="D" class="right" aria-label="Gerak kanan">&#9654;</button>
+    <button data-key="S" class="down" aria-label="Tahan bersama lompat untuk turun platform">TURUN</button>
   </div>
   <div class="t-acts">
     <button data-key="L" class="skill">SKILL</button>
@@ -29,6 +28,7 @@ const LAYOUT = `
     <button data-key="J" class="atk">SERANG</button>
     <button data-key="SPACE" class="jump">LOMPAT</button>
   </div>
+  <p class="t-hint">Tahan TURUN + LOMPAT untuk turun platform</p>
 `;
 
 export function isTouchDevice(): boolean {
@@ -75,13 +75,16 @@ export function mountTouchControls(game: Phaser.Game): void {
   root.id = 'touch';
   root.innerHTML = LAYOUT;
   document.body.appendChild(root);
+  document.body.classList.add('touch-device');
+  game.scale.getParentBounds();
+  game.scale.refresh();
 
   // Each finger maps to the button under it; sliding a finger across buttons switches keys.
-  const fingers = new Map<number, KeyName>();
+  const fingers = new Map<number, KeyName | undefined>();
   const held = new Set<KeyName>();
 
   const sync = () => {
-    const now = new Set(fingers.values());
+    const now = new Set([...fingers.values()].filter((k): k is KeyName => k !== undefined));
     for (const k of held) if (!now.has(k)) send(game, k, false);
     for (const k of now) if (!held.has(k)) send(game, k, true);
     held.clear();
@@ -95,7 +98,7 @@ export function mountTouchControls(game: Phaser.Game): void {
   const track = (e: PointerEvent) => {
     const k = keyAt(e.clientX, e.clientY);
     if (k) fingers.set(e.pointerId, k);
-    else fingers.delete(e.pointerId);
+    else fingers.set(e.pointerId, undefined);
     sync();
   };
 
@@ -119,23 +122,54 @@ export function mountTouchControls(game: Phaser.Game): void {
     cluster.addEventListener('pointermove', (e) => fingers.has(e.pointerId) && track(e));
     cluster.addEventListener('pointerup', release);
     cluster.addEventListener('pointercancel', release);
+    cluster.addEventListener('lostpointercapture', release);
   }
   root.querySelector('[data-action="fullscreen"]')?.addEventListener('click', goFullscreen);
   // Gameplay buttons only while a run is on screen.
-  const syncMode = () => {
-    const inRun = game.scene.isActive('run');
-    root.classList.toggle('menu', !inRun);
-    if (!inRun && fingers.size) {
-      fingers.clear();
-      sync();
-    }
-  };
-  syncMode();
-  setInterval(syncMode, 250);
-  // Losing focus (call, app switch) must not leave a key stuck down.
-  window.addEventListener('blur', () => {
+  let mode = '';
+  const reset = () => {
     fingers.clear();
     sync();
+  };
+  const syncMode = () => {
+    const inRun = game.scene.isActive('run');
+    const next = inRun ? (game.scene.getScene('run') as Phaser.Scene & { touchMode: string }).touchMode : 'menu';
+    if (mode === next) return;
+    mode = next;
+    reset();
+    root.classList.toggle('menu', mode !== 'play');
+    root.classList.toggle('paused', mode === 'paused');
+    root.classList.toggle('in-run', inRun);
+    document.body.classList.toggle('touch-playing', mode === 'play');
+    root.querySelector('[data-key="ESC"]')!.textContent = mode === 'paused' ? 'LANJUT' : 'JEDA';
+    game.scale.getParentBounds();
+    game.scale.refresh();
+  };
+  syncMode();
+  game.events.on('poststep', syncMode);
+  // Losing focus (call, app switch) must not leave a key stuck down.
+  const suspend = () => {
+    reset();
+    if (game.scene.isActive('run') && (game.scene.getScene('run') as Phaser.Scene & { touchMode: string }).touchMode === 'play') {
+      send(game, 'ESC', true);
+      send(game, 'ESC', false);
+    }
+    syncMode();
+  };
+  const visibility = () => {
+    if (document.hidden) suspend();
+  };
+  window.addEventListener('blur', suspend);
+  window.addEventListener('resize', reset);
+  document.addEventListener('visibilitychange', visibility);
+  game.events.once('destroy', () => {
+    reset();
+    game.events.off('poststep', syncMode);
+    window.removeEventListener('blur', suspend);
+    window.removeEventListener('resize', reset);
+    document.removeEventListener('visibilitychange', visibility);
+    root.remove();
+    document.body.classList.remove('touch-device', 'touch-playing');
   });
 }
 

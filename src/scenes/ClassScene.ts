@@ -4,10 +4,11 @@ import { text, W } from '../gfx/ui.ts';
 import { CLASS_IDS, CLASSES } from '../logic/classes.ts';
 import { WEAPONS, type WeaponId } from '../logic/loot.ts';
 import { loadSave, writeSave } from '../logic/save.ts';
+import { isTouchDevice } from '../touch.ts';
 import type { RunData } from './RunScene.ts';
 
-const ROW_Y = 23;
-const ROW_H = 13;
+const ROW_Y = 25;
+const ROW_H = 22;
 
 /** Pick a class before each run. Its weapon is the starting weapon and unlocks the synergy. */
 export class ClassScene extends Phaser.Scene {
@@ -27,34 +28,40 @@ export class ClassScene extends Phaser.Scene {
     this.add.image(0, 0, 'bg').setOrigin(0).setAlpha(0.6);
     text(this, W / 2, 4, 'PILIH KELAS', COLOR.gold, 16).setOrigin(0.5, 0);
 
+    text(this, 4, 4, '<', COLOR.gray)
+      .setPadding(4)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.scene.start('hub'));
     this.markers = [];
     this.names = [];
     CLASS_IDS.forEach((id, i) => {
       const c = CLASSES[id];
-      const y = ROW_Y + i * ROW_H;
-      this.markers.push(text(this, 20, y + 2, '>', COLOR.gold));
-      this.add.image(38, y + 6, `hero_idle_${id}`).setDepth(100);
-      this.names.push(
-        text(this, 52, y + 2, c.name)
-          .setInteractive({ useHandCursor: true })
-          // First tap selects (shows traits), tapping the selected class starts.
-          .on('pointerdown', () => {
-            if (this.selected === i) return this.start();
-            this.selected = i;
-            this.refresh();
-          }),
-      );
-      const icon = this.add.image(170, y + 6, `w_${c.weapon}`).setDepth(100);
-      // Tall icons (bow) would touch the next row.
-      icon.setScale(Math.min(1, 11 / icon.height));
-      text(this, 190, y + 2, WEAPONS[c.weapon].name, COLOR.gray);
+      const x = (i % 2) * 156 + 4;
+      const y = ROW_Y + Math.floor(i / 2) * ROW_H;
+      this.add.rectangle(x + 76, y + 9, 150, 20, 0x1d2b53, 0.7);
+      this.markers.push(text(this, x + 2, y + 5, '>', COLOR.gold));
+      this.add.image(x + 22, y + 8, `hero_idle_${id}`).setDepth(100);
+      this.names.push(text(this, x + 34, y + 1, c.name));
+      text(this, x + 34, y + 12, WEAPONS[c.weapon].name, COLOR.gray, 6);
+      this.add
+        .zone(x + 76, y + 9, 150, 20)
+        .setDepth(110)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => {
+          if (this.selected === i) return this.start();
+          this.selected = i;
+          this.refresh();
+        });
     });
 
     const wrap = { width: W - 30 };
     this.trait = text(this, 16, 116, '', COLOR.text).setWordWrapWidth(wrap.width).setLineSpacing(3);
-    this.synergyTitle = text(this, 16, 137, '', COLOR.gold);
-    this.synergyDesc = text(this, 16, 148, '', COLOR.blue).setWordWrapWidth(wrap.width).setLineSpacing(3);
-    text(this, W / 2, 171, 'W/S PILIH  J MULAI  ESC KEMBALI', COLOR.gray).setOrigin(0.5, 0);
+    this.synergyTitle = text(this, 16, 139, '', COLOR.gold, 7);
+    this.synergyDesc = text(this, 16, 150, '', COLOR.blue, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
+    text(this, W / 2, 173, isTouchDevice() ? 'KETUK KELAS 2X UNTUK MULAI' : 'W/S PILIH  J MULAI  ESC KEMBALI', COLOR.gray, 6).setOrigin(
+      0.5,
+      0,
+    );
 
     const kb = this.input.keyboard!;
     kb.on('keydown-W', () => this.move(-1));
@@ -77,7 +84,7 @@ export class ClassScene extends Phaser.Scene {
     this.markers.forEach((m, i) => m.setVisible(i === this.selected));
     this.names.forEach((n, i) => n.setColor(i === this.selected ? COLOR.gold : COLOR.text));
     this.trait.setText(`SIFAT: ${c.trait}`);
-    this.synergyTitle.setText(`SINERGI (${WEAPONS[c.weapon].name}): ${c.synergy.name}`);
+    this.synergyTitle.setText(`SINERGI: ${c.synergy.name}`);
     this.synergyDesc.setText(c.synergy.desc);
   }
 

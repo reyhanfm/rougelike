@@ -1,7 +1,7 @@
 import type { WeaponId } from './loot.ts';
 import type { Derived } from './stats.ts';
 
-export type ClassId = 'ksatria' | 'pembunuh' | 'dragoon' | 'berserker' | 'pemburu' | 'magicArcher' | 'reaper';
+export type ClassId = 'ksatria' | 'pembunuh' | 'dragoon' | 'berserker' | 'pemburu' | 'magicArcher' | 'reaper' | 'gunners';
 
 export interface GameClass {
   id: ClassId;
@@ -21,9 +21,9 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'KSATRIA',
     weapon: 'pedang',
     color: 'c',
-    trait: 'HP +30%, DAMAGE DITERIMA -10%',
+    trait: 'HP +20%, DAMAGE DITERIMA -10%',
     apply: (s) => {
-      s.maxHp *= 1.3;
+      s.maxHp *= 1.2;
       s.damageTaken *= 0.9;
     },
     synergy: {
@@ -73,15 +73,15 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'BERSERKER',
     weapon: 'kapak',
     color: '8',
-    trait: 'DAMAGE +20%, +30% LAGI SAAT HP < 50%',
+    trait: 'DAMAGE +20%, +25% SAAT HP < 50%',
     apply: (s) => {
       s.damage *= 1.2;
-      s.rage += 0.3;
+      s.rage += 0.25;
     },
     synergy: {
       name: 'HAUS DARAH',
-      desc: 'PULIH 6% DARI DAMAGE YANG DIBERIKAN',
-      apply: (s) => void (s.lifesteal += 0.06),
+      desc: 'PULIH 4% DARI DAMAGE YANG DIBERIKAN',
+      apply: (s) => void (s.lifesteal += 0.04),
     },
   },
   pemburu: {
@@ -106,10 +106,10 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'MAGIC ARCHER',
     weapon: 'busur',
     color: 'e',
-    trait: 'SEMUA PANAH MENGEJAR MUSUH, SKILL +20%, HP -10%',
+    trait: 'PANAH PELACAK, DMG -15%, HP -10%',
     apply: (s) => {
       s.homingArrows = 1;
-      s.skillPower *= 1.2;
+      s.damage *= 0.85;
       s.maxHp *= 0.9;
     },
     synergy: {
@@ -123,16 +123,32 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'GRIM REAPER',
     weapon: 'sabit',
     color: '6',
-    trait: 'SOUL +25%, +3 HP TIAP MEMBUNUH, HP -10%',
+    trait: 'SOUL +20%, +2 HP/KILL, HP -10%',
     apply: (s) => {
-      s.soulMult *= 1.25;
-      s.healOnKill += 3;
+      s.soulMult *= 1.2;
+      s.healOnKill += 2;
       s.maxHp *= 0.9;
     },
     synergy: {
       name: 'JIWA TERKUTUK',
       desc: 'TIAP KILL MELEPAS JIWA YANG MEMBURU MUSUH',
       apply: (s) => void (s.killSouls += 1),
+    },
+  },
+  gunners: {
+    id: 'gunners',
+    name: 'GUNNERS',
+    weapon: 'senapan',
+    color: '3',
+    trait: 'HP +10%, LARI -5%; TAHAN SERANG',
+    apply: (s) => {
+      s.maxHp *= 1.1;
+      s.speed *= 0.95;
+    },
+    synergy: {
+      name: 'DISIPLIN TEMPUR',
+      desc: 'JEDA TEMBAK -15%, SKILL GRANAT',
+      apply: (s) => void (s.swingCooldown *= 0.85),
     },
   },
 };
