@@ -1,0 +1,24 @@
+{
+  "name": "rougelike",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "check": "node src/logic/game.check.ts",
+    "test": "npm run check",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "verify": "npm run typecheck && npm run check && npm run build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.0"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
+  }
+}
