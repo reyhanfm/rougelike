@@ -6,8 +6,8 @@ import { WEAPONS, type WeaponId } from '../logic/loot.ts';
 import { loadSave, writeSave } from '../logic/save.ts';
 import type { RunData } from './RunScene.ts';
 
-const ROW_Y = 30;
-const ROW_H = 14;
+const ROW_Y = 23;
+const ROW_H = 13;
 
 /** Pick a class before each run. Its weapon is the starting weapon and unlocks the synergy. */
 export class ClassScene extends Phaser.Scene {
@@ -25,7 +25,7 @@ export class ClassScene extends Phaser.Scene {
   create(): void {
     this.selected = Math.max(0, CLASS_IDS.indexOf(loadSave().cls));
     this.add.image(0, 0, 'bg').setOrigin(0).setAlpha(0.6);
-    text(this, W / 2, 6, 'PILIH KELAS', COLOR.gold, 16).setOrigin(0.5, 0);
+    text(this, W / 2, 4, 'PILIH KELAS', COLOR.gold, 16).setOrigin(0.5, 0);
 
     this.markers = [];
     this.names = [];
@@ -37,12 +37,16 @@ export class ClassScene extends Phaser.Scene {
       this.names.push(
         text(this, 52, y + 2, c.name)
           .setInteractive({ useHandCursor: true })
+          // First tap selects (shows traits), tapping the selected class starts.
           .on('pointerdown', () => {
+            if (this.selected === i) return this.start();
             this.selected = i;
-            this.start();
+            this.refresh();
           }),
       );
-      this.add.image(170, y + 6, `w_${c.weapon}`).setDepth(100);
+      const icon = this.add.image(170, y + 6, `w_${c.weapon}`).setDepth(100);
+      // Tall icons (bow) would touch the next row.
+      icon.setScale(Math.min(1, 11 / icon.height));
       text(this, 190, y + 2, WEAPONS[c.weapon].name, COLOR.gray);
     });
 

@@ -2,7 +2,7 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="Pedang Jiwa — roguelike platformer retro. Gugur, upgrade stat, coba lagi." />
     <meta name="theme-color" content="#000000" />
     <link rel="icon" href="data:," />
@@ -25,6 +25,123 @@
       }
       canvas {
         image-rendering: pixelated;
+      }
+      /* Mobile: no scroll, zoom, text selection or long-press menu while playing. */
+      html,
+      body {
+        touch-action: none;
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #touch {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        pointer-events: none;
+        font-family: 'Press Start 2P', monospace;
+      }
+      #touch .t-top,
+      #touch .t-pad,
+      #touch .t-acts {
+        position: absolute;
+        pointer-events: auto;
+        display: grid;
+        gap: 8px;
+      }
+      #touch button {
+        font: inherit;
+        font-size: 9px;
+        color: #fff1e8;
+        background: rgba(29, 43, 83, 0.45);
+        border: 2px solid rgba(255, 241, 232, 0.45);
+        border-radius: 10px;
+        padding: 0;
+        touch-action: none;
+      }
+      #touch button.on {
+        background: rgba(255, 236, 39, 0.45);
+        border-color: #ffec27;
+      }
+      #touch .t-top {
+        top: max(6px, env(safe-area-inset-top));
+        right: max(6px, env(safe-area-inset-right));
+        grid-auto-flow: row;
+        gap: 6px;
+      }
+      #touch .t-top button {
+        height: 28px;
+        min-width: 44px;
+        padding: 0 8px;
+        font-size: 7px;
+      }
+      /* Menus are tap-driven: only the fullscreen toggle stays. */
+      #touch.menu .t-pad,
+      #touch.menu .t-acts,
+      #touch.menu .t-top [data-key] {
+        display: none;
+      }
+      #touch .t-pad {
+        left: max(12px, env(safe-area-inset-left));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        grid-template-columns: repeat(3, 56px);
+        grid-template-rows: repeat(3, 56px);
+      }
+      #touch .t-pad button {
+        font-size: 16px;
+      }
+      #touch .up {
+        grid-area: 1 / 2;
+      }
+      #touch .left {
+        grid-area: 2 / 1;
+      }
+      #touch .right {
+        grid-area: 2 / 3;
+      }
+      #touch .down {
+        grid-area: 3 / 2;
+      }
+      #touch .t-acts {
+        right: max(12px, env(safe-area-inset-right));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        grid-template-columns: repeat(3, 64px);
+        grid-template-rows: 48px 64px;
+      }
+      #touch .skill {
+        grid-area: 1 / 2;
+      }
+      #touch .ult {
+        grid-area: 1 / 3;
+      }
+      #touch .dash {
+        grid-area: 2 / 1;
+      }
+      #touch .atk {
+        grid-area: 2 / 2;
+      }
+      #touch .jump {
+        grid-area: 2 / 3;
+      }
+      /* Narrow portrait phones (360-430px): pad + actions must fit side by side. */
+      @media (max-width: 430px) {
+        #touch .t-pad,
+        #touch .t-acts {
+          gap: 6px;
+        }
+        #touch .t-pad {
+          grid-template-columns: repeat(3, 46px);
+          grid-template-rows: repeat(3, 46px);
+        }
+        #touch .t-acts {
+          grid-template-columns: repeat(3, 52px);
+          grid-template-rows: 40px 52px;
+        }
+        #touch button {
+          font-size: 7px;
+        }
       }
     </style>
   </head>

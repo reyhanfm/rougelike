@@ -1,7 +1,7 @@
 import type { Derived } from './stats.ts';
 import { CLASSES, hasSynergy, type ClassId } from './classes.ts';
 
-export type WeaponId = 'pedang' | 'belati' | 'tombak' | 'kapak' | 'busur';
+export type WeaponId = 'pedang' | 'belati' | 'tombak' | 'kapak' | 'busur' | 'sabit';
 
 export type MoveAnim = 'down' | 'up' | 'overhead' | 'thrust' | 'shoot' | 'spin' | 'plunge';
 
@@ -183,6 +183,32 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     skill: { name: 'PANAH KIPAS', desc: '5 PANAH MENYEBAR', cd: 4 },
     ult: { name: 'HUJAN PANAH', desc: 'PANAH JATUH KE SEMUA MUSUH' },
   },
+  sabit: {
+    id: 'sabit',
+    name: 'SABIT MAUT',
+    desc: 'SAPUAN LEBAR, COMBO 3',
+    dmg: 1.3,
+    cd: 1.3,
+    crit: 0.05,
+    combo: [
+      { anim: 'down', dmg: 1, cd: 1, ms: 150, reach: box(30, 22), knockback: 120 },
+      { anim: 'up', dmg: 1, cd: 1, ms: 150, reach: box(30, 22), knockback: 120 },
+      { anim: 'spin', dmg: 1.6, cd: 1.5, ms: 240, reach: box(40, 30), knockback: 180, hitbox: 'around' },
+    ],
+    air: {
+      name: 'TEBASAN BULAN',
+      anim: 'spin',
+      dmg: 1.2,
+      cd: 1.2,
+      ms: 220,
+      reach: box(32, 32),
+      knockback: 140,
+      hitbox: 'around',
+      hover: 60,
+    },
+    skill: { name: 'TUAI JIWA', desc: 'TARIK MUSUH SEKITAR LALU TEBAS', cd: 5 },
+    ult: { name: 'PANEN MAUT', desc: 'TEBAS SEMUA MUSUH, PULIH TIAP KENA' },
+  },
 };
 
 /** How long after an attack becomes ready the next press still continues the combo. */
@@ -230,6 +256,11 @@ export type ItemId =
   | 'jimat'
   | 'lonceng'
   | 'tapal'
+  | 'roti'
+  | 'tulang'
+  | 'tengkorak'
+  | 'lentera'
+  | 'mahkotaMaut'
   | 'jam'
   | 'kristal'
   | 'perisai'
@@ -340,6 +371,24 @@ export const ITEMS: Record<ItemId, Item> = {
       s.iframes += 400;
     },
   },
+  roti: { name: 'ROTI HANGAT', desc: 'PULIH 0.5 HP/DTK', rarity: 'biasa', apply: (s) => void (s.regen += 0.5) },
+  tulang: { name: 'KALUNG TULANG', desc: 'DAMAGE +3', rarity: 'biasa', apply: (s) => void (s.damage += 3) },
+  tengkorak: {
+    name: 'TENGKORAK KUTUK',
+    desc: 'DAMAGE +35%, DITERIMA +15%',
+    rarity: 'rare',
+    apply: (s) => {
+      s.damage *= 1.35;
+      s.damageTaken *= 1.15;
+    },
+  },
+  lentera: { name: 'LENTERA JIWA', desc: 'MEMBUNUH = JIWA PEMBURU', rarity: 'legend', apply: (s) => void (s.killSouls += 1) },
+  mahkotaMaut: {
+    name: 'MAHKOTA MAUT',
+    desc: 'EKSEKUSI MUSUH HP < 20%',
+    rarity: 'godly',
+    apply: (s) => void (s.execute = Math.max(s.execute, 0.2)),
+  },
   jiwaAbadi: {
     name: 'JIWA ABADI',
     desc: 'ULTI TERISI SENDIRI, SKILL X1.5',
@@ -374,6 +423,7 @@ export function runStats(base: Derived, weapon: Weapon, items: readonly ItemId[]
   s.echo = Math.min(0.9, s.echo);
   s.speed = Math.min(190, s.speed);
   s.extraJumps = Math.min(3, s.extraJumps);
+  s.killSouls = Math.min(3, s.killSouls);
   return s;
 }
 

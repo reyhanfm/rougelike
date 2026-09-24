@@ -170,4 +170,29 @@ export const SKILLS: Record<WeaponId, { skill: SkillFn; ult: SkillFn }> = {
       });
     },
   },
+
+  sabit: {
+    // Pull everything nearby in (negative knockback), then reap it.
+    skill: ({ p, world, scene, power }) => {
+      p.spin(400);
+      world.area(p.x, p.y, 80, 0.4 * power, -230, 'skill');
+      // Small push so reaped enemies stay in reach of the next swing.
+      later(scene, 250, () => world.area(p.x, p.y, 34, 1.4 * power, 40, 'skill'));
+    },
+    // Cut every enemy on screen, healing for each one hit.
+    ult: ({ p, world, scene, power }) => {
+      const targets = world.targets(p.x, p.y);
+      if (!targets.length) return false;
+      p.invuln(targets.length * 70 + 500);
+      p.spin(600);
+      scene.cameras.main.flash(200, 60, 0, 60);
+      targets.forEach((t, i) =>
+        later(scene, 150 + i * 70, () => {
+          if (!t.active) return;
+          world.strike(t, 2.2 * power, 'ult', false);
+          p.heal(5);
+        }),
+      );
+    },
+  },
 };

@@ -59,6 +59,10 @@ export interface Derived {
   extraArrows: number;
   /** Extra coins per cleared round. */
   coinBonus: number;
+  /** Homing souls released on each kill. */
+  killSouls: number;
+  /** Enemies left below this fraction of max HP die instantly (half for bosses). */
+  execute: number;
 }
 
 export function derive(s: StatLevels): Derived {
@@ -92,6 +96,8 @@ export function derive(s: StatLevels): Derived {
     homingArrows: 0,
     extraArrows: 0,
     coinBonus: 0,
+    killSouls: 0,
+    execute: 0,
   };
 }
 

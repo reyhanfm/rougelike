@@ -38,7 +38,7 @@ export function soulReward(kind: 'enemy' | 'boss', round: number, soulMult: numb
   return Math.round(base * soulMult * weight);
 }
 
-export type EnemyKind = 'slime' | 'bat' | 'boar' | 'archer' | 'eye';
+export type EnemyKind = 'slime' | 'bat' | 'boar' | 'archer' | 'eye' | 'ghost' | 'bomber' | 'shield';
 
 /** hp/dmg/soul are multipliers on the round's base values; `from` is the first round it appears. */
 export const ENEMIES: Record<EnemyKind, { name: string; hp: number; dmg: number; soul: number; from: number; flying: boolean }> = {
@@ -47,6 +47,9 @@ export const ENEMIES: Record<EnemyKind, { name: string; hp: number; dmg: number;
   boar: { name: 'BABI HUTAN', hp: 1.6, dmg: 1.3, soul: 1.5, from: 3, flying: false },
   archer: { name: 'PEMANAH TULANG', hp: 0.8, dmg: 1, soul: 1.5, from: 4, flying: false },
   eye: { name: 'MATA IBLIS', hp: 1.2, dmg: 1, soul: 2, from: 6, flying: true },
+  ghost: { name: 'HANTU', hp: 0.9, dmg: 1.1, soul: 2, from: 7, flying: true },
+  bomber: { name: 'GOBLIN BOM', hp: 0.9, dmg: 1.3, soul: 2, from: 8, flying: false },
+  shield: { name: 'PRAJURIT PERISAI', hp: 2.2, dmg: 1.2, soul: 2.5, from: 10, flying: false },
 };
 
 const ENEMY_KINDS = Object.keys(ENEMIES) as EnemyKind[];

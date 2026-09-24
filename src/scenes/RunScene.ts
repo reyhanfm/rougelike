@@ -135,7 +135,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.physics.add.collider(this.player, platforms, undefined, () => this.time.now >= this.player.dropUntil);
     // Phaser may pass (floor, enemy) here, so find the enemy in either slot.
     this.physics.add.collider(this.enemies, [floor, ...platforms], undefined, (a, b) => !(a instanceof Enemy ? a : (b as Enemy)).flying);
-    this.physics.add.overlap(this.player, this.enemies, (_p, e) => this.hurtPlayer((e as Enemy).damage, (e as Enemy).x, e as Enemy));
+    this.physics.add.overlap(this.player, this.enemies, (_p, e) => {
+      const en = e as Enemy;
+      if (!en.untargetable) this.hurtPlayer(en.damage, en.x, en);
+    });
     this.physics.add.overlap(this.player, this.hazards, (_p, h) => {
       const hz = h as Phaser.Physics.Arcade.Image;
       this.hurtPlayer(hz.getData('dmg') as number, hz.x);
@@ -183,6 +186,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (this.player.swinging) this.swordHits();
     for (const h of this.hazards.getChildren() as Phaser.Physics.Arcade.Image[]) {
       const landed = h.texture.key !== 'wave' && h.y > FLOOR_Y;
+      if (landed && h.texture.key === 'bomb') this.explode(h.x, h.getData('dmg') as number);
       if (landed) burst(this, h.x, FLOOR_Y, h.texture.key === 'meteor' ? 0xffa300 : 0x00e436, 5);
       if (landed || h.x < -10 || h.x > W + 10 || h.y > H + 10 || h.y < -40) h.destroy();
     }
@@ -211,6 +215,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   shockwave(x: number, y: number, damage: number): void {
     for (const dir of [-1, 1]) this.fire(x + dir * 8, y - 3, dir * 130, 0, 'wave', damage);
+  }
+
+  private explode(x: number, damage: number): void {
+    const y = FLOOR_Y - 6;
+    burst(this, x, y, 0xffa300, 14);
+    const ring = this.add.circle(x, y, 4).setStrokeStyle(1, 0xff004d).setDepth(12);
+    this.tweens.add({ targets: ring, radius: 24, alpha: 0, duration: 250, onComplete: () => ring.destroy() });
+    this.cameras.main.shake(80, 0.006);
+    if (Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) < 24) this.hurtPlayer(damage, x);
   }
 
   meteors(count: number, damage: number): void {
@@ -270,7 +283,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const ring = this.add.circle(x, y, 4).setStrokeStyle(1, 0xfff1e8).setDepth(12);
     this.tweens.add({ targets: ring, radius, alpha: 0, duration: 200, onComplete: () => ring.destroy() });
     for (const t of this.hittables()) {
-      if (Phaser.Math.Distance.Between(x, y, t.x, t.y) <= radius) this.attack(t, mult, source, knockback);
+      if (Phaser.Math.Distance.Between(x, y, t.x, t.y) <= radius) this.attack(t, mult, source, knockback, false, x, y);
     }
   }
 
@@ -300,7 +313,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   }
 
   private hittables(): Hittable[] {
-    const list: Hittable[] = (this.enemies.getChildren() as Enemy[]).filter((e) => e.active);
+    const list: Hittable[] = (this.enemies.getChildren() as Enemy[]).filter((e) => e.active && !e.untargetable);
     if (this.boss?.active) list.push(this.boss);
     return list;
   }
@@ -316,7 +329,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     hits.add(t);
     const spec = shot.getData('shot') as ShotSpec;
     if (!spec.pierce) shot.destroy();
-    this.attack(t, spec.mult, spec.source, 80);
+    this.attack(t, spec.mult, spec.source, 80, false, shot.x, shot.y);
   }
 
   private swordHits(): void {
@@ -340,9 +353,26 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
   }
 
-  /** Any player hit: rolls crit (unless forced), feeds the ult meter, triggers item effects. */
-  private attack(t: Hittable, mult: number, source: HitSource, knockback: number, forceCrit = false): void {
+  /**
+   * Any player hit: rolls crit (unless forced), feeds the ult meter, triggers item effects.
+   * (fromX, fromY) is where the hit comes from, for shields; defaults to the player. Ultimates ignore shields.
+   */
+  private attack(
+    t: Hittable,
+    mult: number,
+    source: HitSource,
+    knockback: number,
+    forceCrit = false,
+    fromX = this.player.x,
+    fromY = this.player.y,
+  ): void {
     const st = this.stats;
+    if (source !== 'ult' && t instanceof Enemy && t.blocks(fromX, fromY)) {
+      mult *= 0.2;
+      knockback = 0;
+      floatText(this, t.x, t.y - 18, 'TAHAN', COLOR.gray);
+      burst(this, t.x + Math.sign(fromX - t.x) * 5, t.y, 0xffa300, 4);
+    }
     const crit = forceCrit || Math.random() < st.critChance;
     const enraged = st.rage > 0 && this.player.hp < st.maxHp / 2;
     const dmg = Math.max(1, Math.round(st.damage * mult * (crit ? st.critMult : 1) * (enraged ? 1 + st.rage : 1)));
@@ -359,6 +389,22 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     // Segel Petir: each kill throws bolts at the nearest enemies.
     if (killed) for (let i = 0; i < st.killBolt; i++) this.time.delayedCall(100 + i * 80, () => this.bolt(x, y));
+    // Grim Reaper synergy / Lentera Jiwa: kills release souls that hunt the next enemy.
+    if (killed) {
+      for (let i = 0; i < st.killSouls; i++) {
+        this.shot({
+          x,
+          y,
+          vx: Phaser.Math.Between(-60, 60),
+          vy: -90,
+          texture: 'soul',
+          tint: 0xc2c3c7,
+          mult: 1,
+          source: 'skill',
+          homing: true,
+        });
+      }
+    }
   }
 
   private bolt(x: number, y: number): void {
@@ -392,6 +438,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private damage(t: Hittable, dmg: number, color: string, knockback: number): boolean {
     t.hp -= dmg;
     floatText(this, t.x, t.y - 10, `${dmg}`, color);
+    const execute = t instanceof Boss ? this.stats.execute / 2 : this.stats.execute;
+    if (t.hp > 0 && t.hp <= t.maxHp * execute) {
+      t.hp = 0;
+      floatText(this, t.x, t.y - 20, 'EKSEKUSI', COLOR.red);
+    }
     flash(t, 0xffffff, t instanceof Boss ? t.baseTint : 0xffffff);
     burst(this, t.x, t.y, 0xfff1e8, 4);
     if (!(t instanceof Boss)) t.knockback(Math.sign(t.x - this.player.x) || this.player.facing, knockback);

@@ -1,7 +1,7 @@
 import type { WeaponId } from './loot.ts';
 import type { Derived } from './stats.ts';
 
-export type ClassId = 'ksatria' | 'pembunuh' | 'dragoon' | 'berserker' | 'pemburu' | 'magicArcher';
+export type ClassId = 'ksatria' | 'pembunuh' | 'dragoon' | 'berserker' | 'pemburu' | 'magicArcher' | 'reaper';
 
 export interface GameClass {
   id: ClassId;
@@ -116,6 +116,23 @@ export const CLASSES: Record<ClassId, GameClass> = {
       name: 'PANAH ARKANA',
       desc: 'TIAP TEMBAKAN +1 PANAH PELACAK',
       apply: (s) => void (s.extraArrows += 1),
+    },
+  },
+  reaper: {
+    id: 'reaper',
+    name: 'GRIM REAPER',
+    weapon: 'sabit',
+    color: '6',
+    trait: 'SOUL +25%, +3 HP TIAP MEMBUNUH, HP -10%',
+    apply: (s) => {
+      s.soulMult *= 1.25;
+      s.healOnKill += 3;
+      s.maxHp *= 0.9;
+    },
+    synergy: {
+      name: 'JIWA TERKUTUK',
+      desc: 'TIAP KILL MELEPAS JIWA YANG MEMBURU MUSUH',
+      apply: (s) => void (s.killSouls += 1),
     },
   },
 };

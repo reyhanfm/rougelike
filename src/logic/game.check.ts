@@ -195,6 +195,12 @@ assert.equal(runStats(base, WEAPONS.pedang, [], 'magicArcher').homingArrows, 1);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'magicArcher').extraArrows, 0);
 assert.equal(runStats(base, WEAPONS.busur, [], 'magicArcher').extraArrows, 1);
 assert.equal(runStats(base, WEAPONS.busur, [], 'pemburu').homingArrows, 0);
+// Grim Reaper: kill heal anywhere, hunting souls only with the scythe; items stack souls but capped.
+assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').healOnKill, 3);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').killSouls, 0);
+assert.equal(runStats(base, WEAPONS.sabit, [], 'reaper').killSouls, 1);
+assert.equal(runStats(base, WEAPONS.sabit, ['lentera', 'lentera', 'lentera'], 'reaper').killSouls, 3);
+assert.equal(runStats(base, WEAPONS.pedang, ['mahkotaMaut', 'mahkotaMaut']).execute, 0.2);
 
 // Rewards: 3 distinct items/potion, never a weapon (weapons belong to the class).
 for (let i = 0; i < 200; i++) {

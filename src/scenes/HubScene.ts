@@ -30,6 +30,11 @@ export class HubScene extends Phaser.Scene {
     this.add.image(0, 0, 'bg').setOrigin(0).setAlpha(0.6);
 
     text(this, W / 2, 10, 'PEDANG JIWA', COLOR.gold, 16).setOrigin(0.5, 0);
+    text(this, W - 6, 4, 'MULAI>', COLOR.blue)
+      .setOrigin(1, 0)
+      .setPadding(2)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.startRun());
     const sub = data.died ? `GUGUR DI ROUND ${data.round}  +${data.runSouls ?? 0} SOUL` : 'ROGUELIKE PLATFORMER';
     text(this, W / 2, 34, sub, data.died ? COLOR.red : COLOR.gray).setOrigin(0.5, 0);
 
@@ -40,9 +45,11 @@ export class HubScene extends Phaser.Scene {
     this.rows = STAT_KEYS.map((_, i) =>
       text(this, 40, ROW_Y + i * ROW_H, '')
         .setInteractive({ useHandCursor: true })
+        // First tap selects (shows the description), tapping the selected row buys.
         .on('pointerdown', () => {
+          if (this.selected === i) return this.buy();
           this.selected = i;
-          this.buy();
+          this.refresh();
         }),
     );
     this.descText = text(this, W / 2, ROW_Y + 4 * ROW_H + 4, '', COLOR.blue).setOrigin(0.5, 0);
