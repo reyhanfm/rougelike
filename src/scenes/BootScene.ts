@@ -14,11 +14,11 @@ export class BootScene extends Phaser.Scene {
     for (const [key, rows] of Object.entries(SPRITES)) this.bake(key, rows);
     // Hero frames recolored per class: the blue clothes take the class color, the head (rows 1-3) the hair color.
     for (const cls of CLASS_IDS) {
-      const { color, hair = color } = CLASSES[cls];
+      const { color, hair = color, head } = CLASSES[cls];
       for (const frame of HERO_FRAMES) {
         this.bake(
           `hero_${frame}_${cls}`,
-          SPRITES[`hero_${frame}`].map((r, y) => r.replaceAll('c', y >= 1 && y <= 3 ? hair : color)),
+          SPRITES[`hero_${frame}`].map((r, y) => (head?.[y] ?? r).replaceAll('c', y >= 1 && y <= 3 ? hair : color)),
         );
       }
     }

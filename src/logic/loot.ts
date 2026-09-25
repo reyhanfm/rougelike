@@ -16,12 +16,21 @@ export type WeaponId =
   | 'pedangGelap'
   | 'enamLengan'
   | 'cakarNaga'
-  | 'gerbangBabilonia';
+  | 'gerbangBabilonia'
+  | 'shrine'
+  | 'mugen'
+  | 'sakahoko'
+  | 'gunbai'
+  | 'mokuton'
+  | 'kunai'
+  | 'tongkatFrost';
 
-/** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting. */
+/** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
   burn?: number;
   freeze?: number;
+  /** ms moving at a crawl (Absolute Zero). */
+  slow?: number;
 }
 
 export type MoveAnim = 'down' | 'up' | 'overhead' | 'thrust' | 'shoot' | 'spin' | 'plunge' | 'jab' | 'hook' | 'uppercut';
@@ -52,6 +61,8 @@ export interface Move {
   slam?: number;
   /** Phantom-arm follow-up hits (40% damage each) after the move connects. */
   extra?: number;
+  /** Afterimages of this tint trail the player during the move (Artoria's Mana Burst). */
+  trail?: number;
   /** Projectile texture for this move instead of the weapon's. */
   shot?: string;
   status?: Status;
@@ -67,10 +78,15 @@ export interface Weapon {
   /** Ranged weapons use the same shot pipeline with their own texture and speed. */
   /** returning: one projectile at a time; it flies back and must be caught before the next attack. */
   /** gate: shots come out of golden portals behind the player as random treasure weapons (Gilgamesh). */
-  projectile?: { texture: string; speed: number; homing?: boolean; returning?: boolean; gate?: boolean };
+  /** pierce: every shot passes through enemies (Sukuna's Kai). */
+  projectile?: { texture: string; speed: number; homing?: boolean; returning?: boolean; gate?: boolean; pierce?: boolean };
   automatic?: boolean;
   /** Fists: held upright at the hand instead of as a blade. */
   fist?: boolean;
+  /** The attack key casts a technique (SKILLS[id].basic) instead of swinging; combo[0] describes one cast for balance. */
+  cast?: boolean;
+  /** Attack and skill pressed together cast this instead (SKILLS[id].fusion). cd in seconds. */
+  fusion?: { name: string; desc: string; cd: number };
   combo: Move[];
   /** Used instead of the combo when attacking in mid-air. */
   air: Move & { name: string };
@@ -86,16 +102,17 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   pedang: {
     id: 'pedang',
     name: 'EXCALIBUR',
-    desc: 'PEDANG SUCI, COMBO 4',
+    desc: 'PEDANG SUCI BERSELUBUNG ANGIN, COMBO 4',
     dmg: 1,
     cd: 1,
     crit: 0,
     combo: [
-      { anim: 'down', dmg: 1, cd: 1, ms: 110, reach: box(20, 20), knockback: 100 },
-      { anim: 'up', dmg: 1, cd: 1, ms: 110, reach: box(20, 22), knockback: 100 },
-      // Mana-burst lunge.
-      { anim: 'thrust', dmg: 1.2, cd: 1.1, ms: 150, reach: box(28, 10), knockback: 160, lunge: 220 },
-      { anim: 'overhead', dmg: 1.8, cd: 1.5, ms: 200, reach: box(28, 30), knockback: 240 },
+      { anim: 'down', dmg: 1, cd: 1, ms: 110, reach: box(22, 20), knockback: 100 },
+      { anim: 'up', dmg: 1, cd: 1, ms: 110, reach: box(22, 22), knockback: 100 },
+      // Mana Burst: a blue flare of prana hurls her forward through the enemy.
+      { anim: 'thrust', dmg: 1.3, cd: 1.1, ms: 160, reach: box(30, 12), knockback: 180, lunge: 280, trail: 0x29adff },
+      // Invisible Air falls away for one heavy downward cut.
+      { anim: 'overhead', dmg: 1.9, cd: 1.5, ms: 200, reach: box(30, 32), knockback: 260 },
     ],
     air: {
       name: 'TEBASAN ANGIN',
@@ -103,13 +120,13 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       dmg: 1.1,
       cd: 1.2,
       ms: 220,
-      reach: box(28, 28),
+      reach: box(30, 30),
       knockback: 140,
       hitbox: 'around',
       hover: 90,
     },
-    skill: { name: 'STRIKE AIR', desc: 'LEPAS UDARA TERKOMPRES, DINDING ANGIN MENEMBUS', cd: 5 },
-    ult: { name: 'EXCALIBUR', desc: 'KUMPULKAN CAHAYA, SINAR EMAS SELEBAR ARENA' },
+    skill: { name: 'STRIKE AIR', desc: 'SELUBUNG ANGIN DILEPAS: PUSARAN MENEMBUS & MENGHEMPAS', cd: 5 },
+    ult: { name: 'EXCALIBUR', desc: 'PEDANG DIANGKAT, CAHAYA EMAS MEMBELAH ARENA' },
   },
   belati: {
     id: 'belati',
@@ -460,28 +477,228 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   gerbangBabilonia: {
     id: 'gerbangBabilonia',
     name: 'GERBANG BABILONIA',
-    desc: 'PORTAL EMAS MENEMBAKKAN HARTA',
+    desc: 'GERBANG EMAS MENGHADAP MUSUH, MENEMBAKKAN HARTA',
     projectile: { texture: 'w_pedang', speed: 260, gate: true },
     dmg: 0.8,
     cd: 1.1,
     crit: 0.05,
+    // One gate per angle: 3, 3, then a volley of 6.
     combo: [
-      { anim: 'shoot', dmg: 0.7, cd: 1, ms: 100, reach: box(0, 0), knockback: 70, angles: [0, 0] },
-      { anim: 'shoot', dmg: 0.7, cd: 1, ms: 100, reach: box(0, 0), knockback: 70, angles: [0, 0] },
-      { anim: 'shoot', dmg: 0.6, cd: 1.5, ms: 150, reach: box(0, 0), knockback: 90, angles: [-0.08, 0, 0, 0.08] },
+      { anim: 'shoot', dmg: 0.45, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [-0.06, 0, 0.06] },
+      { anim: 'shoot', dmg: 0.45, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [-0.06, 0, 0.06] },
+      { anim: 'shoot', dmg: 0.35, cd: 1.5, ms: 150, reach: box(0, 0), knockback: 80, angles: [-0.15, -0.09, -0.03, 0.03, 0.09, 0.15] },
     ],
     air: {
       name: 'HUJAN HARTA',
       anim: 'shoot',
-      dmg: 0.7,
+      dmg: 0.45,
       cd: 1.3,
       ms: 120,
       reach: box(0, 0),
       knockback: 60,
-      angles: [0.5, 0.75, 1],
+      angles: [0.5, 0.65, 0.8, 1],
     },
     skill: { name: 'RANTAI ENKIDU', desc: 'RANTAI EMAS MENGIKAT 3 MUSUH 2 DTK', cd: 6 },
-    ult: { name: 'ENUMA ELISH', desc: 'EA BERPUTAR, RETAKAN RUANG KE DEPAN' },
+    ult: { name: 'ENUMA ELISH', desc: 'EA BERPUTAR, BADAI MERAH MEMBELAH LANGIT & BUMI' },
+  },
+  shrine: {
+    id: 'shrine',
+    name: 'SHRINE',
+    desc: 'KAI: TEBASAN TERBANG MENEMBUS, FINISHER HACHI',
+    projectile: { texture: 'kai', speed: 320, pierce: true },
+    dmg: 0.9,
+    cd: 0.9,
+    crit: 0.05,
+    combo: [
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 90, reach: box(0, 0), knockback: 60, angles: [0] },
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 90, reach: box(0, 0), knockback: 60, angles: [0] },
+      // Hachi (Cleave): a crossed cut that hits harder.
+      { anim: 'shoot', dmg: 1.8, cd: 1.5, ms: 150, reach: box(0, 0), knockback: 180, angles: [0], shot: 'hachi' },
+    ],
+    air: { name: 'KAI UDARA', anim: 'shoot', dmg: 1, cd: 1.1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0.45] },
+    skill: { name: 'MALEVOLENT SHRINE', desc: 'DOMAIN: TEBASAN KE SEGALA ARAH, PASTI KENA DI DALAM', cd: 9 },
+    ult: { name: 'WORLD CUTTING SLASH', desc: 'MANTRA, LALU DUNIA TERBELAH: TIDAK ADA YANG LOLOS' },
+  },
+  mugen: {
+    id: 'mugen',
+    name: 'MUGEN',
+    desc: 'J: AO MENARIK, L: AKA MENGHEMPAS, J+L: MURASAKI',
+    cast: true,
+    dmg: 1.1,
+    cd: 2.2,
+    crit: 0.05,
+    // One Blue cast: four crushing ticks of 0.5.
+    combo: [{ anim: 'thrust', dmg: 2, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 }],
+    air: { name: 'AO', anim: 'thrust', dmg: 2, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 },
+    skill: { name: 'AKA', desc: 'MERAH: TOLAKAN MENGHEMPAS SEMUA DI DEPAN', cd: 3 },
+    fusion: { name: 'MURASAKI', desc: 'J+L: UNGU HAMPA MENGHAPUS SEMUA DI JALURNYA', cd: 8 },
+    ult: { name: 'MURYOKUSHO', desc: 'DOMAIN: SEMUA MUSUH BEKU, LALU DIHANTAM' },
+  },
+  sakahoko: {
+    id: 'sakahoko',
+    name: 'AMA NO SAKAHOKO',
+    desc: 'BELATI PEMBATAL, TUSUKAN CEPAT',
+    dmg: 0.9,
+    cd: 0.75,
+    crit: 0.1,
+    combo: [
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 90, reach: box(26, 10), knockback: 90 },
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 90, reach: box(26, 10), knockback: 90, lunge: 120 },
+      { anim: 'down', dmg: 1.1, cd: 1, ms: 110, reach: box(24, 22), knockback: 120 },
+      { anim: 'thrust', dmg: 1.7, cd: 1.5, ms: 160, reach: box(32, 12), knockback: 220, lunge: 300 },
+    ],
+    air: {
+      name: 'TIKAMAN LANGIT',
+      anim: 'plunge',
+      dmg: 1.2,
+      cd: 1.1,
+      ms: 900,
+      reach: box(12, 16),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 140, vy: 360 },
+      slam: 22,
+    },
+    skill: { name: 'PLAYFUL CLOUD', desc: 'TONGKAT 3 RUAS BERPUTAR, HANTAM 3X', cd: 5 },
+    ult: { name: 'PEMBELAH JIWA', desc: 'MUNCUL DI BELAKANG TIAP MUSUH, TEBASAN KRITIS' },
+  },
+  gunbai: {
+    id: 'gunbai',
+    name: 'GUNBAI & KAMA',
+    desc: 'KIPAS PERANG UCHIHA, LEMPAR KAMA, HEMPASAN ANGIN',
+    projectile: { texture: 'kama', speed: 260 },
+    dmg: 1.1,
+    cd: 1.1,
+    crit: 0.05,
+    combo: [
+      { anim: 'down', dmg: 1, cd: 1, ms: 130, reach: box(26, 24), knockback: 140 },
+      { anim: 'up', dmg: 1, cd: 1, ms: 130, reach: box(26, 26), knockback: 140 },
+      // Kama: the chained sickle is thrown ahead.
+      { anim: 'shoot', dmg: 1.1, cd: 1, ms: 120, reach: box(0, 0), knockback: 90, angles: [0] },
+      // Gunbai gust: a great sweep blows everything around away.
+      { anim: 'spin', dmg: 1.6, cd: 1.5, ms: 220, reach: box(44, 32), knockback: 280, hitbox: 'around' },
+    ],
+    air: {
+      name: 'KIPASAN BADAI',
+      anim: 'spin',
+      dmg: 1.1,
+      cd: 1.2,
+      ms: 220,
+      reach: box(30, 30),
+      knockback: 180,
+      hitbox: 'around',
+      hover: 90,
+    },
+    skill: { name: 'KATON: GOKAKYU', desc: 'BOLA API RAKSASA MENEMBUS & MEMBAKAR', cd: 6 },
+    ult: { name: 'SUSANOO SEMPURNA', desc: 'SUSANOO BIRU BANGKIT, PEDANGNYA MEMBELAH MUSUH' },
+  },
+  mokuton: {
+    id: 'mokuton',
+    name: 'MOKUTON',
+    desc: 'ELEMEN KAYU: TUSUKAN AKAR, LEDAKAN HUTAN',
+    dmg: 1.2,
+    cd: 1.2,
+    crit: 0,
+    combo: [
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 130, reach: box(34, 10), knockback: 150 },
+      { anim: 'up', dmg: 1, cd: 1, ms: 130, reach: box(26, 26), knockback: 140 },
+      // Wood bursts out all around and snags whatever it hits.
+      { anim: 'spin', dmg: 1.5, cd: 1.5, ms: 220, reach: box(44, 32), knockback: 220, hitbox: 'around', status: { freeze: 300 } },
+    ],
+    air: {
+      name: 'PILAR KAYU',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.3,
+      ms: 1200,
+      reach: box(14, 18),
+      knockback: 200,
+      hitbox: 'below',
+      dive: { vx: 40, vy: 400 },
+      slam: 30,
+    },
+    skill: { name: 'JUKAI KOTAN', desc: 'POHON RAKSASA TUMBUH, CABANG MENGIKAT (UDARA JUGA)', cd: 6 },
+    ult: { name: 'MOKUTON: SHIN SUSENJU', desc: 'BUDDHA KAYU SERIBU TANGAN MENGHANTAM SEMUA MUSUH' },
+  },
+  kunai: {
+    id: 'kunai',
+    name: 'KUNAI & SHURIKEN',
+    desc: 'TEBAS KUNAI, LEMPAR SHURIKEN, KATON: HOSENKA',
+    projectile: { texture: 'shuriken', speed: 280 },
+    dmg: 0.9,
+    cd: 0.9,
+    crit: 0.05,
+    combo: [
+      // Close in: two quick kunai cuts.
+      { anim: 'down', dmg: 1, cd: 1, ms: 90, reach: box(22, 18), knockback: 90 },
+      { anim: 'up', dmg: 1, cd: 1, ms: 90, reach: box(22, 20), knockback: 90 },
+      // Shurikenjutsu: three shuriken in a tight fan.
+      { anim: 'shoot', dmg: 0.7, cd: 1.1, ms: 110, reach: box(0, 0), knockback: 50, angles: [-0.12, 0, 0.12] },
+      // Katon: Hosenka: a spray of small fireballs.
+      {
+        anim: 'shoot',
+        dmg: 0.6,
+        cd: 1.5,
+        ms: 150,
+        reach: box(0, 0),
+        knockback: 60,
+        angles: [-0.3, -0.1, 0.1, 0.3],
+        shot: 'fireball',
+        status: { burn: 0.15 },
+      },
+    ],
+    air: {
+      name: 'HUJAN SHURIKEN',
+      anim: 'shoot',
+      dmg: 0.8,
+      cd: 1.2,
+      ms: 110,
+      reach: box(0, 0),
+      knockback: 50,
+      angles: [0.5, 0.8, 1.1],
+      hover: 70,
+    },
+    skill: { name: 'AMATERASU', desc: 'API HITAM ABADI MEMBAKAR MUSUH & MENJALAR', cd: 7 },
+    ult: { name: 'TSUKUYOMI', desc: 'DUNIA MERAH: SEMUA MUSUH TERJEBAK 72 JAM DALAM SEDETIK' },
+  },
+  tongkatFrost: {
+    id: 'tongkatFrost',
+    name: 'TONGKAT GEMBALA',
+    desc: 'SEMBURAN ES, FINISHER BOLA SALJU',
+    projectile: { texture: 'iceshard', speed: 240 },
+    dmg: 0.9,
+    cd: 1,
+    crit: 0.05,
+    combo: [
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 40, angles: [0], status: { freeze: 250 } },
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 40, angles: [0], status: { freeze: 250 } },
+      // Snowball: a big hit that knocks back and freezes longer.
+      {
+        anim: 'shoot',
+        dmg: 1.6,
+        cd: 1.4,
+        ms: 140,
+        reach: box(0, 0),
+        knockback: 160,
+        angles: [0],
+        shot: 'snowball',
+        status: { freeze: 600 },
+      },
+    ],
+    air: {
+      name: 'ANGIN MALAM',
+      anim: 'shoot',
+      dmg: 0.9,
+      cd: 1.2,
+      ms: 120,
+      reach: box(0, 0),
+      knockback: 40,
+      angles: [0.4, 0.8],
+      status: { freeze: 250 },
+      hover: 120,
+    },
+    skill: { name: 'FROST NOVA', desc: 'LEDAKAN DINGIN DI SEKITAR, BEKUKAN MUSUH', cd: 5 },
+    ult: { name: 'ABSOLUTE ZERO', desc: 'ARENA MEMBEKU: MUSUH MELAMBAT, BEKU, HP TERKIKIS' },
   },
 };
 

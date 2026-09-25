@@ -8,8 +8,8 @@ import { loadSave, writeSave } from '../logic/save.ts';
 import { isTouchDevice } from '../touch.ts';
 import type { RunData } from './RunScene.ts';
 
-const ROW_Y = 22;
-const ROW_H = 15;
+const ROW_Y = 21;
+const ROW_H = 10;
 const COLS = 3;
 const CELL_W = 105;
 
@@ -42,20 +42,20 @@ export class ClassScene extends Phaser.Scene {
       const c = CLASSES[id];
       const x = (i % COLS) * CELL_W + 3;
       const y = ROW_Y + Math.floor(i / COLS) * ROW_H;
-      this.add.rectangle(x + 51, y + 7, 102, 14, 0x1d2b53, 0.7);
+      this.add.rectangle(x + 51, y + 4.5, 102, 9, 0x1d2b53, 0.7);
       this.markers.push(
         this.add
-          .rectangle(x + 51, y + 7, 102, 14)
+          .rectangle(x + 51, y + 4.5, 102, 9)
           .setStrokeStyle(1, 0xffec27)
           .setDepth(101),
       );
       this.add
-        .image(x + 8, y + 7, `hero_idle_${id}`)
-        .setScale(0.85)
+        .image(x + 8, y + 4.5, `hero_idle_${id}`)
+        .setScale(0.6)
         .setDepth(100);
-      this.names.push(text(this, x + 16, y + 4, c.name, COLOR.text, 7));
+      this.names.push(text(this, x + 16, y + 1, c.name, COLOR.text, 7));
       this.add
-        .zone(x + 51, y + 7, 102, 14)
+        .zone(x + 51, y + 4.5, 102, 9)
         .setDepth(110)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => {
@@ -111,13 +111,15 @@ export class ClassScene extends Phaser.Scene {
     const save = loadSave();
     save.cls = cls;
     writeSave(save);
-    // Dev shortcuts: ?round=10 jumps to a boss, ?weapon=busur overrides the class weapon.
+    // Dev shortcuts: ?round=10 jumps to a boss, ?weapon=busur overrides the class weapon, ?mahoraga / ?leviathan / ?godzilla (any mix) force the bonus round, ?elite an elite round.
     const q = new URLSearchParams(import.meta.env.DEV ? location.search : '');
     const weapon = q.get('weapon');
     this.scene.start('run', {
       round: Number(q.get('round')) || 1,
       cls,
       weapon: weapon && weapon in WEAPONS ? (weapon as WeaponId) : undefined,
+      specials: (['mahoraga', 'leviathan', 'godzilla'] as const).filter((k) => q.has(k)),
+      eliteRound: q.has('elite'),
     } satisfies RunData);
   }
 }

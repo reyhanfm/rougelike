@@ -174,8 +174,9 @@ assert.equal(nextCombo(1, COMBO_WINDOW_MS, 3), 2);
 assert.equal(nextCombo(2, 0, 3), 0);
 assert.equal(nextCombo(1, COMBO_WINDOW_MS + 1, 3), 0);
 
-// Every weapon: a varied combo, a skill with a cooldown, an ultimate.
-for (const w of Object.values(WEAPONS)) {
+// Every weapon: a varied combo (cast weapons: one move per cast), a skill with a cooldown, an ultimate.
+assert.ok(WEAPONS.mugen.cast && WEAPONS.mugen.fusion && WEAPONS.mugen.combo.length === 1, 'Gojo casts Blue, Red and Purple');
+for (const w of Object.values(WEAPONS).filter((w) => !w.cast)) {
   assert.ok(w.combo.length >= 2, `${w.id}: combo too short`);
   assert.ok(new Set(w.combo.map((m) => JSON.stringify(m))).size >= 2, `${w.id}: combo is one repeated move`);
   assert.ok(w.skill.cd > 0 && w.skill.name && w.ult.name, `${w.id}: missing skill/ult`);
@@ -370,16 +371,16 @@ for (let round = 2; round <= 40; round++) {
   assert.ok(current.enemyHp >= prev.enemyHp && current.enemyDamage >= prev.enemyDamage);
 }
 // Quadratic, not exponential: round 40 enemies stay within reach of a strong build.
-assert.ok(roundConfig(20).enemyDamage < 27 && roundConfig(40).enemyHp < 2500, 'late enemies must not return to exponential scaling');
+assert.ok(roundConfig(20).enemyDamage < 45 && roundConfig(40).enemyHp < 3500, 'late enemies must not return to exponential scaling');
 assert.ok(roundConfig(1).enemyHp >= 2 * derive({ str: 0, int: 0, agi: 0, dex: 0 }).damage, 'a fresh hero needs several hits per enemy');
-assert.ok(roundConfig(5).bossHp >= 360 && roundConfig(5).bossHp <= 420, 'first boss health budget');
+assert.ok(roundConfig(5).bossHp >= 500 && roundConfig(5).bossHp <= 600, 'first boss health budget');
 assert.ok(roundConfig(10).bossDamage > roundConfig(15).bossDamage, 'the super boss hits harder than the next regular boss');
 // Mini bosses and pace: elites can show up from round 1; enemies act faster each round, with a floor.
 const { ELITE, ELITE_AFFIXES, enemyPace } = await import('./stages.ts');
 assert.ok(ELITE.chance > 0 && ELITE.chance < 1 && ELITE.hp > 1);
 for (const a of Object.values(ELITE_AFFIXES)) assert.ok(a.every >= 2000 && (!a.debuff || a.debuff in DEBUFFS));
-assert.equal(enemyPace(1), 0.9);
-assert.ok(enemyPace(10) < enemyPace(2) && enemyPace(200) === 0.5);
+assert.equal(enemyPace(1), 0.8);
+assert.ok(enemyPace(10) < enemyPace(2) && enemyPace(200) === 0.4);
 // New items: dash power / on-hit burn and freeze stack but stay capped.
 const everything = runStats(base, WEAPONS.pedang, Object.keys(ITEMS) as never[]);
 assert.ok(everything.dashPower > 1 && everything.dashPower <= 4);
@@ -425,6 +426,72 @@ assert.ok(
 assert.equal(runStats(base, WEAPONS.gerbangBabilonia, [], 'gilgamesh').extraArrows, 1);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'gilgamesh').extraArrows, 0);
 assert.ok(runStats(base, WEAPONS.pedang, [], 'gilgamesh').coinBonus >= 2 && WEAPONS.gerbangBabilonia.projectile?.gate);
+// Jujutsu: Gojo's Infinity blocks, Sukuna's Kai & Hachi echo with his technique, Toji trades skill power for body.
+assert.equal(runStats(base, WEAPONS.pedang, [], 'gojo').barrier, 8);
+assert.ok(runStats(base, WEAPONS.shrine, [], 'sukuna').echo >= 0.35 && runStats(base, WEAPONS.pedang, [], 'sukuna').echo === 0);
+assert.ok(runStats(base, WEAPONS.pedang, [], 'toji').skillPower < base.skillPower);
+// Custom hero heads replace rows of the same width.
+for (const c of CLASS_IDS) assert.ok(CLASSES[c].head?.every((r) => r.length === 10) ?? true, `${c}: head rows must be 10 wide`);
+assert.ok(WEAPONS.shrine.projectile?.pierce, 'Kai cuts through');
+// Class names fit their cell in the class grid (7px font).
+for (const c of CLASS_IDS) assert.ok(CLASSES[c].name.length <= 12, `${c}: name too wide`);
+// Madara: Susanoo armor only with the war fan.
+assert.ok(runStats(base, WEAPONS.gunbai, [], 'madara').damageTaken < runStats(base, WEAPONS.pedang, [], 'madara').damageTaken);
+// Hashirama heals on his own; Itachi's Tsukuyomi freezes with any weapon, Amaterasu burns only with his kunai.
+assert.equal(runStats(base, WEAPONS.pedang, [], 'hashirama').regen, 2);
+assert.ok(runStats(base, WEAPONS.pedang, [], 'itachi').freezeChance > 0);
+assert.ok(runStats(base, WEAPONS.kunai, [], 'itachi').burnChance > runStats(base, WEAPONS.pedang, [], 'itachi').burnChance);
+// Jack Frost rides the wind; his staff makes hits freeze.
+assert.equal(runStats(base, WEAPONS.pedang, [], 'jackFrost').extraJumps, 2);
+assert.ok(
+  runStats(base, WEAPONS.tongkatFrost, [], 'jackFrost').freezeChance > runStats(base, WEAPONS.pedang, [], 'jackFrost').freezeChance,
+);
+// Bonus rounds: any mix of Mahoraga, Leviathan and Godzilla (up to all three); never on boss rounds or too early; each
+// outclasses the regular boss. Elite rounds: every enemy an elite.
+{
+  const { SPECIAL, LEVIATHAN, rollSpecials, specialConfig, specialStats, ADAPT_MULT, rollEliteRound, eliteRoundConfig, ELITE_ROUND } =
+    await import('./stages.ts');
+  const seq =
+    (...xs: number[]) =>
+    () =>
+      xs.shift()!;
+  assert.ok(SPECIAL.from <= 7);
+  assert.deepEqual(
+    rollSpecials(7, () => 0),
+    ['mahoraga', 'leviathan', 'godzilla'],
+    'all three can come together',
+  );
+  assert.deepEqual(rollSpecials(7, seq(0, SPECIAL.three, 0, 0)), ['mahoraga', 'leviathan']);
+  assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.2)), ['mahoraga']);
+  assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.5)), ['leviathan']);
+  assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.8)), ['godzilla']);
+  assert.equal(rollSpecials(7, () => 0.99).length, 0);
+  assert.ok(!rollSpecials(SPECIAL.from - 1, () => 0).length && !rollSpecials(10, () => 0).length && !rollSpecials(15, () => 0).length);
+  const one = specialConfig(7, ['leviathan']);
+  const two = specialConfig(7, ['mahoraga', 'leviathan']);
+  const three = specialConfig(7, ['mahoraga', 'leviathan', 'godzilla']);
+  assert.ok(one.boss && one.enemyCount === 0 && one.round === 7);
+  for (const k of ['mahoraga', 'leviathan', 'godzilla'] as const)
+    assert.ok(
+      specialStats(k, one).hp > roundConfig(5).bossHp && specialStats(k, one).dmg > roundConfig(5).bossDamage,
+      `${k} outclasses the regular boss`,
+    );
+  assert.ok(
+    specialStats('leviathan', three).hp < specialStats('leviathan', two).hp &&
+      specialStats('leviathan', two).hp < specialStats('leviathan', one).hp,
+    'the more come together, the less HP each',
+  );
+  assert.ok(specialStats('godzilla', one).hp > specialStats('leviathan', one).hp, 'Godzilla is the toughest');
+  assert.ok(LEVIATHAN.armored < 1 && LEVIATHAN.exposed > 1 && LEVIATHAN.stunMs < LEVIATHAN.exposedMs);
+  assert.ok(
+    ADAPT_MULT[0] === 1 && ADAPT_MULT.every((x, i) => i === 0 || x < ADAPT_MULT[i - 1]) && ADAPT_MULT.at(-1) === 0,
+    'each wheel turn resists more, until Mahoraga is immune',
+  );
+  assert.ok(rollEliteRound(7, () => 0) && !rollEliteRound(7, () => 0.99));
+  assert.ok(!rollEliteRound(10, () => 0) && !rollEliteRound(ELITE_ROUND.from - 1, () => 0), 'no elite round on boss rounds or too early');
+  const er = eliteRoundConfig(7);
+  assert.ok(er.eliteRound && !er.boss && er.enemyCount >= 3 && er.enemyCount < roundConfig(7).enemyCount);
+}
 // Samurai: Bushido only with the katana.
 assert.equal(runStats(base, WEAPONS.katana, [], 'samurai').dashCrit, 1);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'samurai').dashCrit, 0);

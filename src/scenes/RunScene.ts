@@ -34,6 +34,14 @@ import {
   type Debuff,
   ENEMIES,
   LAYOUTS,
+  BOSS_EVERY,
+  BOSSES,
+  rollSpecials,
+  rollEliteRound,
+  eliteRoundConfig,
+  SPECIAL_STATS,
+  specialConfig,
+  type SpecialBoss,
   pickEnemies,
   roundConfig,
   soulReward,
@@ -57,6 +65,10 @@ export interface RunData {
   coins?: number;
   /** Consumed items (phoenix): gone from the inventory but never offered again. */
   spent?: ItemId[];
+  /** Bonus round: special bosses instead of this round's enemies. */
+  specials?: SpecialBoss[];
+  /** Elite round: every enemy is an elite. */
+  eliteRound?: boolean;
 }
 
 type Hittable = Enemy | Boss;
@@ -73,6 +85,9 @@ const RETURN_SPEED = 300;
 const BURN_MS = 3000;
 const BURN_TICK_MS = 500;
 const ICE_TINT = 0x29adff;
+/** Top speed (px/s) of a slowed enemy or boss; falling stays normal. */
+const CHILL_SPEED = 30;
+const NO_CAP = 10000;
 const REWARD_Y = 56;
 const REWARD_H = 24;
 /** Index of the extra "take nothing" row after the three rewards. */
@@ -92,7 +107,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private enemies!: Phaser.Physics.Arcade.Group;
   private hazards!: Phaser.Physics.Arcade.Group;
   private shots!: Phaser.Physics.Arcade.Group;
-  private boss?: Boss;
+  /** Living bosses; a bonus round may bring two. */
+  private bosses: Boss[] = [];
   private portal?: Phaser.Physics.Arcade.Image;
   private runSouls = 0;
   private coins = 0;
@@ -114,7 +130,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private inventory?: Phaser.GameObjects.Container;
   private ultText!: Phaser.GameObjects.Text;
   private debuffText!: Phaser.GameObjects.Text;
-  private bossTitle?: Phaser.GameObjects.Text;
+  private bossHud: { boss: Boss; title: Phaser.GameObjects.Text }[] = [];
+  /** A boss left without being beaten this round (Mahoraga's time ran out). */
+  private bossLeft = false;
   /** This round's mini boss, if one spawned. */
   private elite?: Enemy;
   private eliteTitle?: Phaser.GameObjects.Text;
@@ -134,7 +152,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   create(data: RunData): void {
     this.save = loadSave();
     this.base = derive(this.save.stats);
-    this.cfg = roundConfig(data.round);
+    this.cfg = data.specials?.length
+      ? specialConfig(data.round, data.specials)
+      : data.eliteRound
+        ? eliteRoundConfig(data.round)
+        : roundConfig(data.round);
     this.cls = data.cls ?? this.save.cls;
     this.weaponId = data.weapon ?? CLASSES[this.cls].weapon;
     this.items = [...(data.items ?? [])];
@@ -143,7 +165,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.coins = data.coins ?? 0;
     this.cleared = this.over = this.paused = false;
     this.regenAcc = this.lifestealAcc = 0;
-    this.boss = this.portal = this.rewards = this.rewardUi = this.inventory = this.elite = this.eliteTitle = undefined;
+    this.bosses = [];
+    this.bossLeft = false;
+    this.portal = this.rewards = this.rewardUi = this.inventory = this.elite = this.eliteTitle = undefined;
     if (data.round > this.save.bestRound) {
       this.save.bestRound = data.round;
       writeSave(this.save);
@@ -192,22 +216,38 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.physics.add.overlap(this.shots, this.enemies, (a, b) => this.shotHit(a, b));
 
     if (this.cfg.boss) {
-      this.boss = new Boss(this, this, W - 40, FLOOR_Y - 40, this.cfg);
-      this.physics.add.collider(this.boss, floor);
-      this.physics.add.overlap(
-        this.player,
-        this.boss,
-        () => this.boss && !this.frozen(this.boss) && this.hurtPlayer(this.boss.damage, this.boss.x, this.boss),
-      );
-      this.physics.add.overlap(this.shots, this.boss, (a, b) => this.shotHit(a, b));
+      const kinds: (SpecialBoss | undefined)[] = this.cfg.specials ?? [undefined];
+      this.bosses = kinds.map((k, i) => new Boss(this, this, W - 40 - i * 60, FLOOR_Y - 40, this.cfg, k));
+      for (const boss of this.bosses) {
+        this.physics.add.collider(boss, floor);
+        this.physics.add.overlap(
+          this.player,
+          boss,
+          () => boss.active && !boss.untargetable && !this.frozen(boss) && this.hurtPlayer(boss.damage, boss.x, boss),
+        );
+        this.physics.add.overlap(this.shots, boss, (a, b) => this.shotHit(a, b));
+      }
+      const sp = this.cfg.specials;
+      if (sp) {
+        this.cameras.main.flash(600, 255, 255, 255);
+        const title = sp.length === 3 ? 'BONUS TRIPEL!' : sp.length === 2 ? 'BONUS GANDA!' : `BONUS: ${BOSSES[sp[0]].name}`;
+        const intro = text(this, W / 2, 44, title, COLOR.gold, 16).setOrigin(0.5);
+        this.tweens.add({ targets: intro, alpha: 0, delay: 1500, duration: 500, onComplete: () => intro.destroy() });
+      }
     } else {
-      // Mini boss: sometimes the first enemy of the wave is an elite.
+      // Mini boss: sometimes the first enemy of the wave is an elite; an elite round is nothing but elites.
+      const all = !!this.cfg.eliteRound;
       const elite = Math.random() < ELITE.chance;
       pickEnemies(this.cfg.round, this.cfg.enemyCount).forEach((kind, i) => {
         const flying = ENEMIES[kind].flying;
         const x = Phaser.Math.Between(flying ? 60 : 90, W - 16);
-        this.spawnEnemy(kind, x, flying ? Phaser.Math.Between(24, 60) : -10 - i * 24, elite && i === 0);
+        this.spawnEnemy(kind, x, flying ? Phaser.Math.Between(24, 60) : -10 - i * 24, all || (elite && i === 0), !all);
       });
+      if (all) {
+        this.cameras.main.flash(400, 255, 236, 39);
+        const intro = text(this, W / 2, 44, 'RONDE ELIT!', COLOR.gold, 16).setOrigin(0.5);
+        this.tweens.add({ targets: intro, alpha: 0, delay: 1500, duration: 500, onComplete: () => intro.destroy() });
+      }
     }
 
     this.createHud();
@@ -239,7 +279,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       e.tick(time);
       this.eliteAct(e, time);
     }
-    if (this.boss && !this.statusTick(this.boss, time)) this.boss?.tick(time);
+    for (const b of [...this.bosses]) if (!this.statusTick(b, time)) b.tick(time);
     if (this.player.swinging) this.swordHits();
     for (const h of this.hazards.getChildren() as Phaser.Physics.Arcade.Image[]) {
       const landed = h.texture.key !== 'wave' && h.y > FLOOR_Y;
@@ -255,10 +295,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       if ((s.getData('shot') as ShotSpec).homing) this.steer(s, delta);
       const landed = s.texture.key !== 'wave' && s.y > FLOOR_Y;
       if (landed) burst(this, s.x, FLOOR_Y, 0xc2c3c7, 3);
-      if (landed || s.x < -20 || s.x > W + 20) s.destroy();
+      if (landed || s.x < -20 || s.x > W + 20 || s.y < -40) s.destroy();
     }
 
-    if (!this.cleared && this.enemies.countActive() === 0 && !this.boss) this.clearRound();
+    if (!this.cleared && this.enemies.countActive() === 0 && !this.bosses.length) this.clearRound();
     if (this.portal && this.physics.overlap(this.player, this.portal)) this.nextRound();
     this.drawHud();
   }
@@ -287,14 +327,14 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) < 24) this.hurtPlayer(damage, x);
   }
 
-  zone(x: number, y: number, w: number, h: number, warnMs: number, damage: number): void {
+  zone(x: number, y: number, w: number, h: number, warnMs: number, damage: number, color = 0xffa300): void {
     const warn = this.add.rectangle(x, y, w, h, 0xff004d, 0.2).setOrigin(0).setStrokeStyle(1, 0xff004d).setDepth(4);
     this.tweens.add({ targets: warn, alpha: 0.55, yoyo: true, repeat: -1, duration: 90 });
     this.time.delayedCall(warnMs, () => {
       warn.destroy();
       // The boss died meanwhile: its attacks fizzle.
-      if (this.over || !this.boss) return;
-      const blast = this.add.rectangle(x, y, w, h, 0xffa300, 0.85).setOrigin(0).setDepth(11);
+      if (this.over || !this.bosses.length) return;
+      const blast = this.add.rectangle(x, y, w, h, color, 0.85).setOrigin(0).setDepth(11);
       this.tweens.add({ targets: blast, alpha: 0, duration: 300, onComplete: () => blast.destroy() });
       const b = this.player.body as Phaser.Physics.Arcade.Body;
       if (
@@ -315,7 +355,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.tweens.add({ targets: warn, alpha: 0.2, yoyo: true, repeat: -1, duration: 80 });
       this.time.delayedCall(700 + i * 150, () => {
         warn.destroy();
-        if (this.boss && !this.over) this.fire(x, -10, 0, 260, 'meteor', damage);
+        if (this.bosses.length && !this.over) this.fire(x, -10, 0, 260, 'meteor', damage);
       });
     }
   }
@@ -343,7 +383,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     return enemyPace(this.cfg.round);
   }
 
-  private spawnEnemy(kind: EnemyKind, x: number, y: number, elite = false): void {
+  /** `announce`: the elite gets the name and bar under the round title (not in an elite round, where all are). */
+  private spawnEnemy(kind: EnemyKind, x: number, y: number, elite = false, announce = true): void {
     const k = elite ? ELITE : { hp: 1, dmg: 1 };
     const e = createEnemy(this, this, kind, x, y, this.cfg.enemyHp * k.hp, this.cfg.enemyDamage * k.dmg);
     this.enemies.add(e);
@@ -351,6 +392,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (!elite) return;
     const affix = Phaser.Utils.Array.GetRandom(Object.keys(ELITE_AFFIXES)) as EliteAffix;
     e.setScale(ELITE.scale).setData({ elite: affix, eliteNext: this.time.now + 2500 });
+    if (!announce) return;
     this.elite = e;
     this.eliteTitle = text(this, W / 2, 14, `ELIT ${ENEMIES[kind].name} ${ELITE_AFFIXES[affix].name}`, COLOR.gold, 7).setOrigin(0.5, 0);
   }
@@ -406,14 +448,38 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     img.setVelocity(spec.vx, spec.vy).setData('shot', spec).setData('hits', new Set<object>()).setData('born', this.time.now);
     // Long thin projectiles point along their path; the rest just face their direction.
     if (
-      ['arrow', 'bullet', 'w_belati', 'w_tombak', 'w_pedangTerbang', 'iceshard', 'panahArkana', 'w_pedang', 'w_kapak', 'w_katana'].includes(
-        spec.texture,
-      )
+      [
+        'arrow',
+        'bullet',
+        'kai',
+        'w_belati',
+        'w_tombak',
+        'w_pedangTerbang',
+        'iceshard',
+        'panahArkana',
+        'w_pedang',
+        'w_kapak',
+        'w_katana',
+        'w_sabit',
+      ].includes(spec.texture)
     )
       img.setRotation(Math.atan2(spec.vy, spec.vx));
     else img.setFlipX(spec.vx < 0);
     if (spec.tint !== undefined) img.setTint(spec.tint);
     return img;
+  }
+
+  pull(x: number, y: number, radius: number, speed: number): void {
+    for (const t of this.hittables()) {
+      if (t instanceof Boss || Phaser.Math.Distance.Between(x, y, t.x, t.y) > radius) continue;
+      // knockback() stuns briefly, so the enemy's own movement does not undo the pull.
+      t.knockback(Math.sign(x - t.x) || 1, speed);
+      // Never faster than reaching the center within the stun, so it lands there instead of flying past.
+      const d = Phaser.Math.Distance.Between(t.x, t.y, x, y);
+      const v = Math.min(speed, d * 4);
+      const a = Phaser.Math.Angle.Between(t.x, t.y, x, y);
+      t.setVelocity(Math.cos(a) * v, Math.sin(a) * v);
+    }
   }
 
   area(x: number, y: number, radius: number, mult: number, knockback: number, source: HitSource, status?: Status): void {
@@ -437,8 +503,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     if (s.freeze) {
       const ms = s.freeze * this.stats.elemental * (t instanceof Boss || t.getData('elite') ? 0.5 : 1);
-      t.setData('freezeUntil', Math.max(t.getData('freezeUntil') ?? 0, now + ms));
+      // Mahoraga adapts to freeze too.
+      t.setData('freezeUntil', Math.max(t.getData('freezeUntil') ?? 0, now + (t instanceof Boss ? t.resist('freeze', ms) : ms)));
     }
+    if (s.slow) t.setData('slowUntil', Math.max(t.getData('slowUntil') ?? 0, now + s.slow));
   }
 
   private frozen(t: Hittable): boolean {
@@ -451,9 +519,17 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (time < burnUntil && time >= (t.getData('burnNext') ?? 0)) {
       t.setData('burnNext', time + BURN_TICK_MS);
       burst(this, t.x, t.y - 4, 0xffa300, 2);
-      this.damage(t, Math.max(1, Math.round(this.stats.damage * t.getData('burn'))), '#ffa300', 0);
+      const burn = Math.max(1, Math.round(this.stats.damage * t.getData('burn')));
+      const landed = t instanceof Boss ? t.resist('burn', burn) : burn;
+      if (landed > 0) this.damage(t, landed, '#ffa300', 0);
       if (!t.active) return true;
     } else if (burnUntil && time >= burnUntil) t.setData({ burnUntil: 0, burn: 0 });
+    // Slow caps top speed while it lasts, so whatever moves the target (walking, charging, knockback) crawls.
+    const slowed = time < (t.getData('slowUntil') ?? 0);
+    if (slowed !== !!t.getData('slowed')) {
+      t.setData('slowed', slowed);
+      t.body.maxVelocity.set(slowed ? CHILL_SPEED : NO_CAP, slowed && !t.body.allowGravity ? CHILL_SPEED : NO_CAP);
+    }
     if (this.frozen(t)) {
       t.setVelocityX(0);
       if (!t.body.allowGravity) t.setVelocityY(0);
@@ -510,7 +586,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   private hittables(): Hittable[] {
     const list: Hittable[] = (this.enemies.getChildren() as Enemy[]).filter((e) => e.active && !e.untargetable);
-    if (this.boss?.active) list.push(this.boss);
+    list.push(...this.bosses.filter((b) => b.active && !b.untargetable));
     return list;
   }
 
@@ -519,7 +595,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const aIsShot = this.shots.contains(a as Phaser.GameObjects.GameObject);
     const shot = (aIsShot ? a : b) as Phaser.Physics.Arcade.Image;
     const t = (aIsShot ? b : a) as Hittable;
-    if (!shot.active || !t.active) return;
+    if (!shot.active || !t.active || (t instanceof Boss && t.untargetable)) return;
     const hits = shot.getData('hits') as Set<object>;
     if (hits.has(t)) return;
     hits.add(t);
@@ -606,7 +682,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const weak = this.player.has('weak') ? WEAK_MULT : 1;
     const big = t instanceof Boss || t.getData('elite') ? 1 + st.bossDamage : 1;
     const fury = 1 + FURY.step * this.player.fury;
-    const dmg = Math.max(1, Math.round(st.damage * mult * weak * big * fury * (crit ? st.critMult : 1) * (enraged ? 1 + st.rage : 1)));
+    const raw = Math.max(1, Math.round(st.damage * mult * weak * big * fury * (crit ? st.critMult : 1) * (enraged ? 1 + st.rage : 1)));
+    // Special bosses: Mahoraga adapts to each kind of attack, Leviathan's scales soak it.
+    const dmg = t instanceof Boss ? t.resist(source, raw) : raw;
+    // Mahoraga has fully adapted to this kind: nothing lands.
+    if (dmg <= 0) return;
     if (source === 'basic') this.player.gainFury();
     if (crit) this.cameras.main.shake(60, 0.006);
     if (crit && st.critResetsDash) this.player.resetDash();
@@ -695,7 +775,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (t.hp > 0) return false;
     const souls =
       t instanceof Boss
-        ? soulReward('boss', this.cfg.round, this.stats.soulMult)
+        ? soulReward('boss', this.cfg.round, this.stats.soulMult) * (t.special ? SPECIAL_STATS[t.special].soul : 1)
         : soulReward('enemy', this.cfg.round, this.stats.soulMult, ENEMIES[t.kind].soul * (t.getData('elite') ? ELITE.soul : 1));
     this.save.souls += souls;
     this.runSouls += souls;
@@ -713,14 +793,20 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       floatText(this, t.x, t.y - 28, '+1 KOIN', COLOR.gold);
     }
     if (t instanceof Boss) {
+      if (t.special) {
+        const { coins } = SPECIAL_STATS[t.special];
+        this.coins += coins;
+        floatText(this, t.x, t.y - 30, `+${coins} KOIN`, COLOR.gold);
+      }
       burst(this, t.x, t.y, 0xff004d, 24);
       this.cameras.main.shake(400, 0.02);
-      this.hazards.clear(true, true);
-      // Summons vanish with their master (no souls).
-      for (const e of this.enemies.getChildren() as Enemy[]) burst(this, e.x, e.y, 0x7e2553, 6);
-      this.enemies.clear(true, true);
-      this.boss = undefined;
-      this.bossTitle?.setVisible(false);
+      this.bosses = this.bosses.filter((b) => b !== t);
+      // Once the last boss falls, its attacks and summons vanish with it (no souls).
+      if (!this.bosses.length) {
+        this.hazards.clear(true, true);
+        for (const e of this.enemies.getChildren() as Enemy[]) burst(this, e.x, e.y, 0x7e2553, 6);
+        this.enemies.clear(true, true);
+      }
     } else {
       burst(this, t.x, t.y, 0x00e436, 10);
       // Big slime splits in two: spawned now (not a capped summon), so the round cannot count as cleared in between.
@@ -771,7 +857,20 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const heal = this.cfg.boss ? this.stats.maxHp : Math.round(this.stats.maxHp * 0.25);
     this.player.heal(heal);
     floatText(this, this.player.x, this.player.y - 16, `+${heal} HP`, COLOR.red);
-    const msg = this.cfg.boss ? 'BOSS KALAH!' : 'ROUND BERSIH';
+    const sp = this.cfg.specials;
+    const msg = this.bossLeft
+      ? 'BERTAHAN HIDUP!'
+      : sp
+        ? sp.length > 1
+          ? sp.length === 3
+            ? 'KETIGANYA TUMBANG!'
+            : 'KEDUANYA TUMBANG!'
+          : `${BOSSES[sp[0]].name} TUMBANG!`
+        : this.cfg.boss
+          ? 'BOSS KALAH!'
+          : this.cfg.eliteRound
+            ? 'RONDE ELIT BERSIH!'
+            : 'ROUND BERSIH';
     const banner = text(this, W / 2, 30, msg, COLOR.gold, this.cfg.boss ? 16 : 8).setOrigin(0.5);
     const earned = coinReward(this.cfg.round, this.stats.coinBonus);
     this.coins += earned;
@@ -780,8 +879,33 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.time.delayedCall(500, () => this.showRewards());
   }
 
+  /**
+   * A bonus round pays like the boss one tier past the coming one per special boss, one more with Godzilla; an elite
+   * round like the coming boss. Outlasting Mahoraga (it left) pays like a normal round.
+   */
+  private get rewardRound(): number {
+    const sp = this.cfg.specials;
+    if (this.cfg.eliteRound) return (Math.floor(this.cfg.round / BOSS_EVERY) + 1) * BOSS_EVERY;
+    if (!sp || this.bossLeft) return this.cfg.round;
+    return (this.cfg.bossTier + sp.length + (sp.includes('godzilla') ? 1 : 0)) * BOSS_EVERY;
+  }
+
+  bossLeaves(b: Phaser.GameObjects.Sprite): void {
+    const boss = b as Boss;
+    if (!this.bosses.includes(boss)) return;
+    floatText(this, boss.x, boss.y - 30, `${BOSSES[boss.kind].name} PERGI`, COLOR.gray);
+    burst(this, boss.x, boss.y, 0x000000, 20);
+    this.bosses = this.bosses.filter((x) => x !== boss);
+    this.bossLeft = true;
+    boss.destroy();
+    if (!this.bosses.length) {
+      this.hazards.clear(true, true);
+      this.enemies.clear(true, true);
+    }
+  }
+
   private showRewards(): void {
-    this.rewards = rollRewards(this.cfg.round, [...this.items, ...this.spent]);
+    this.rewards = rollRewards(this.rewardRound, [...this.items, ...this.spent]);
     this.rewardSel = 0;
     this.rerolls = 0;
     this.buildRewardUi();
@@ -792,7 +916,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const rewards = this.rewards ?? [];
     const ui = this.add.container(0, 0).setDepth(200);
     ui.add(this.add.rectangle(W / 2, H / 2 + 12, 290, 146, 0x000000, 0.85).setStrokeStyle(1, 0x83769c));
-    ui.add(text(this, W / 2, REWARD_Y - 16, this.cfg.boss ? 'HADIAH BOSS!' : 'PILIH HADIAH', COLOR.gold).setOrigin(0.5, 0));
+    ui.add(
+      text(
+        this,
+        W / 2,
+        REWARD_Y - 16,
+        this.cfg.boss ? 'HADIAH BOSS!' : this.cfg.eliteRound ? 'HADIAH ELIT!' : 'PILIH HADIAH',
+        COLOR.gold,
+      ).setOrigin(0.5, 0),
+    );
     ui.add([this.add.image(W - 50, REWARD_Y - 12, 'coin'), text(this, W - 44, REWARD_Y - 16, `${this.coins}`, COLOR.gold)]);
     rewards.forEach((r, i) => {
       const info = rewardInfo(r);
@@ -848,7 +980,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     this.coins -= cost;
     this.rerolls++;
-    this.rewards = rollRewards(this.cfg.round, [...this.items, ...this.spent]);
+    this.rewards = rollRewards(this.rewardRound, [...this.items, ...this.spent]);
     this.buildRewardUi();
   }
 
@@ -921,8 +1053,12 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   private nextRound(): void {
     this.portal = undefined;
+    const round = this.cfg.round + 1;
+    const specials = rollSpecials(round);
     this.scene.restart({
-      round: this.cfg.round + 1,
+      round,
+      specials,
+      eliteRound: !specials.length && rollEliteRound(round),
       hp: this.player.hp,
       runSouls: this.runSouls,
       weapon: this.weaponId,
@@ -973,9 +1109,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.coinText = text(this, W - 44, 13, '', COLOR.gold);
     this.ultText = text(this, 76, 12, 'I ULTI!', COLOR.gold);
     this.debuffText = text(this, 4, 21, '', COLOR.red);
-    const label = this.cfg.boss ? `ROUND ${this.cfg.round} BOSS` : `ROUND ${this.cfg.round}`;
-    text(this, W / 2, 3, label, this.cfg.boss ? COLOR.red : COLOR.text).setOrigin(0.5, 0);
-    this.bossTitle = this.boss ? text(this, W / 2, 14, this.boss.title, COLOR.red).setOrigin(0.5, 0) : undefined;
+    const label = this.cfg.specials
+      ? `ROUND ${this.cfg.round} BONUS`
+      : this.cfg.boss
+        ? `ROUND ${this.cfg.round} BOSS`
+        : this.cfg.eliteRound
+          ? `ROUND ${this.cfg.round} ELIT`
+          : `ROUND ${this.cfg.round}`;
+    text(this, W / 2, 3, label, this.cfg.boss ? COLOR.red : this.cfg.eliteRound ? COLOR.gold : COLOR.text).setOrigin(0.5, 0);
+    this.bossHud = this.bosses.map((boss, i) => ({ boss, title: text(this, W / 2, 14 + i * 17, boss.title, COLOR.red).setOrigin(0.5, 0) }));
     this.pauseText = text(this, W / 2, H / 2, 'PAUSE\n\nESC LANJUT  Q MENYERAH', COLOR.text)
       .setOrigin(0.5)
       .setAlign('center')
@@ -1023,10 +1165,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     g.fillStyle(0xffec27).fillRect(13, 13, Math.round(60 * p.skillReady), 1);
     const ultFull = p.ult >= 100;
     g.fillStyle(ultFull && Math.floor(this.time.now / 150) % 2 ? 0xffec27 : 0xff77a8).fillRect(13, 15, Math.round(0.6 * p.ult), 2);
+    if (p.weapon.fusion) g.fillStyle(0x8a3fd1).fillRect(13, 18, Math.round(60 * p.fusionReady), 1);
     // Dark Avenger: the meter is the mode's timer, so label it instead of "I ULTI!".
     this.ultText.setText(p.awakened ? 'AVENGER' : 'I ULTI!').setVisible(ultFull || p.awakened);
     this.hpText.setText(`${p.hp}`);
-    if (this.boss) this.bossTitle?.setText(this.boss.title);
     this.debuffText.setText([p.fury ? `AMARAH ${p.fury}` : '', p.debuffNames].filter(Boolean).join(' '));
     this.soulText.setText(`${this.runSouls}`);
     this.coinText.setText(`${this.coins}`);
@@ -1040,15 +1182,21 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     // Mini boss bar under its name, like the boss bar but gold.
     const elite = this.elite?.active ? this.elite : undefined;
     this.eliteTitle?.setVisible(!!elite);
-    if (elite && !this.boss) {
+    if (elite && !this.bosses.length) {
       g.fillStyle(0x000000).fillRect(W / 2 - 61, 24, 122, 5);
       g.fillStyle(0x5f574f).fillRect(W / 2 - 60, 25, 120, 3);
       g.fillStyle(0xffec27).fillRect(W / 2 - 60, 25, Math.ceil((120 * Math.max(0, elite.hp)) / elite.maxHp), 3);
     }
-    if (this.boss) {
-      g.fillStyle(0x000000).fillRect(W / 2 - 81, 24, 162, 6);
-      g.fillStyle(0x5f574f).fillRect(W / 2 - 80, 25, 160, 4);
-      g.fillStyle(COLOR.hp).fillRect(W / 2 - 80, 25, Math.ceil((160 * Math.max(0, this.boss.hp)) / this.boss.maxHp), 4);
-    }
+    // One bar per boss, stacked; Leviathan's scales show as a blue line along the bottom of its bar.
+    this.bossHud.forEach(({ boss, title }, i) => {
+      title.setVisible(boss.active);
+      if (!boss.active) return;
+      title.setText(boss.title);
+      const y = 25 + i * 17;
+      g.fillStyle(0x000000).fillRect(W / 2 - 81, y - 1, 162, 6);
+      g.fillStyle(0x5f574f).fillRect(W / 2 - 80, y, 160, 4);
+      g.fillStyle(COLOR.hp).fillRect(W / 2 - 80, y, Math.ceil((160 * Math.max(0, boss.hp)) / boss.maxHp), 4);
+      if (boss.armorFrac) g.fillStyle(COLOR.soul).fillRect(W / 2 - 80, y + 3, Math.ceil(160 * boss.armorFrac), 1);
+    });
   }
 }

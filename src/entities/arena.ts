@@ -11,8 +11,10 @@ export interface Arena {
   fire(x: number, y: number, vx: number, vy: number, texture: string, damage: number, gravity?: boolean, debuff?: Debuff): void;
   shockwave(x: number, y: number, damage: number, debuff?: Debuff): void;
   meteors(count: number, damage: number): void;
-  /** Wide attack: a red warning box for `warnMs`, then it strikes once (hurts the player if inside). */
-  zone(x: number, y: number, w: number, h: number, warnMs: number, damage: number): void;
+  /** Wide attack: a red warning box for `warnMs`, then it strikes once (hurts the player if inside); `color` of the blast. */
+  zone(x: number, y: number, w: number, h: number, warnMs: number, damage: number, color?: number): void;
+  /** A boss leaves the fight without being beaten (Mahoraga's time runs out). */
+  bossLeaves(boss: Phaser.GameObjects.Sprite): void;
   summon(kind: EnemyKind, x: number, y: number): void;
   /** Heal enemies near (x, y) by a fraction of their max HP (support enemies). */
   healAllies(x: number, y: number, radius: number, fraction: number, except: Phaser.GameObjects.GameObject): void;
@@ -45,6 +47,8 @@ export interface ShotSpec {
 /** What the player's attacks and skills may do to the world. RunScene implements it. */
 export interface PlayerWorld {
   shot(s: ShotSpec): Phaser.GameObjects.GameObject;
+  /** Drag every enemy (not bosses) within `radius` toward (x, y) at `speed` px/s. */
+  pull(x: number, y: number, radius: number, speed: number): void;
   /** Hit every enemy within `radius` of (x, y) once. */
   area(x: number, y: number, radius: number, mult: number, knockback: number, source: HitSource, status?: Status): void;
   /** Living enemies and boss, nearest to (x, y) first. */

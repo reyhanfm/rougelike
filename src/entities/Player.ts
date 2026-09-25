@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Derived } from '../logic/stats.ts';
 import { moveHitbox, nextCombo, type Move, type Weapon } from '../logic/loot.ts';
 import { COLOR } from '../gfx/sprites.ts';
-import { flash, floatText } from '../gfx/ui.ts';
+import { flash, floatText, W } from '../gfx/ui.ts';
 import type { PlayerWorld } from './arena.ts';
 import type { ClassId } from '../logic/classes.ts';
 import { SKILLS } from './skills.ts';
@@ -13,7 +13,7 @@ import { DEBUFFS, DOT_SHARE, DOT_TICK_MS, SLOW_MULT, type Debuff } from '../logi
 const JUMP_VELOCITY = -250;
 const COYOTE_MS = 80;
 /** Weapons the Gate of Babylon fires. */
-const TREASURES = ['w_pedang', 'w_tombak', 'w_kapak', 'w_belati', 'w_katana'];
+const TREASURES = ['w_pedang', 'w_tombak', 'w_kapak', 'w_belati', 'w_katana', 'w_sabit', 'w_pedangTerbang'];
 const JUMP_BUFFER_MS = 100;
 
 type KeyName = 'left' | 'right' | 'a' | 'd' | 'up' | 'w' | 'space' | 'down' | 's' | 'attack' | 'dash' | 'skill' | 'ult';
@@ -77,6 +77,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private lockUntil = 0;
   private spinUntil = 0;
   private skillReadyAt = 0;
+  private fusionReadyAt = 0;
   private landArmAt = 0;
   private landFn?: () => void;
   /** A jump is rising and may still be cut short by releasing the key. */
@@ -149,6 +150,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   get skillReady(): number {
     return this.readiness(this.skillReadyAt, this.weapon.skill.cd * this.stats.skillCdMult);
+  }
+
+  get fusionReady(): number {
+    const f = this.weapon.fusion;
+    return f ? this.readiness(this.fusionReadyAt, f.cd * this.stats.skillCdMult) : 0;
   }
 
   private readiness(readyAt: number, cdSeconds: number): number {
@@ -252,9 +258,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.ghost(DASHES[this.skin].tint);
       this.dashHit();
     }
+    if (time < this.swingUntil && this.move.trail && Math.floor(time / 32) % 2) this.ghost(this.move.trail);
 
     const attackPressed = Phaser.Input.Keyboard.JustDown(k.attack);
+    const skillPressed = Phaser.Input.Keyboard.JustDown(k.skill);
+    const silenced = this.has('silence');
+    // Fusion (Gojo's Purple): attack and skill together, i.e. one pressed while the other is held.
+    const fuse =
+      !!this.weapon.fusion &&
+      !locked &&
+      !silenced &&
+      time >= this.fusionReadyAt &&
+      ((attackPressed && k.skill.isDown) || (skillPressed && k.attack.isDown));
+    if (fuse) this.useSkill(time, 'fusion');
     if (
+      !fuse &&
       !locked &&
       !dashing &&
       (attackPressed || ((this.weapon.automatic || dragon) && k.attack.isDown)) &&
@@ -262,8 +280,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       !this.thrown?.active
     )
       this.attack(time);
-    const silenced = this.has('silence');
-    if (!locked && !silenced && Phaser.Input.Keyboard.JustDown(k.skill) && time >= this.skillReadyAt) this.useSkill(time, 'skill');
+    if (!fuse && !locked && !silenced && skillPressed && time >= this.skillReadyAt) this.useSkill(time, 'skill');
     if (!locked && !silenced && !this.awakening && Phaser.Input.Keyboard.JustDown(k.ult) && this.ult >= 100) this.useSkill(time, 'ult');
 
     const running = grounded && b.velocity.x !== 0;
@@ -307,9 +324,46 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   /** A golden ripple where a treasure comes through. */
-  gatePortal(x: number, y: number): void {
-    const g = this.scene.add.ellipse(x, y, 6, 12, 0xffec27, 0.6).setStrokeStyle(1, 0xffa300).setDepth(10);
-    this.scene.tweens.add({ targets: g, scaleX: 1.8, alpha: 0, duration: 300, onComplete: () => g.destroy() });
+  gatePortal(x: number, y: number, angle: number): void {
+    const s = this.scene;
+    // The gate's face is turned along `angle` (where the treasure flies): a thin golden oval, bright center, ripples, sparks.
+    const outer = s.add.ellipse(x, y, 5, 16, 0xffec27, 0.35).setStrokeStyle(1, 0xffa300).setRotation(angle).setDepth(10);
+    const inner = s.add.ellipse(x, y, 3, 10, 0xfff1e8, 0.8).setRotation(angle).setDepth(10);
+    const gate = [outer, inner];
+    gate.forEach((o) => o.setScale(0.2));
+    s.tweens.add({ targets: gate, scale: 1, duration: 90, ease: 'Back.Out' });
+    s.tweens.add({ targets: gate, scaleY: 0, alpha: 0, delay: 260, duration: 180, onComplete: () => gate.forEach((o) => o.destroy()) });
+    const ripple = s.add.ellipse(x, y, 4, 12).setStrokeStyle(1, 0xffec27).setRotation(angle).setDepth(10);
+    s.tweens.add({ targets: ripple, scaleX: 2, scaleY: 1.8, alpha: 0, duration: 350, onComplete: () => ripple.destroy() });
+    for (let i = 0; i < 3; i++) {
+      const spark = s.add.rectangle(x + Phaser.Math.Between(-3, 3), y + Phaser.Math.Between(-7, 7), 1, 1, 0xfff1e8).setDepth(10);
+      s.tweens.add({ targets: spark, y: spark.y - 6, alpha: 0, duration: 300, onComplete: () => spark.destroy() });
+    }
+  }
+
+  /** One Gate of Babylon shot: a gate behind and above the player turns toward `foe` (or ahead) and fires a treasure straight out. */
+  private openGate(i: number, spread: number, m: Move, foe?: Phaser.GameObjects.Sprite): void {
+    const x = this.x - this.facing * Phaser.Math.Between(0, 26);
+    const y = this.y - Phaser.Math.Between(4, 40);
+    const dir = foe ? Phaser.Math.Angle.Between(x, y, foe.x, foe.y) + spread * 0.5 : this.facing > 0 ? spread : Math.PI - spread;
+    this.gatePortal(x, y, dir);
+    const speed = this.weapon.projectile!.speed;
+    // The gate opens first; its treasure comes through a beat later, one gate after another.
+    this.scene.time.delayedCall(60 + i * 35, () => {
+      if (!this.active) return;
+      this.world.shot({
+        x,
+        y,
+        vx: Math.cos(dir) * speed,
+        vy: Math.sin(dir) * speed,
+        texture: Phaser.Math.RND.pick(TREASURES),
+        tint: 0xfff0a0,
+        status: m.status,
+        mult: m.dmg,
+        source: 'basic',
+        knockback: m.knockback,
+      });
+    });
   }
 
   /** Consumes the Bushido window (first basic hit after a dash). */
@@ -466,6 +520,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
       return;
     }
+    // Cast weapons (Gojo): the attack key is a technique, not a swing.
+    if (this.weapon.cast) {
+      this.swingReadyAt = time + this.stats.swingCooldown * 1000 * (1 - FURY.step * this.fury);
+      SKILLS[this.weapon.id].basic?.({ p: this, world: this.world, scene: this.scene, power: 1 });
+      return;
+    }
     const grounded = this.body.blocked.down || this.body.touching.down;
     let m: Move;
     if (grounded) {
@@ -514,22 +574,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Magic Archer: only the lead (middle) arrow of the move homes; the rest fly straight.
     const lead = Math.floor((m.angles?.length ?? 0) / 2);
     const gate = projectile?.gate;
+    // Gate of Babylon: the volley's gates are spread over the nearest enemies (aimed gates, not homing treasures).
+    const foes = gate ? this.world.targets(this.x, this.y) : [];
     for (const [i, a] of (projectile ? [...(m.angles ?? []), ...extra] : []).entries()) {
-      // Gate of Babylon: each shot leaves its own portal somewhere behind and above the player.
-      const x = gate ? this.x - this.facing * Phaser.Math.Between(0, 22) : this.x + this.facing * 6;
-      const y = gate ? this.y - Phaser.Math.Between(2, 30) : this.y + 1;
-      if (gate) this.gatePortal(x, y);
+      if (gate) {
+        this.openGate(i, a, m, foes[i % Math.max(1, foes.length)]);
+        continue;
+      }
       this.thrown = this.world.shot({
-        x,
-        y,
+        x: this.x + this.facing * 6,
+        y: this.y + 1,
         vx: Math.cos(a) * projectile!.speed * this.facing,
         vy: Math.sin(a) * projectile!.speed,
-        texture: gate ? Phaser.Math.RND.pick(TREASURES) : (m.shot ?? projectile!.texture),
-        tint: gate ? 0xffec27 : undefined,
+        texture: m.shot ?? projectile!.texture,
         status: m.status,
         mult: m.dmg,
         source: 'basic',
-        pierce: (this.weapon.id === 'busur' || this.weapon.id === 'pedangTerbang') && this.stats.pierceArrows > 0,
+        pierce: !!projectile!.pierce || ((this.weapon.id === 'busur' || this.weapon.id === 'pedangTerbang') && this.stats.pierceArrows > 0),
         knockback: m.knockback,
         homing: projectile!.homing || (this.stats.homingArrows > 0 && i === lead),
         returning: projectile!.returning,
@@ -552,19 +613,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  private useSkill(time: number, kind: 'skill' | 'ult'): void {
-    const fired = SKILLS[this.weapon.id][kind]({ p: this, world: this.world, scene: this.scene, power: this.stats.skillPower });
+  private useSkill(time: number, kind: 'skill' | 'ult' | 'fusion'): void {
+    const fired = SKILLS[this.weapon.id][kind]?.({ p: this, world: this.world, scene: this.scene, power: this.stats.skillPower });
     if (fired === false) {
       floatText(this.scene, this.x, this.y - 16, 'TIDAK ADA TARGET', COLOR.gray);
       return;
     }
-    const info = this.weapon[kind];
+    const info = this.weapon[kind]!;
     if (kind === 'skill') this.skillReadyAt = time + this.weapon.skill.cd * this.stats.skillCdMult * 1000;
+    else if (kind === 'fusion') this.fusionReadyAt = time + this.weapon.fusion!.cd * this.stats.skillCdMult * 1000;
     else {
       this.ult = 0;
       this.scene.cameras.main.flash(120, 255, 236, 39);
     }
-    floatText(this.scene, this.x, this.y - 18, `${info.name}!`, kind === 'ult' ? COLOR.gold : COLOR.blue);
+    // Long names stay on screen near the edges (8px per character, centered).
+    const half = (info.name.length + 1) * 4;
+    const color = kind === 'ult' ? COLOR.gold : kind === 'fusion' ? '#c080ff' : COLOR.blue;
+    floatText(this.scene, Phaser.Math.Clamp(this.x, half, W - half), this.y - 18, `${info.name}!`, color);
   }
 
   hurt(damage: number, fromX: number): HurtResult {

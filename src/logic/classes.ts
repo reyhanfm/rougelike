@@ -16,7 +16,14 @@ export type ClassId =
   | 'darkAvenger'
   | 'ashura'
   | 'antares'
-  | 'gilgamesh';
+  | 'gilgamesh'
+  | 'sukuna'
+  | 'gojo'
+  | 'toji'
+  | 'madara'
+  | 'hashirama'
+  | 'itachi'
+  | 'jackFrost';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -33,6 +40,8 @@ export interface GameClass {
   synergy: { name: string; desc: string; apply(s: Derived): void };
   /** Palette char for the hair (top rows of the hero); defaults to the class color. */
   hair?: string;
+  /** Own head and torso rows (palette chars) instead of the shared hero's; 'c' still takes the class color. */
+  head?: string[];
   /**
    * Replaces the ult: when the meter is full the class awakens on its own, boosting its stats
    * and melee reach while the meter drains to empty over `ms` (times stats.awakenTime).
@@ -43,10 +52,24 @@ export interface GameClass {
 export const CLASSES: Record<ClassId, GameClass> = {
   ksatria: {
     id: 'ksatria',
-    name: 'KSATRIA',
+    name: 'ARTORIA',
     weapon: 'pedang',
     color: 'c',
     hair: 'a',
+    // Artoria Pendragon: blonde hair with its ahoge, green eyes, blue dress under a silver breastplate, gold belt.
+    head: [
+      '.....a....',
+      '..0aaaa0..',
+      '.0aaaaaa0.',
+      '.0affffa0.',
+      '.0fbffbf0.',
+      '.0ffffff0.',
+      '..066660..',
+      '.0c6666c0.',
+      '0fc6666cf0',
+      '0f0cccc0f0',
+      '..0a66a0..',
+    ],
     trait: 'AVALON: PULIH 1 HP/DTK, HP +10%, DITERIMA -10%',
     apply: (s) => {
       s.regen += 1;
@@ -54,7 +77,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       s.damageTaken *= 0.9;
     },
     synergy: {
-      name: 'RAJA PARA KSATRIA',
+      name: 'RAJA KSATRIA',
       desc: 'FINISHER MELEPAS GELOMBANG CAHAYA, SKILL +20%',
       apply: (s) => {
         s.finisherWave = 1;
@@ -322,6 +345,20 @@ export const CLASSES: Record<ClassId, GameClass> = {
     weapon: 'gerbangBabilonia',
     color: 'i',
     hair: 'a',
+    // Golden hair swept up and back, red eyes, golden armor with white shine and orange trim, red cloth at the waist.
+    head: [
+      '.a.aaaa.a.',
+      '.0aaaaaa0.',
+      '0aaaaaaaa0',
+      '.0ffffff0.',
+      '.0f8ff8f0.',
+      '.0ffffff0.',
+      '..0cccc0..',
+      '.0c7cc7c0.',
+      '0fc9cc9cf0',
+      '0f0cccc0f0',
+      '..08aa80..',
+    ],
     trait: 'RAJA PARA PAHLAWAN: +2 KOIN/ROUND, 15% BUNUH = KOIN, KRITIS +5%',
     apply: (s) => {
       s.coinBonus += 2;
@@ -332,6 +369,211 @@ export const CLASSES: Record<ClassId, GameClass> = {
       name: 'HARTA TAK TERBATAS',
       desc: 'TIAP SERANGAN +1 SENJATA DARI GERBANG',
       apply: (s) => void (s.extraArrows += 1),
+    },
+  },
+  sukuna: {
+    id: 'sukuna',
+    name: 'SUKUNA',
+    weapon: 'shrine',
+    color: 'm',
+    hair: 'e',
+    // Spiky pink hair, red eyes, black face and arm markings, dark sash.
+    head: [
+      '.e.0ee0.e.',
+      '..0eeee0..',
+      '.0eeeeee0.',
+      '.0e0ff0e0.',
+      '.0f8ff8f0.',
+      '.00ffff00.',
+      '..0cccc0..',
+      '.0c0cc0c0.',
+      '00c0cc0c00',
+      '0f0cccc0f0',
+      '..022220..',
+    ],
+    trait: 'RAJA KUTUKAN: DAMAGE +15%, PULIH 1 HP/DTK, KRITIS +5%',
+    apply: (s) => {
+      s.damage *= 1.15;
+      s.regen += 1;
+      s.critChance += 0.05;
+    },
+    synergy: {
+      name: 'KAI & HACHI',
+      desc: '35% HIT MENEBAS LAGI, CURI 3% DAMAGE',
+      apply: (s) => {
+        s.echo += 0.35;
+        s.lifesteal += 0.03;
+      },
+    },
+  },
+  gojo: {
+    id: 'gojo',
+    name: 'GOJO SATORU',
+    weapon: 'mugen',
+    color: 'n',
+    hair: '7',
+    // Spiky white hair, black blindfold over the Six Eyes, high-collared navy uniform.
+    head: [
+      '..7.77.7..',
+      '.07777770.',
+      '0777777770',
+      '.07ffff70.',
+      '.00000000.',
+      '.0ffffff0.',
+      '..0cccc0..',
+      '.0c1cc1c0.',
+      '0fccccccf0',
+      '0f0cccc0f0',
+      '..0c11c0..',
+    ],
+    trait: 'MUGEN: TAHAN 1 SERANGAN TIAP 8 DTK, HINDAR 10%, HP -10%',
+    apply: (s) => {
+      s.barrier = 8;
+      s.dodge += 0.1;
+      s.maxHp *= 0.9;
+    },
+    synergy: {
+      name: 'ENAM MATA',
+      desc: 'COOLDOWN SKILL -30%, KRITIS +10%',
+      apply: (s) => {
+        s.skillCdMult *= 0.7;
+        s.critChance += 0.1;
+      },
+    },
+  },
+  toji: {
+    id: 'toji',
+    name: 'TOJI',
+    weapon: 'sakahoko',
+    color: 'o',
+    hair: '0',
+    trait: 'RESTRIKSI SURGAWI: DAMAGE & LARI +15%, HINDAR 10%, SKILL -25%',
+    apply: (s) => {
+      s.damage *= 1.15;
+      s.speed *= 1.15;
+      s.dodge += 0.1;
+      s.skillPower *= 0.75;
+    },
+    synergy: {
+      name: 'PEMBUNUH PENYIHIR',
+      desc: 'DAMAGE KE BOS/ELIT +40%, KRITIS +10%',
+      apply: (s) => {
+        s.bossDamage += 0.4;
+        s.critChance += 0.1;
+      },
+    },
+  },
+  madara: {
+    id: 'madara',
+    name: 'MADARA',
+    weapon: 'gunbai',
+    color: 'p',
+    hair: '0',
+    // Long spiky black mane with a blue sheen, red Sharingan eyes, Uchiha war armor.
+    head: [
+      '.0.0110.0.',
+      '0011111100',
+      '0111111110',
+      '011ffff110',
+      '01f8ff8f10',
+      '11ffffff11',
+      '1.0cccc0.1',
+      '10c1cc1c01',
+      '0fc1cc1cf0',
+      '0f0cccc0f0',
+      '..055550..',
+    ],
+    trait: 'SHARINGAN: HINDAR 15%, KRITIS +10%, SKILL +10%',
+    apply: (s) => {
+      s.dodge += 0.15;
+      s.critChance += 0.1;
+      s.skillPower *= 1.1;
+    },
+    synergy: {
+      name: 'UCHIHA GAESHI',
+      desc: 'GUNBAI MENAHAN: DITERIMA -20%, PANTUL 15, SKILL +15%',
+      apply: (s) => {
+        s.damageTaken *= 0.8;
+        s.thorns += 15;
+        s.skillPower *= 1.15;
+      },
+    },
+  },
+  hashirama: {
+    id: 'hashirama',
+    name: 'HASHIRAMA',
+    weapon: 'mokuton',
+    color: 'q',
+    hair: 'r',
+    trait: 'SEL HASHIRAMA: PULIH 2 HP/DTK, HP +20%, LARI -5%',
+    apply: (s) => {
+      s.regen += 2;
+      s.maxHp *= 1.2;
+      s.speed *= 0.95;
+    },
+    synergy: {
+      name: 'MODE SENNIN',
+      desc: 'SKILL & ULTI +25%, ULTI +25% CEPAT',
+      apply: (s) => {
+        s.skillPower *= 1.25;
+        s.ultGainMult *= 1.25;
+      },
+    },
+  },
+  itachi: {
+    id: 'itachi',
+    name: 'ITACHI',
+    weapon: 'kunai',
+    color: 's',
+    hair: '0',
+    // Black hair, scratched Konoha headband, Sharingan, tear-trough lines, Akatsuki cloak with red clouds.
+    head: [
+      '...0000...',
+      '..011110..',
+      '.00656600.',
+      '.00ffff00.',
+      '.0f8ff8f0.',
+      '.0f5ff5f0.',
+      '..0cccc0..',
+      '.0c87ccc0.',
+      '0fccc78cf0',
+      '0f0cccc0f0',
+      '..0c78c0..',
+    ],
+    trait: 'GENJUTSU: 15% HIT MEMBEKUKAN, KRITIS +10%, HP -10%',
+    apply: (s) => {
+      s.freezeChance += 0.15;
+      s.critChance += 0.1;
+      s.maxHp *= 0.9;
+    },
+    synergy: {
+      name: 'MANGEKYO SHARINGAN',
+      desc: '20% HIT MEMBAKAR API HITAM, BURN +50%',
+      apply: (s) => {
+        s.burnChance += 0.2;
+        s.elemental += 0.5;
+      },
+    },
+  },
+  jackFrost: {
+    id: 'jackFrost',
+    name: 'JACK FROST',
+    weapon: 'tongkatFrost',
+    color: 'u',
+    hair: '7',
+    trait: 'ANGIN MEMBAWAKU: +2 LOMPAT UDARA, LARI +10%, BEKU/BURN +30%',
+    apply: (s) => {
+      s.extraJumps += 2;
+      s.speed *= 1.1;
+      s.elemental += 0.3;
+    },
+    synergy: {
+      name: 'PENJAGA KESENANGAN',
+      desc: '20% HIT MEMBEKUKAN, SOUL +25%',
+      apply: (s) => {
+        s.freezeChance += 0.2;
+        s.soulMult *= 1.25;
+      },
     },
   },
 };
