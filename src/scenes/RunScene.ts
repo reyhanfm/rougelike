@@ -6,7 +6,9 @@ import { Player } from '../entities/Player.ts';
 import { COLOR } from '../gfx/sprites.ts';
 import { burst, flash, floatText, FLOOR_Y, H, text, TILE, W } from '../gfx/ui.ts';
 import {
+  activePairs,
   ITEMS,
+  pairOf,
   RARITY_COLOR,
   rewardInfo,
   rewardRarity,
@@ -18,13 +20,29 @@ import {
   WEAPONS,
   type ItemId,
   type Reward,
+  type Status,
   type WeaponId,
 } from '../logic/loot.ts';
 import { loadSave, writeSave, type SaveData } from '../logic/save.ts';
-import { BOSS_LAYOUT, ENEMIES, LAYOUTS, pickEnemies, roundConfig, soulReward, type EnemyKind, type RoundConfig } from '../logic/stages.ts';
+import {
+  BOSS_LAYOUT,
+  ELITE,
+  ELITE_AFFIXES,
+  enemyPace,
+  type EliteAffix,
+  WEAK_MULT,
+  type Debuff,
+  ENEMIES,
+  LAYOUTS,
+  pickEnemies,
+  roundConfig,
+  soulReward,
+  type EnemyKind,
+  type RoundConfig,
+} from '../logic/stages.ts';
 import { derive, type Derived } from '../logic/stats.ts';
 import type { HubData } from './HubScene.ts';
-import { CLASSES, hasSynergy, type ClassId } from '../logic/classes.ts';
+import { CLASSES, FURY, hasSynergy, type ClassId } from '../logic/classes.ts';
 
 /** Everything that carries from one round to the next within a run. */
 export interface RunData {
@@ -37,6 +55,8 @@ export interface RunData {
   cls?: ClassId;
   /** Run currency; starts at 0 every run. */
   coins?: number;
+  /** Consumed items (phoenix): gone from the inventory but never offered again. */
+  spent?: ItemId[];
 }
 
 type Hittable = Enemy | Boss;
@@ -44,7 +64,15 @@ type Hittable = Enemy | Boss;
 const MAX_SUMMONS = 6;
 /** Homing arrows: max turn rate (rad/s) and lifetime (ms). */
 const HOMING_TURN = 8;
+/** Homing arrows turn slower, so a dodging enemy can still make them miss. */
+const ARROW_TURN = 3.5;
 const HOMING_LIFE = 2500;
+/** Returning swords: max time out before turning back (ms), and return speed (px/s). */
+const RETURN_MS = 700;
+const RETURN_SPEED = 300;
+const BURN_MS = 3000;
+const BURN_TICK_MS = 500;
+const ICE_TINT = 0x29adff;
 const REWARD_Y = 56;
 const REWARD_H = 24;
 /** Index of the extra "take nothing" row after the three rewards. */
@@ -58,6 +86,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private weaponId: WeaponId = 'pedang';
   private cls: ClassId = 'ksatria';
   private items: ItemId[] = [];
+  private spent: ItemId[] = [];
+  /** God Hand revives left this round. */
+  private godHandLeft = 0;
   private enemies!: Phaser.Physics.Arcade.Group;
   private hazards!: Phaser.Physics.Arcade.Group;
   private shots!: Phaser.Physics.Arcade.Group;
@@ -82,7 +113,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private pauseText!: Phaser.GameObjects.Text;
   private inventory?: Phaser.GameObjects.Container;
   private ultText!: Phaser.GameObjects.Text;
+  private debuffText!: Phaser.GameObjects.Text;
   private bossTitle?: Phaser.GameObjects.Text;
+  /** This round's mini boss, if one spawned. */
+  private elite?: Enemy;
+  private eliteTitle?: Phaser.GameObjects.Text;
 
   constructor() {
     super('run');
@@ -103,11 +138,12 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.cls = data.cls ?? this.save.cls;
     this.weaponId = data.weapon ?? CLASSES[this.cls].weapon;
     this.items = [...(data.items ?? [])];
+    this.spent = [...(data.spent ?? [])];
     this.runSouls = data.runSouls ?? 0;
     this.coins = data.coins ?? 0;
     this.cleared = this.over = this.paused = false;
     this.regenAcc = this.lifestealAcc = 0;
-    this.boss = this.portal = this.rewards = this.rewardUi = this.inventory = undefined;
+    this.boss = this.portal = this.rewards = this.rewardUi = this.inventory = this.elite = this.eliteTitle = undefined;
     if (data.round > this.save.bestRound) {
       this.save.bestRound = data.round;
       writeSave(this.save);
@@ -132,6 +168,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     });
 
     const stats = this.currentStats();
+    this.godHandLeft = stats.godHand;
     this.player = new Player(this, this, 24, FLOOR_Y - 10, stats, WEAPONS[this.weaponId], data.hp ?? stats.maxHp, data.ult ?? 0, this.cls);
     this.enemies = this.physics.add.group();
     this.hazards = this.physics.add.group({ allowGravity: false });
@@ -143,11 +180,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.physics.add.collider(this.enemies, [floor, ...platforms], undefined, (a, b) => !(a instanceof Enemy ? a : (b as Enemy)).flying);
     this.physics.add.overlap(this.player, this.enemies, (_p, e) => {
       const en = e as Enemy;
-      if (!en.untargetable) this.hurtPlayer(en.damage, en.x, en);
+      const affix = en.getData('elite') as EliteAffix | undefined;
+      const debuff = (affix && ELITE_AFFIXES[affix].debuff) ?? ENEMIES[en.kind].debuff;
+      if (!en.untargetable && !this.frozen(en)) this.hurtPlayer(en.damage, en.x, en, debuff);
     });
     this.physics.add.overlap(this.player, this.hazards, (_p, h) => {
       const hz = h as Phaser.Physics.Arcade.Image;
-      this.hurtPlayer(hz.getData('dmg') as number, hz.x);
+      this.hurtPlayer(hz.getData('dmg') as number, hz.x, undefined, hz.getData('debuff') as Debuff | undefined);
       if (hz.texture.key !== 'wave') hz.destroy();
     });
     this.physics.add.overlap(this.shots, this.enemies, (a, b) => this.shotHit(a, b));
@@ -155,13 +194,19 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (this.cfg.boss) {
       this.boss = new Boss(this, this, W - 40, FLOOR_Y - 40, this.cfg);
       this.physics.add.collider(this.boss, floor);
-      this.physics.add.overlap(this.player, this.boss, () => this.boss && this.hurtPlayer(this.boss.damage, this.boss.x, this.boss));
+      this.physics.add.overlap(
+        this.player,
+        this.boss,
+        () => this.boss && !this.frozen(this.boss) && this.hurtPlayer(this.boss.damage, this.boss.x, this.boss),
+      );
       this.physics.add.overlap(this.shots, this.boss, (a, b) => this.shotHit(a, b));
     } else {
+      // Mini boss: sometimes the first enemy of the wave is an elite.
+      const elite = Math.random() < ELITE.chance;
       pickEnemies(this.cfg.round, this.cfg.enemyCount).forEach((kind, i) => {
         const flying = ENEMIES[kind].flying;
         const x = Phaser.Math.Between(flying ? 60 : 90, W - 16);
-        this.spawnEnemy(kind, x, flying ? Phaser.Math.Between(24, 60) : -10 - i * 24);
+        this.spawnEnemy(kind, x, flying ? Phaser.Math.Between(24, 60) : -10 - i * 24, elite && i === 0);
       });
     }
 
@@ -186,9 +231,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       return;
     }
     this.player.update(time);
+    if (!this.cleared && this.player.tickDebuffs(time) && this.player.hp <= 0) return this.playerDown();
     this.regenerate(delta);
-    for (const e of this.enemies.getChildren() as Enemy[]) e.tick(time);
-    this.boss?.tick(time);
+    // Copy: a burn tick may kill (and remove) an enemy mid-loop.
+    for (const e of [...this.enemies.getChildren()] as Enemy[]) {
+      if (this.statusTick(e, time)) continue;
+      e.tick(time);
+      this.eliteAct(e, time);
+    }
+    if (this.boss && !this.statusTick(this.boss, time)) this.boss?.tick(time);
     if (this.player.swinging) this.swordHits();
     for (const h of this.hazards.getChildren() as Phaser.Physics.Arcade.Image[]) {
       const landed = h.texture.key !== 'wave' && h.y > FLOOR_Y;
@@ -197,6 +248,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       if (landed || h.x < -10 || h.x > W + 10 || h.y > H + 10 || h.y < -40) h.destroy();
     }
     for (const s of this.shots.getChildren() as Phaser.Physics.Arcade.Image[]) {
+      if ((s.getData('shot') as ShotSpec).returning) {
+        this.boomerang(s, delta);
+        continue;
+      }
       if ((s.getData('shot') as ShotSpec).homing) this.steer(s, delta);
       const landed = s.texture.key !== 'wave' && s.y > FLOOR_Y;
       if (landed) burst(this, s.x, FLOOR_Y, 0xc2c3c7, 3);
@@ -210,17 +265,17 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   // --- Arena: what enemies and bosses may do ---
 
-  fire(x: number, y: number, vx: number, vy: number, texture: string, damage: number, gravity = false): void {
+  fire(x: number, y: number, vx: number, vy: number, texture: string, damage: number, gravity = false, debuff?: Debuff): void {
     const h = this.physics.add.image(x, y, texture).setDepth(6);
     this.hazards.add(h);
-    h.setData('dmg', damage)
+    h.setData({ dmg: damage, debuff })
       .setVelocity(vx, vy)
-      .setRotation(texture === 'arrow' ? Math.atan2(vy, vx) : 0);
+      .setRotation(['arrow', 'fireball', 'iceshard'].includes(texture) ? Math.atan2(vy, vx) : 0);
     (h.body as Phaser.Physics.Arcade.Body).setAllowGravity(gravity);
   }
 
-  shockwave(x: number, y: number, damage: number): void {
-    for (const dir of [-1, 1]) this.fire(x + dir * 8, y - 3, dir * 130, 0, 'wave', damage);
+  shockwave(x: number, y: number, damage: number, debuff?: Debuff): void {
+    for (const dir of [-1, 1]) this.fire(x + dir * 8, y - 3, dir * 130, 0, 'wave', damage, false, debuff);
   }
 
   private explode(x: number, damage: number): void {
@@ -230,6 +285,26 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.tweens.add({ targets: ring, radius: 24, alpha: 0, duration: 250, onComplete: () => ring.destroy() });
     this.cameras.main.shake(80, 0.006);
     if (Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) < 24) this.hurtPlayer(damage, x);
+  }
+
+  zone(x: number, y: number, w: number, h: number, warnMs: number, damage: number): void {
+    const warn = this.add.rectangle(x, y, w, h, 0xff004d, 0.2).setOrigin(0).setStrokeStyle(1, 0xff004d).setDepth(4);
+    this.tweens.add({ targets: warn, alpha: 0.55, yoyo: true, repeat: -1, duration: 90 });
+    this.time.delayedCall(warnMs, () => {
+      warn.destroy();
+      // The boss died meanwhile: its attacks fizzle.
+      if (this.over || !this.boss) return;
+      const blast = this.add.rectangle(x, y, w, h, 0xffa300, 0.85).setOrigin(0).setDepth(11);
+      this.tweens.add({ targets: blast, alpha: 0, duration: 300, onComplete: () => blast.destroy() });
+      const b = this.player.body as Phaser.Physics.Arcade.Body;
+      if (
+        Phaser.Geom.Intersects.RectangleToRectangle(
+          new Phaser.Geom.Rectangle(x, y, w, h),
+          new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height),
+        )
+      )
+        this.hurtPlayer(damage, x + w / 2);
+    });
   }
 
   meteors(count: number, damage: number): void {
@@ -245,6 +320,17 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
   }
 
+  healAllies(x: number, y: number, radius: number, fraction: number, except: Phaser.GameObjects.GameObject): void {
+    const ring = this.add.circle(x, y, 4).setStrokeStyle(1, 0x00e436).setDepth(12);
+    this.tweens.add({ targets: ring, radius, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
+    for (const e of this.enemies.getChildren() as Enemy[]) {
+      if (e === except || !e.active || e.hp >= e.maxHp || Phaser.Math.Distance.Between(x, y, e.x, e.y) > radius) continue;
+      const amount = Math.round(e.maxHp * fraction);
+      e.hp = Math.min(e.maxHp, e.hp + amount);
+      floatText(this, e.x, e.y - 12, `+${amount}`, '#00e436');
+    }
+  }
+
   summon(kind: EnemyKind, x: number, y: number): void {
     if (this.enemies.countActive() >= MAX_SUMMONS) return;
     burst(this, x, y, 0x7e2553, 6);
@@ -253,10 +339,50 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   // --- internals ---
 
-  private spawnEnemy(kind: EnemyKind, x: number, y: number): void {
-    const e = createEnemy(this, this, kind, x, y, this.cfg.enemyHp, this.cfg.enemyDamage);
+  get pace(): number {
+    return enemyPace(this.cfg.round);
+  }
+
+  private spawnEnemy(kind: EnemyKind, x: number, y: number, elite = false): void {
+    const k = elite ? ELITE : { hp: 1, dmg: 1 };
+    const e = createEnemy(this, this, kind, x, y, this.cfg.enemyHp * k.hp, this.cfg.enemyDamage * k.dmg);
     this.enemies.add(e);
     e.setup();
+    if (!elite) return;
+    const affix = Phaser.Utils.Array.GetRandom(Object.keys(ELITE_AFFIXES)) as EliteAffix;
+    e.setScale(ELITE.scale).setData({ elite: affix, eliteNext: this.time.now + 2500 });
+    this.elite = e;
+    this.eliteTitle = text(this, W / 2, 14, `ELIT ${ENEMIES[kind].name} ${ELITE_AFFIXES[affix].name}`, COLOR.gold, 7).setOrigin(0.5, 0);
+  }
+
+  /** Mini boss affix attacks: fire/ice rings, lightning strikes at the player, or minions. */
+  private eliteAct(e: Enemy, time: number): void {
+    const affix = e.getData('elite') as EliteAffix | undefined;
+    if (!affix || time < (e.getData('eliteNext') as number)) return;
+    const a = ELITE_AFFIXES[affix];
+    e.setData('eliteNext', time + a.every * this.pace);
+    if (affix === 'pemanggil') {
+      for (const dx of [-16, 16]) this.summon(Phaser.Math.RND.pick(['slime', 'bat'] as const), e.x + dx, e.y - 8);
+      return;
+    }
+    if (affix === 'petir') {
+      const x = this.player.x;
+      const warn = this.add.rectangle(x, FLOOR_Y - 1, 12, 2, 0xffec27).setDepth(4);
+      this.tweens.add({ targets: warn, alpha: 0.2, yoyo: true, repeat: -1, duration: 80 });
+      this.time.delayedCall(650, () => {
+        warn.destroy();
+        if (this.over || !e.active) return;
+        const g = this.add.graphics().setDepth(60).lineStyle(2, 0xffec27).lineBetween(x, 0, x, FLOOR_Y);
+        this.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
+        if (Math.abs(this.player.x - x) < 10) this.hurtPlayer(e.damage, x, undefined, a.debuff);
+      });
+      return;
+    }
+    const texture = affix === 'api' ? 'fireball' : 'iceshard';
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      this.fire(e.x, e.y, Math.cos(ang) * 90, Math.sin(ang) * 90, texture, Math.round(e.damage * 0.6), false, a.debuff);
+    }
   }
 
   /** Tiled visual plus a matching static body. */
@@ -272,33 +398,83 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   // --- PlayerWorld: what the player's attacks and skills may do ---
 
-  shot(spec: ShotSpec): void {
-    const homing = spec.homing ?? (spec.texture === 'arrow' && this.stats.homingArrows > 0);
-    spec = { ...spec, homing, tint: spec.tint ?? (homing ? 0xff77a8 : undefined) };
+  shot(spec: ShotSpec): Phaser.GameObjects.GameObject {
+    const homing = !!spec.homing;
+    spec = { ...spec, homing, tint: spec.tint ?? (homing && spec.texture === 'arrow' ? 0xff77a8 : undefined) };
     const img = this.physics.add.image(spec.x, spec.y, spec.texture).setDepth(9);
     this.shots.add(img);
     img.setVelocity(spec.vx, spec.vy).setData('shot', spec).setData('hits', new Set<object>()).setData('born', this.time.now);
     // Long thin projectiles point along their path; the rest just face their direction.
-    if (['arrow', 'bullet', 'w_belati', 'w_tombak'].includes(spec.texture)) img.setRotation(Math.atan2(spec.vy, spec.vx));
+    if (
+      ['arrow', 'bullet', 'w_belati', 'w_tombak', 'w_pedangTerbang', 'iceshard', 'panahArkana', 'w_pedang', 'w_kapak', 'w_katana'].includes(
+        spec.texture,
+      )
+    )
+      img.setRotation(Math.atan2(spec.vy, spec.vx));
     else img.setFlipX(spec.vx < 0);
     if (spec.tint !== undefined) img.setTint(spec.tint);
+    return img;
   }
 
-  area(x: number, y: number, radius: number, mult: number, knockback: number, source: HitSource): void {
+  area(x: number, y: number, radius: number, mult: number, knockback: number, source: HitSource, status?: Status): void {
     if (this.over) return;
     const ring = this.add.circle(x, y, 4).setStrokeStyle(1, 0xfff1e8).setDepth(12);
     this.tweens.add({ targets: ring, radius, alpha: 0, duration: 200, onComplete: () => ring.destroy() });
     for (const t of this.hittables()) {
-      if (Phaser.Math.Distance.Between(x, y, t.x, t.y) <= radius) this.attack(t, mult, source, knockback, false, x, y);
+      if (Phaser.Math.Distance.Between(x, y, t.x, t.y) > radius) continue;
+      this.attack(t, mult, source, knockback, false, x, y);
+      this.applyStatus(t, status);
     }
+  }
+
+  /** Burn refreshes (strongest wins); freeze extends. Bosses freeze half as long. */
+  private applyStatus(t: Hittable, s: Status | undefined): void {
+    if (!s || !t.active) return;
+    const now = this.time.now;
+    if (s.burn) {
+      t.setData('burnUntil', now + BURN_MS);
+      t.setData('burn', Math.max(t.getData('burn') ?? 0, s.burn * this.stats.elemental));
+    }
+    if (s.freeze) {
+      const ms = s.freeze * this.stats.elemental * (t instanceof Boss || t.getData('elite') ? 0.5 : 1);
+      t.setData('freezeUntil', Math.max(t.getData('freezeUntil') ?? 0, now + ms));
+    }
+  }
+
+  private frozen(t: Hittable): boolean {
+    return this.time.now < (t.getData('freezeUntil') ?? 0);
+  }
+
+  /** Burn ticks and freeze hold. True when the target must skip its AI this frame (frozen or dead). */
+  private statusTick(t: Hittable, time: number): boolean {
+    const burnUntil = t.getData('burnUntil') ?? 0;
+    if (time < burnUntil && time >= (t.getData('burnNext') ?? 0)) {
+      t.setData('burnNext', time + BURN_TICK_MS);
+      burst(this, t.x, t.y - 4, 0xffa300, 2);
+      this.damage(t, Math.max(1, Math.round(this.stats.damage * t.getData('burn'))), '#ffa300', 0);
+      if (!t.active) return true;
+    } else if (burnUntil && time >= burnUntil) t.setData({ burnUntil: 0, burn: 0 });
+    if (this.frozen(t)) {
+      t.setVelocityX(0);
+      if (!t.body.allowGravity) t.setVelocityY(0);
+      t.setTint(ICE_TINT);
+      return true;
+    }
+    if (t.getData('freezeUntil')) {
+      t.setData('freezeUntil', 0);
+      t.setTint(t instanceof Boss ? t.baseTint : 0xffffff);
+    }
+    return false;
   }
 
   targets(x: number, y: number): Phaser.GameObjects.Sprite[] {
     return this.hittables().sort((a, b) => Phaser.Math.Distance.Between(x, y, a.x, a.y) - Phaser.Math.Distance.Between(x, y, b.x, b.y));
   }
 
-  strike(t: Phaser.GameObjects.Sprite, mult: number, source: HitSource, crit: boolean): void {
-    if (!this.over && t.active) this.attack(t as Hittable, mult, source, 120, crit);
+  strike(t: Phaser.GameObjects.Sprite, mult: number, source: HitSource, crit: boolean, status?: Status): void {
+    if (this.over || !t.active) return;
+    this.attack(t as Hittable, mult, source, 120, crit);
+    this.applyStatus(t as Hittable, status);
   }
 
   /** Turn a homing shot toward the nearest enemy it has not hit yet, keeping its speed. */
@@ -312,10 +488,24 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const next = Phaser.Math.Angle.RotateTo(
       body.velocity.angle(),
       Phaser.Math.Angle.Between(shot.x, shot.y, t.x, t.y),
-      (HOMING_TURN * delta) / 1000,
+      ((['arrow', 'panahArkana'].includes(shot.texture.key) ? ARROW_TURN : HOMING_TURN) * delta) / 1000,
     );
     body.velocity.setToPolar(next, speed);
     shot.setRotation(next);
+  }
+
+  /** Returning shot: hunts until a hit, a timeout or the arena edge, then flies back into the player's hand. */
+  private boomerang(s: Phaser.Physics.Arcade.Image, delta: number): void {
+    const out = this.time.now - (s.getData('born') as number) > RETURN_MS || s.y > FLOOR_Y || s.x < 4 || s.x > W - 4;
+    if (out) s.setData('back', true);
+    if (!s.getData('back')) {
+      if ((s.getData('shot') as ShotSpec).homing) this.steer(s, delta);
+      return;
+    }
+    const p = this.player;
+    if (Phaser.Math.Distance.Between(s.x, s.y, p.x, p.y) < 10) return void s.destroy();
+    this.physics.moveToObject(s, p, RETURN_SPEED);
+    s.setRotation(Phaser.Math.Angle.Between(p.x, p.y, s.x, s.y));
   }
 
   private hittables(): Hittable[] {
@@ -334,8 +524,37 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (hits.has(t)) return;
     hits.add(t);
     const spec = shot.getData('shot') as ShotSpec;
-    if (!spec.pierce) shot.destroy();
+    if (spec.returning && !spec.pierce) shot.setData('back', true);
+    else if (!spec.pierce) shot.destroy();
     this.attack(t, spec.mult, spec.source, spec.knockback ?? 80, false, shot.x, shot.y);
+    this.applyStatus(t, spec.status);
+    if (spec.explode) {
+      shot.destroy();
+      burst(this, shot.x, shot.y, 0x29adff, 14);
+      this.cameras.main.shake(120, 0.01);
+      this.area(shot.x, shot.y, spec.explode, spec.mult * 0.8, 160, spec.source);
+    }
+  }
+
+  private phantomFist(t: Hittable, mult: number, delay: number): void {
+    const p = this.player;
+    const fist = this.add
+      .image(p.x - p.facing * 4, p.y + Phaser.Math.Between(-8, 8), `w_${this.weaponId}`)
+      .setTint(0xffec27)
+      .setAlpha(0.7)
+      .setFlipX(p.facing < 0)
+      .setDepth(13);
+    this.tweens.add({
+      targets: fist,
+      x: t.x,
+      y: t.y + Phaser.Math.Between(-4, 4),
+      delay: delay - 60,
+      duration: 60,
+      onComplete: () => {
+        fist.destroy();
+        if (t.active) this.attack(t, mult, 'proc', 20);
+      },
+    });
   }
 
   private swordHits(): void {
@@ -347,6 +566,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       if (!Phaser.Geom.Intersects.RectangleToRectangle(box, new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height))) continue;
       this.player.hitThisSwing.add(t);
       this.attack(t, move.dmg, 'basic', move.knockback);
+      this.applyStatus(t, move.status);
+      // Ashura phantom arms: golden fists fly in from beside the player, each a follow-up hit for 40%.
+      for (let i = 1; i <= (move.extra ?? 0); i++) this.phantomFist(t, move.dmg * 0.4, 70 * i);
       if (move.anim === 'overhead') this.cameras.main.shake(80, 0.008);
       if (move.bounce) {
         this.player.pogo();
@@ -379,9 +601,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       floatText(this, t.x, t.y - 18, 'TAHAN', COLOR.gray);
       burst(this, t.x + Math.sign(fromX - t.x) * 5, t.y, 0xffa300, 4);
     }
-    const crit = forceCrit || Math.random() < st.critChance;
+    const crit = forceCrit || (source === 'basic' && st.dashCrit > 0 && this.player.takeDashCrit()) || Math.random() < st.critChance;
     const enraged = st.rage > 0 && this.player.hp < st.maxHp / 2;
-    const dmg = Math.max(1, Math.round(st.damage * mult * (crit ? st.critMult : 1) * (enraged ? 1 + st.rage : 1)));
+    const weak = this.player.has('weak') ? WEAK_MULT : 1;
+    const big = t instanceof Boss || t.getData('elite') ? 1 + st.bossDamage : 1;
+    const fury = 1 + FURY.step * this.player.fury;
+    const dmg = Math.max(1, Math.round(st.damage * mult * weak * big * fury * (crit ? st.critMult : 1) * (enraged ? 1 + st.rage : 1)));
+    if (source === 'basic') this.player.gainFury();
     if (crit) this.cameras.main.shake(60, 0.006);
     if (crit && st.critResetsDash) this.player.resetDash();
     if (st.lifesteal && source !== 'proc') {
@@ -395,6 +621,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const y = t.y;
     const killed = this.damage(t, dmg, crit ? COLOR.gold : COLOR.text, knockback);
     if (source === 'basic' || source === 'skill') this.player.addUlt((ULT_GAIN[source] + (killed ? ULT_GAIN.kill : 0)) * st.ultGainMult);
+    // Korek Api / Inti Es and friends: basic hits may set the target burning or frozen.
+    if (source === 'basic' && !killed) {
+      if (Math.random() < st.burnChance) this.applyStatus(t, { burn: 0.15 });
+      if (Math.random() < st.freezeChance) this.applyStatus(t, { freeze: 500 });
+    }
     // Gema Pedang: a basic hit may strike again for half damage.
     if (source === 'basic' && !killed && Math.random() < st.echo) {
       this.time.delayedCall(90, () => t.active && this.damage(t, Math.max(1, Math.round(dmg / 2)), RARITY_COLOR.legend, 40));
@@ -450,24 +681,37 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private damage(t: Hittable, dmg: number, color: string, knockback: number): boolean {
     t.hp -= dmg;
     floatText(this, t.x, t.y - 10, `${dmg}`, color);
-    const execute = t instanceof Boss ? this.stats.execute / 2 : this.stats.execute;
+    const execute = t instanceof Boss || t.getData('elite') ? this.stats.execute / 2 : this.stats.execute;
     if (t.hp > 0 && t.hp <= t.maxHp * execute) {
       t.hp = 0;
       floatText(this, t.x, t.y - 20, 'EKSEKUSI', COLOR.red);
     }
     flash(t, 0xffffff, t instanceof Boss ? t.baseTint : 0xffffff);
     burst(this, t.x, t.y, 0xfff1e8, 4);
-    if (!(t instanceof Boss)) t.knockback(Math.sign(t.x - this.player.x) || this.player.facing, knockback);
+    // No push at 0 (burn ticks, blocked hits) so the enemy keeps its own movement.
+    // Mini bosses shrug off most of the push.
+    if (!(t instanceof Boss) && knockback)
+      t.knockback(Math.sign(t.x - this.player.x) || this.player.facing, t.getData('elite') ? knockback * 0.3 : knockback);
     if (t.hp > 0) return false;
     const souls =
       t instanceof Boss
         ? soulReward('boss', this.cfg.round, this.stats.soulMult)
-        : soulReward('enemy', this.cfg.round, this.stats.soulMult, ENEMIES[t.kind].soul);
+        : soulReward('enemy', this.cfg.round, this.stats.soulMult, ENEMIES[t.kind].soul * (t.getData('elite') ? ELITE.soul : 1));
     this.save.souls += souls;
     this.runSouls += souls;
     writeSave(this.save);
     floatText(this, t.x, t.y - 20, `+${souls}`, COLOR.blue);
+    if (!(t instanceof Boss) && t.getData('elite')) {
+      this.coins += ELITE.coins;
+      floatText(this, t.x, t.y - 30, `+${ELITE.coins} KOIN`, COLOR.gold);
+      burst(this, t.x, t.y, 0xffec27, 16);
+      this.cameras.main.shake(200, 0.012);
+    }
     if (this.stats.healOnKill) this.player.heal(this.stats.healOnKill);
+    if (Math.random() < this.stats.goldChance) {
+      this.coins++;
+      floatText(this, t.x, t.y - 28, '+1 KOIN', COLOR.gold);
+    }
     if (t instanceof Boss) {
       burst(this, t.x, t.y, 0xff004d, 24);
       this.cameras.main.shake(400, 0.02);
@@ -479,21 +723,40 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.bossTitle?.setVisible(false);
     } else {
       burst(this, t.x, t.y, 0x00e436, 10);
+      // Big slime splits in two: spawned now (not a capped summon), so the round cannot count as cleared in between.
+      if (t.kind === 'splitter') for (const dx of [-8, 8]) this.spawnEnemy('slime', Phaser.Math.Clamp(t.x + dx, 16, W - 16), t.y - 6);
     }
     t.destroy();
     return true;
   }
 
-  private hurtPlayer(dmg: number, fromX: number, source?: Hittable): void {
+  private hurtPlayer(dmg: number, fromX: number, source?: Hittable, debuff?: Debuff): void {
     if (this.over || this.cleared) return;
     const result = this.player.hurt(dmg, fromX);
-    if (result === 'dead') return this.items.includes('phoenix') ? this.revive() : this.die();
+    if (result === 'dead') return this.playerDown();
+    if (result === 'hit' && debuff) this.player.afflict(debuff, dmg);
     if (result === 'hit' && source?.active && this.stats.thorns) this.damage(source, this.stats.thorns, COLOR.gray, 80);
+  }
+
+  private playerDown(): void {
+    if (this.godHandLeft > 0) {
+      this.godHandLeft--;
+      this.player.clearDebuffs();
+      this.player.hp = Math.round(this.stats.maxHp * 0.3);
+      this.player.invuln(1500);
+      this.cameras.main.flash(300, 255, 236, 39);
+      floatText(this, this.player.x, this.player.y - 16, 'GOD HAND!', COLOR.gold);
+      return;
+    }
+    if (this.items.includes('phoenix')) this.revive();
+    else this.die();
   }
 
   /** Bulu Phoenix: consumed instead of dying. */
   private revive(): void {
+    this.player.clearDebuffs();
     this.items.splice(this.items.indexOf('phoenix'), 1);
+    this.spent.push('phoenix');
     this.player.equip(this.currentStats(), WEAPONS[this.weaponId]);
     this.player.hp = Math.round(this.stats.maxHp * 0.5);
     this.player.invuln(2000);
@@ -518,7 +781,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   }
 
   private showRewards(): void {
-    this.rewards = rollRewards(this.cfg.round);
+    this.rewards = rollRewards(this.cfg.round, [...this.items, ...this.spent]);
     this.rewardSel = 0;
     this.rerolls = 0;
     this.buildRewardUi();
@@ -528,7 +791,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.rewardUi?.destroy();
     const rewards = this.rewards ?? [];
     const ui = this.add.container(0, 0).setDepth(200);
-    ui.add(this.add.rectangle(W / 2, H / 2 + 6, 290, 132, 0x000000, 0.85).setStrokeStyle(1, 0x83769c));
+    ui.add(this.add.rectangle(W / 2, H / 2 + 12, 290, 146, 0x000000, 0.85).setStrokeStyle(1, 0x83769c));
     ui.add(text(this, W / 2, REWARD_Y - 16, this.cfg.boss ? 'HADIAH BOSS!' : 'PILIH HADIAH', COLOR.gold).setOrigin(0.5, 0));
     ui.add([this.add.image(W - 50, REWARD_Y - 12, 'coin'), text(this, W - 44, REWARD_Y - 16, `${this.coins}`, COLOR.gold)]);
     rewards.forEach((r, i) => {
@@ -545,7 +808,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
         text(this, 20, y + 3, '>', COLOR.gold).setName(`sel${i}`),
         this.add.image(34, y + 7, info.icon),
         text(this, 50, y, info.name, RARITY_COLOR[rarity]),
-        text(this, W - 20, y, rarity === 'biasa' ? '' : rarity.toUpperCase(), RARITY_COLOR[rarity]).setOrigin(1, 0),
+        this.completesSet(r)
+          ? text(this, W - 20, y, 'SET!', COLOR.gold).setOrigin(1, 0)
+          : text(this, W - 20, y, rarity === 'biasa' ? '' : rarity.toUpperCase(), RARITY_COLOR[rarity]).setOrigin(1, 0),
         text(this, 50, y + 10, info.desc, COLOR.gray),
       ]);
     });
@@ -565,6 +830,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       text(this, 20, skipY, '>', COLOR.gold).setName(`sel${SKIP_ROW}`),
       text(this, 50, skipY, 'LEWATI (TIDAK AMBIL APA-APA)', COLOR.gray),
       refresh,
+      text(this, 20, skipY + 26, '', COLOR.gray).setName('setName'),
+      text(this, 20, skipY + 36, '', COLOR.gray).setName('setDesc'),
     ]);
     this.rewardUi = ui;
     this.refreshRewards();
@@ -581,7 +848,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     this.coins -= cost;
     this.rerolls++;
-    this.rewards = rollRewards(this.cfg.round);
+    this.rewards = rollRewards(this.cfg.round, [...this.items, ...this.spent]);
     this.buildRewardUi();
   }
 
@@ -595,6 +862,25 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     for (let i = 0; i <= SKIP_ROW; i++) {
       (this.rewardUi?.getByName(`sel${i}`) as Phaser.GameObjects.Text | null)?.setVisible(i === this.rewardSel);
     }
+    // Set info of the highlighted item: its partner and the bonus both give.
+    const name = this.rewardUi?.getByName('setName') as Phaser.GameObjects.Text | null;
+    const desc = this.rewardUi?.getByName('setDesc') as Phaser.GameObjects.Text | null;
+    const r = this.rewards?.[this.rewardSel];
+    if (!name || !desc) return;
+    if (r?.type !== 'item') {
+      name.setText('');
+      desc.setText('');
+      return;
+    }
+    const { pair, partner } = pairOf(r.id);
+    const color = this.completesSet(r) ? COLOR.gold : COLOR.gray;
+    name.setText(`SET ${pair.name} + ${ITEMS[partner].name}`).setColor(color);
+    desc.setText(pair.desc).setColor(color);
+  }
+
+  /** Taking this reward completes an item set. */
+  private completesSet(r: Reward): boolean {
+    return r.type === 'item' && this.items.includes(pairOf(r.id).partner);
   }
 
   private takeReward(): void {
@@ -612,10 +898,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private applyReward(r: Reward): void {
     const oldMax = this.stats.maxHp;
     if (r.type === 'potion') this.player.heal(Math.round(this.stats.maxHp * 0.5));
+    const completes = this.completesSet(r);
     if (r.type === 'item') this.items.push(r.id);
     this.player.equip(this.currentStats(), WEAPONS[this.weaponId]);
     if (this.stats.maxHp > oldMax) this.player.heal(this.stats.maxHp - oldMax);
     floatText(this, this.player.x, this.player.y - 16, rewardInfo(r).name, COLOR.gold);
+    if (completes && r.type === 'item') {
+      floatText(this, this.player.x, this.player.y - 28, `SET ${pairOf(r.id).pair.name}!`, COLOR.gold);
+      this.cameras.main.flash(200, 255, 236, 39);
+    }
     this.drawInventory();
   }
 
@@ -638,6 +929,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       cls: this.cls,
       coins: this.coins,
       items: this.items,
+      spent: this.spent,
       ult: this.player.ult,
     } satisfies RunData);
   }
@@ -665,7 +957,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     else this.tweens.resumeAll();
     if (this.paused) this.physics.pause();
     else this.physics.resume();
-    this.pauseText.setVisible(this.paused);
+    const sets = activePairs(this.items).map((p) => p.name);
+    this.pauseText
+      .setText(['PAUSE', '', ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []), 'ESC LANJUT  Q MENYERAH'].join('\n'))
+      .setVisible(this.paused);
   }
 
   private createHud(): void {
@@ -677,6 +972,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.add.image(W - 50, 17, 'coin').setDepth(100);
     this.coinText = text(this, W - 44, 13, '', COLOR.gold);
     this.ultText = text(this, 76, 12, 'I ULTI!', COLOR.gold);
+    this.debuffText = text(this, 4, 21, '', COLOR.red);
     const label = this.cfg.boss ? `ROUND ${this.cfg.round} BOSS` : `ROUND ${this.cfg.round}`;
     text(this, W / 2, 3, label, this.cfg.boss ? COLOR.red : COLOR.text).setOrigin(0.5, 0);
     this.bossTitle = this.boss ? text(this, W / 2, 14, this.boss.title, COLOR.red).setOrigin(0.5, 0) : undefined;
@@ -710,6 +1006,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       if (rarity !== 'biasa')
         inv.add(this.add.rectangle(x, H - 6, 9, 9).setStrokeStyle(1, Phaser.Display.Color.HexStringToColor(RARITY_COLOR[rarity]).color));
       inv.add(this.add.image(x, H - 6, `i_${id}`));
+      // Gold underline: this item's set is complete.
+      if (this.items.includes(pairOf(id).partner)) inv.add(this.add.rectangle(x, H - 1, 7, 1, 0xffec27));
     });
     this.inventory = inv;
   }
@@ -725,10 +1023,28 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     g.fillStyle(0xffec27).fillRect(13, 13, Math.round(60 * p.skillReady), 1);
     const ultFull = p.ult >= 100;
     g.fillStyle(ultFull && Math.floor(this.time.now / 150) % 2 ? 0xffec27 : 0xff77a8).fillRect(13, 15, Math.round(0.6 * p.ult), 2);
-    this.ultText.setVisible(ultFull);
+    // Dark Avenger: the meter is the mode's timer, so label it instead of "I ULTI!".
+    this.ultText.setText(p.awakened ? 'AVENGER' : 'I ULTI!').setVisible(ultFull || p.awakened);
     this.hpText.setText(`${p.hp}`);
+    if (this.boss) this.bossTitle?.setText(this.boss.title);
+    this.debuffText.setText([p.fury ? `AMARAH ${p.fury}` : '', p.debuffNames].filter(Boolean).join(' '));
     this.soulText.setText(`${this.runSouls}`);
     this.coinText.setText(`${this.coins}`);
+    // Small bars over hurt enemies; gold for elites.
+    for (const e of this.enemies.getChildren() as Enemy[]) {
+      if (!e.active || e.hp >= e.maxHp) continue;
+      const y = e.y - e.displayHeight / 2 - 4;
+      g.fillStyle(0x000000).fillRect(e.x - 7, y, 14, 3);
+      g.fillStyle(e.getData('elite') ? 0xffec27 : COLOR.hp).fillRect(e.x - 6, y + 1, Math.ceil((12 * Math.max(0, e.hp)) / e.maxHp), 1);
+    }
+    // Mini boss bar under its name, like the boss bar but gold.
+    const elite = this.elite?.active ? this.elite : undefined;
+    this.eliteTitle?.setVisible(!!elite);
+    if (elite && !this.boss) {
+      g.fillStyle(0x000000).fillRect(W / 2 - 61, 24, 122, 5);
+      g.fillStyle(0x5f574f).fillRect(W / 2 - 60, 25, 120, 3);
+      g.fillStyle(0xffec27).fillRect(W / 2 - 60, 25, Math.ceil((120 * Math.max(0, elite.hp)) / elite.maxHp), 3);
+    }
     if (this.boss) {
       g.fillStyle(0x000000).fillRect(W / 2 - 81, 24, 162, 6);
       g.fillStyle(0x5f574f).fillRect(W / 2 - 80, 25, 160, 4);

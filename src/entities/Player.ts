@@ -6,11 +6,14 @@ import { flash, floatText } from '../gfx/ui.ts';
 import type { PlayerWorld } from './arena.ts';
 import type { ClassId } from '../logic/classes.ts';
 import { SKILLS } from './skills.ts';
+import { CLASSES, FURY } from '../logic/classes.ts';
+import { DASHES } from './dashes.ts';
+import { DEBUFFS, DOT_SHARE, DOT_TICK_MS, SLOW_MULT, type Debuff } from '../logic/stages.ts';
 
 const JUMP_VELOCITY = -250;
-const DASH_SPEED = 280;
-const DASH_MS = 150;
 const COYOTE_MS = 80;
+/** Weapons the Gate of Babylon fires. */
+const TREASURES = ['w_pedang', 'w_tombak', 'w_kapak', 'w_belati', 'w_katana'];
 const JUMP_BUFFER_MS = 100;
 
 type KeyName = 'left' | 'right' | 'a' | 'd' | 'up' | 'w' | 'space' | 'down' | 's' | 'attack' | 'dash' | 'skill' | 'ult';
@@ -31,6 +34,30 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   move: Move;
   /** Enemies already hit by the current swing, so one swing hits each target once. */
   readonly hitThisSwing = new Set<object>();
+  /** Active debuffs: end time and the damage of the hit that caused it (for burn/shock ticks). */
+  private readonly debuffs = new Map<Debuff, { until: number; power: number }>();
+  private nextDot = 0;
+  /** Bushido window: a basic hit before this time is a guaranteed crit. */
+  private dashCritUntil = 0;
+  /** An air move already gave its upward lift since the last landing. */
+  private hoverUsed = false;
+  /** Stats without the awakening boost. */
+  private baseStats!: Derived;
+  /** Dark Avenger mode is on (ult meter draining). */
+  awakened = false;
+  /** AMARAH stacks (Ashura). */
+  fury = 0;
+  /** Dragon form (Antares ult) lasts until this time. */
+  private formUntil = 0;
+  private furyUntil = 0;
+  private awakenAt = 0;
+  private nextAura = 0;
+  private barrierReadyAt = 0;
+  /** Enemies already hit by the current dash. */
+  private readonly dashHits = new Set<object>();
+  private tinted = false;
+  /** Returning projectile still in flight; no new attack until it is caught. */
+  private thrown?: Phaser.GameObjects.GameObject;
   private readonly world: PlayerWorld;
   /** Texture suffix: hero frames are recolored per class. */
   private readonly skin: ClassId;
@@ -100,12 +127,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   equip(stats: Derived, weapon: Weapon): void {
-    this.stats = stats;
+    this.baseStats = stats;
+    this.stats = this.awakened ? this.boosted(stats) : stats;
     this.weapon = weapon;
     this.move = weapon.combo[0];
     this.comboIndex = -1;
     this.hp = Math.min(this.hp, stats.maxHp);
-    this.held.setTexture(`w_${weapon.id}`).setOrigin(weapon.id === 'busur' ? 0.2 : 0.15, 0.5);
+    this.held
+      .setTexture(`w_${weapon.id}`)
+      .setOrigin(weapon.id === 'busur' || weapon.id === 'busurArkana' ? 0.2 : weapon.fist ? 0.5 : 0.15, 0.5);
   }
 
   /** Melee hitbox is live. */
@@ -114,7 +144,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   get dashReady(): number {
-    return this.readiness(this.dashReadyAt, this.stats.dashCooldown);
+    return this.readiness(this.dashReadyAt, this.stats.dashCooldown * (DASHES[this.skin].cd ?? 1));
   }
 
   get skillReady(): number {
@@ -164,6 +194,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   addUlt(n: number): void {
+    // While awakened the meter only drains.
+    if (this.awakened) return;
     this.ult = Math.min(100, this.ult + n);
   }
 
@@ -179,6 +211,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (grounded) {
       this.coyoteUntil = time + COYOTE_MS;
       this.airJumps = this.stats.extraJumps;
+      this.hoverUsed = false;
       if (this.landFn && time >= this.landArmAt) {
         const fn = this.landFn;
         this.landFn = undefined;
@@ -186,16 +219,27 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
+    this.updateAwaken(time);
+    if (this.fury && time > this.furyUntil) this.fury = 0;
     const locked = time < this.lockUntil;
     const dashing = time < this.dashUntil;
-    if (!dashing) b.setAllowGravity(true);
+    const dragon = this.dragon;
+    if (!dashing) b.setAllowGravity(!dragon);
     if (!dashing && !locked) {
       const dir = (k.right.isDown || k.d.isDown ? 1 : 0) - (k.left.isDown || k.a.isDown ? 1 : 0);
       if (dir) this.facing = dir;
-      this.setVelocityX(dir * this.stats.speed);
+      this.setVelocityX(dir * this.stats.speed * (this.has('slow') ? SLOW_MULT : 1));
+      // Dragon form flies: up/down steer freely, kept below the HUD.
+      if (dragon) {
+        const up = k.up.isDown || k.w.isDown || k.space.isDown ? 1 : 0;
+        const down = k.down.isDown || k.s.isDown ? 1 : 0;
+        this.setVelocityY((down - up) * this.stats.speed * 0.8);
+        if (this.y < 24 && b.velocity.y < 0) this.setVelocityY(0);
+      }
     }
+    if (this.has('freeze')) this.setVelocityX(0);
 
-    if (!locked) this.handleJump(time, k);
+    if (!locked && !dragon) this.handleJump(time, k);
     // Releasing jump early cuts the arc short (only real jumps, not pogo/hover pushes).
     if (b.velocity.y >= 0) this.jumpCut = false;
     if (this.jumpCut && !(k.space.isDown || k.w.isDown || k.up.isDown) && b.velocity.y < -80) {
@@ -203,27 +247,179 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.jumpCut = false;
     }
 
-    if (!locked && Phaser.Input.Keyboard.JustDown(k.dash) && time >= this.dashReadyAt) {
-      this.dashUntil = time + DASH_MS;
-      this.dashReadyAt = time + this.stats.dashCooldown * 1000;
-      this.invuln(DASH_MS);
-      b.setAllowGravity(false);
-      this.setVelocity(this.facing * DASH_SPEED, 0);
+    if (!locked && Phaser.Input.Keyboard.JustDown(k.dash) && time >= this.dashReadyAt) this.dash(time);
+    if (dashing) {
+      this.ghost(DASHES[this.skin].tint);
+      this.dashHit();
     }
-    if (dashing) this.ghost(0x29adff);
 
     const attackPressed = Phaser.Input.Keyboard.JustDown(k.attack);
-    if (!locked && !dashing && (attackPressed || (this.weapon.automatic && k.attack.isDown)) && time >= this.swingReadyAt)
+    if (
+      !locked &&
+      !dashing &&
+      (attackPressed || ((this.weapon.automatic || dragon) && k.attack.isDown)) &&
+      time >= this.swingReadyAt &&
+      !this.thrown?.active
+    )
       this.attack(time);
-    if (!locked && Phaser.Input.Keyboard.JustDown(k.skill) && time >= this.skillReadyAt) this.useSkill(time, 'skill');
-    if (!locked && Phaser.Input.Keyboard.JustDown(k.ult) && this.ult >= 100) this.useSkill(time, 'ult');
+    const silenced = this.has('silence');
+    if (!locked && !silenced && Phaser.Input.Keyboard.JustDown(k.skill) && time >= this.skillReadyAt) this.useSkill(time, 'skill');
+    if (!locked && !silenced && !this.awakening && Phaser.Input.Keyboard.JustDown(k.ult) && this.ult >= 100) this.useSkill(time, 'ult');
 
     const running = grounded && b.velocity.x !== 0;
     const frame = !grounded ? 'jump' : running ? (Math.floor(time / 120) % 2 ? 'run1' : 'run0') : 'idle';
-    this.setTexture(`hero_${frame}_${this.skin}`);
+    this.setTexture(dragon ? 'dragon' : `hero_${frame}_${this.skin}`);
     this.setFlipX(this.facing < 0);
     this.setAlpha(time < this.invulnUntil && !dashing && Math.floor(time / 60) % 2 ? 0.3 : 1);
     this.poseWeapon(time);
+    this.tintDebuffs(time);
+  }
+
+  /** The class dash: its own movement, then its own start effect. */
+  private dash(time: number): void {
+    const d = DASHES[this.skin];
+    this.dashUntil = time + d.ms;
+    this.dashCritUntil = time + d.ms + 500;
+    this.dashReadyAt = time + this.stats.dashCooldown * (d.cd ?? 1) * 1000;
+    this.invuln(d.ms);
+    this.dashHits.clear();
+    this.body.setAllowGravity(!!d.gravity);
+    this.setVelocity(this.facing * d.speed, d.vy ?? 0);
+    d.start?.({ p: this, world: this.world, scene: this.scene, power: this.stats.dashPower });
+  }
+
+  /** Dashes with a hit strike every enemy they touch, once per dash. */
+  private dashHit(): void {
+    const h = DASHES[this.skin].hit;
+    if (!h) return;
+    for (const t of this.world.targets(this.x, this.y)) {
+      if (this.dashHits.has(t) || Phaser.Math.Distance.Between(this.x, this.y, t.x, t.y) > h.radius + t.displayWidth / 2) continue;
+      this.dashHits.add(t);
+      this.world.strike(t, h.mult * this.stats.dashPower, 'skill', !!h.crit, h.status);
+      if (h.heal) this.heal(h.heal);
+    }
+  }
+
+  private avoid(time: number, label: string, color: string): 'ignored' {
+    this.invulnUntil = time + 400;
+    floatText(this.scene, this.x, this.y - 18, label, color);
+    return 'ignored';
+  }
+
+  /** A golden ripple where a treasure comes through. */
+  gatePortal(x: number, y: number): void {
+    const g = this.scene.add.ellipse(x, y, 6, 12, 0xffec27, 0.6).setStrokeStyle(1, 0xffa300).setDepth(10);
+    this.scene.tweens.add({ targets: g, scaleX: 1.8, alpha: 0, duration: 300, onComplete: () => g.destroy() });
+  }
+
+  /** Consumes the Bushido window (first basic hit after a dash). */
+  takeDashCrit(): boolean {
+    if (this.scene.time.now >= this.dashCritUntil) return false;
+    this.dashCritUntil = 0;
+    return true;
+  }
+
+  has(d: Debuff): boolean {
+    return this.scene.time.now < (this.debuffs.get(d)?.until ?? 0);
+  }
+
+  /** Names of active debuffs, for the HUD. */
+  get debuffNames(): string {
+    return [...this.debuffs.keys()]
+      .filter((d) => this.has(d))
+      .map((d) => DEBUFFS[d].name)
+      .join(' ');
+  }
+
+  /** Apply (or refresh) a debuff from a hit that dealt `power` damage. */
+  afflict(d: Debuff, power: number): void {
+    if (d === 'burn' && this.stats.fireImmune) return;
+    const now = this.scene.time.now;
+    if (!this.has(d)) floatText(this.scene, this.x, this.y - 22, `${DEBUFFS[d].name}!`, DEBUFFS[d].color);
+    this.debuffs.set(d, { until: now + DEBUFFS[d].ms, power: Math.max(1, Math.round(power * DOT_SHARE)) });
+    // Never shortens a longer lock already running.
+    if (d === 'freeze' || d === 'stun') this.lockUntil = Math.max(this.lockUntil, now + DEBUFFS[d].ms);
+  }
+
+  clearDebuffs(): void {
+    this.debuffs.clear();
+  }
+
+  /** Burn and shock damage over time (ignores invulnerability). Returns the damage dealt this frame. */
+  tickDebuffs(time: number): number {
+    if (time < this.nextDot || this.hp <= 0) return 0;
+    const dmg = (['burn', 'shock'] as const).reduce((sum, d) => sum + (this.has(d) ? this.debuffs.get(d)!.power : 0), 0);
+    if (!dmg) return 0;
+    this.nextDot = time + DOT_TICK_MS;
+    this.hp = Math.max(0, this.hp - dmg);
+    floatText(this.scene, this.x, this.y - 10, `${dmg}`, this.has('shock') ? DEBUFFS.shock.color : DEBUFFS.burn.color);
+    // Shock jolts: a short lock on every tick.
+    if (this.has('shock')) this.lockUntil = Math.max(this.lockUntil, time + 120);
+    return dmg;
+  }
+
+  /** Add AMARAH stacks (only classes with furyMax) and refresh their timer. */
+  gainFury(n = 1): void {
+    if (!this.stats.furyMax) return;
+    this.fury = Math.min(this.stats.furyMax, this.fury + n);
+    this.furyUntil = this.scene.time.now + FURY.decayMs;
+  }
+
+  /** This class's awakening, if it has one instead of an ult. */
+  private get awakening() {
+    return CLASSES[this.skin].awaken;
+  }
+
+  private boosted(s: Derived): Derived {
+    const b = { ...s };
+    this.awakening?.apply(b);
+    return b;
+  }
+
+  /** Full meter awakens the class; the meter then drains and the mode ends when it is empty. */
+  private updateAwaken(time: number): void {
+    const aw = this.awakening;
+    if (!aw) return;
+    if (!this.awakened && this.ult >= 100) {
+      this.awakened = true;
+      this.awakenAt = time;
+      this.stats = this.boosted(this.baseStats);
+      this.scene.cameras.main.flash(200, 126, 37, 83);
+      floatText(this.scene, this.x, this.y - 22, `${aw.name}!`, '#ff77a8');
+    }
+    if (!this.awakened) return;
+    this.ult = Math.max(0, 100 * (1 - (time - this.awakenAt) / (aw.ms * this.baseStats.awakenTime)));
+    if (this.ult <= 0) {
+      this.awakened = false;
+      this.stats = this.baseStats;
+      floatText(this.scene, this.x, this.y - 22, 'MODE BERAKHIR', COLOR.gray);
+    } else if (time >= this.nextAura) {
+      this.nextAura = time + 90;
+      this.ghost(0x7e2553);
+    }
+  }
+
+  private tintDebuffs(time: number): void {
+    const blink = Math.floor(time / 100) % 2 === 0;
+    const tint = this.has('freeze')
+      ? 0x29adff
+      : this.has('shock') && blink
+        ? 0xffec27
+        : this.has('burn') && blink
+          ? 0xffa300
+          : this.has('stun')
+            ? 0xfff1e8
+            : this.has('slow')
+              ? 0x83769c
+              : this.has('weak') || this.has('silence')
+                ? 0xff77a8
+                : this.awakened
+                  ? 0xc080ff
+                  : undefined;
+    if (tint !== undefined) this.setTint(tint);
+    // Only clear our own tint, so hurt flashes still show.
+    else if (this.tinted) this.setTint(0xffffff);
+    this.tinted = tint !== undefined;
   }
 
   private handleJump(time: number, k: Keys): void {
@@ -242,7 +438,34 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  get dragon(): boolean {
+    return this.scene.time.now < this.formUntil;
+  }
+
+  /** Turn into the dragon for `ms` (times stats.formTime). */
+  transform(ms: number): void {
+    this.formUntil = this.scene.time.now + ms * this.stats.formTime;
+  }
+
   private attack(time: number): void {
+    // Dragon form: the attack is a stream of fire (hold to keep breathing).
+    if (this.dragon) {
+      this.swingReadyAt = time + this.stats.swingCooldown * 800;
+      for (const a of [-0.15, 0, 0.15]) {
+        this.world.shot({
+          x: this.x + this.facing * 10,
+          y: this.y,
+          vx: Math.cos(a) * 240 * this.facing,
+          vy: Math.sin(a) * 240,
+          texture: 'fireball',
+          mult: 0.8,
+          source: 'basic',
+          status: { burn: 0.25 },
+          knockback: 40,
+        });
+      }
+      return;
+    }
     const grounded = this.body.blocked.down || this.body.touching.down;
     let m: Move;
     if (grounded) {
@@ -254,15 +477,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       m = this.weapon.air;
       this.comboIndex = -1;
     }
-    this.move = m;
+    // Awakened: every melee move reaches further.
+    const k = this.awakened ? this.awakening!.reach : 1;
+    this.move = k === 1 ? m : { ...m, reach: { w: m.reach.w * k, h: m.reach.h * k } };
     this.swingUntil = time + m.ms;
-    this.swingReadyAt = time + this.stats.swingCooldown * m.cd * 1000;
+    this.swingReadyAt = time + this.stats.swingCooldown * m.cd * 1000 * (1 - FURY.step * this.fury);
     this.hitThisSwing.clear();
     if (m.lunge) {
       this.setVelocityX(this.facing * m.lunge);
       this.lock(m.ms);
     }
-    if (m.hover) this.setVelocityY(Math.min(this.body.velocity.y, -m.hover));
+    // Air lift only once per airtime; spamming air attacks must not keep the player flying.
+    if (m.hover && !this.hoverUsed) {
+      this.setVelocityY(Math.min(this.body.velocity.y, -m.hover));
+      this.hoverUsed = true;
+    }
     if (m.dive) {
       this.setVelocity(this.facing * m.dive.vx, m.dive.vy);
       this.lock(m.ms);
@@ -278,24 +507,36 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     // Extra arrows (Magic Archer synergy) fan out alongside the move's own.
     const extra =
-      this.weapon.id === 'busur' && m.angles?.length
+      (this.weapon.id === 'busur' || this.weapon.id === 'busurArkana' || this.weapon.projectile?.gate) && m.angles?.length
         ? Array.from({ length: this.stats.extraArrows }, (_, i) => (i % 2 ? -1 : 1) * 0.2 * (1 + (i >> 1)))
         : [];
     const projectile = this.weapon.projectile;
-    for (const a of projectile ? [...(m.angles ?? []), ...extra] : []) {
-      this.world.shot({
-        x: this.x + this.facing * 6,
-        y: this.y + 1,
+    // Magic Archer: only the lead (middle) arrow of the move homes; the rest fly straight.
+    const lead = Math.floor((m.angles?.length ?? 0) / 2);
+    const gate = projectile?.gate;
+    for (const [i, a] of (projectile ? [...(m.angles ?? []), ...extra] : []).entries()) {
+      // Gate of Babylon: each shot leaves its own portal somewhere behind and above the player.
+      const x = gate ? this.x - this.facing * Phaser.Math.Between(0, 22) : this.x + this.facing * 6;
+      const y = gate ? this.y - Phaser.Math.Between(2, 30) : this.y + 1;
+      if (gate) this.gatePortal(x, y);
+      this.thrown = this.world.shot({
+        x,
+        y,
         vx: Math.cos(a) * projectile!.speed * this.facing,
         vy: Math.sin(a) * projectile!.speed,
-        texture: projectile!.texture,
+        texture: gate ? Phaser.Math.RND.pick(TREASURES) : (m.shot ?? projectile!.texture),
+        tint: gate ? 0xffec27 : undefined,
+        status: m.status,
         mult: m.dmg,
         source: 'basic',
-        pierce: this.weapon.id === 'busur' && this.stats.pierceArrows > 0,
+        pierce: (this.weapon.id === 'busur' || this.weapon.id === 'pedangTerbang') && this.stats.pierceArrows > 0,
         knockback: m.knockback,
+        homing: projectile!.homing || (this.stats.homingArrows > 0 && i === lead),
+        returning: projectile!.returning,
       });
+      if (!projectile!.returning) this.thrown = undefined;
     }
-    // Ksatria synergy: the last hit of the ground combo throws a sword wave.
+    // Ksatria synergy: the last hit of the ground combo throws a golden wave of light.
     if (grounded && this.stats.finisherWave && this.comboIndex === this.weapon.combo.length - 1) {
       this.world.shot({
         x: this.x + this.facing * 10,
@@ -303,8 +544,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         vx: this.facing * 200,
         vy: 0,
         texture: 'slash',
-        tint: 0xfff1e8,
-        mult: 0.8,
+        tint: 0xffec27,
+        mult: 1,
         source: 'skill',
         pierce: true,
       });
@@ -329,7 +570,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   hurt(damage: number, fromX: number): HurtResult {
     const time = this.scene.time.now;
     if (time < this.invulnUntil || this.hp <= 0) return 'ignored';
-    this.hp = Math.max(0, this.hp - Math.max(1, Math.round(damage * this.stats.damageTaken)));
+    // Dodge and block both cancel the hit (and its debuff), with a short grace.
+    if (Math.random() < this.stats.dodge) return this.avoid(time, 'HINDAR', COLOR.gray);
+    if (this.stats.barrier && time >= this.barrierReadyAt) {
+      this.barrierReadyAt = time + this.stats.barrier * 1000;
+      return this.avoid(time, 'BLOK', COLOR.gold);
+    }
+    this.hp = Math.max(0, this.hp - Math.max(1, Math.round(damage * this.stats.damageTaken * (this.dragon ? 0.6 : 1))));
     this.invulnUntil = time + this.stats.iframes;
     this.setVelocity((this.x < fromX ? -1 : 1) * 140, -150);
     flash(this, 0xff004d);
@@ -353,9 +600,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const f = this.facing;
     const active = time < this.swingUntil;
     const p = active ? 1 - (this.swingUntil - time) / m.ms : 1;
-    let x = this.x + f * 3;
-    let angle = this.weapon.projectile ? 0 : this.weapon.id === 'tombak' ? 20 : 45;
+    let x = this.x + f * (this.weapon.fist ? 5 : 3);
+    let y = this.y + 2;
+    let angle = this.weapon.projectile || this.weapon.fist ? 0 : this.weapon.id === 'tombak' ? 20 : 45;
     if (active) {
+      // Fists: jab straight out and back, hook in a forward arc, uppercut rising from the hip.
+      if (m.anim === 'jab') x += f * Math.sin(p * Math.PI) * (m.lunge ? 14 : 9);
+      if (m.anim === 'hook') {
+        const a = Math.PI * (p - 0.5);
+        x += f * (Math.cos(a) * 9 - 2);
+        y += Math.sin(a) * 5;
+        angle = 35 * (p - 0.5);
+      }
+      if (m.anim === 'uppercut') {
+        x += f * 4;
+        y += 5 - 16 * p;
+        angle = -60 * p;
+      }
       if (m.anim === 'down') angle = -100 + 150 * p;
       if (m.anim === 'up') angle = 60 - 160 * p;
       if (m.anim === 'overhead') angle = -150 + 220 * p;
@@ -373,10 +634,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (spinning) angle = (time * 1.6) % 360;
     // Right-facing angles; mirrored by scaleX for the left side.
     this.held
-      .setPosition(x, this.y + 2)
-      .setScale(f, 1)
+      .setPosition(x, y)
+      .setScale(f * (this.awakened ? 1.3 : 1), this.awakened ? 1.3 : 1)
       .setAngle(angle * f)
-      .setAlpha(this.alpha);
+      .setAlpha(this.alpha)
+      // A thrown sword is out of the hand until it comes back.
+      .setVisible(!this.thrown?.active && !this.dragon);
 
     if (spinning) {
       this.slash

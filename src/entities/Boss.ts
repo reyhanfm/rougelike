@@ -1,6 +1,16 @@
 import Phaser from 'phaser';
-import { W } from '../gfx/ui.ts';
-import { BOSSES, bossKind, bossLoop, bossPatterns, type BossKind, type BossPattern, type RoundConfig } from '../logic/stages.ts';
+import { FLOOR_Y, W, floatText } from '../gfx/ui.ts';
+import {
+  BOSSES,
+  bossKind,
+  bossLoop,
+  bossPatterns,
+  bossPhase,
+  DEMON_PHASES,
+  type BossKind,
+  type BossPattern,
+  type RoundConfig,
+} from '../logic/stages.ts';
 import type { Arena } from './arena.ts';
 
 type Mode = 'idle' | 'windup' | BossPattern;
@@ -12,7 +22,11 @@ const BODY: Record<BossKind, { texture: string; w: number; h: number; ox: number
   knight: { texture: 'boss', w: 16, h: 22, ox: 2, oy: 2 },
   slimeKing: { texture: 'slimeKing', w: 24, h: 13, ox: 2, oy: 4 },
   lich: { texture: 'lich', w: 10, h: 18, ox: 3, oy: 2 },
+  demonLord: { texture: 'demonLord', w: 16, h: 18, ox: 2, oy: 0 },
 };
+/** Wide attacks: they stay dangerous until the warning ends, so the boss waits longer after them. */
+const WIDE: readonly BossPattern[] = ['pillars', 'laser', 'quake', 'sweep'];
+const PHASE_TINTS = [0xffffff, 0xffb0b0, 0xff6060];
 
 export class Boss extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -21,9 +35,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   readonly damage: number;
   readonly tier: number;
   readonly kind: BossKind;
-  readonly baseTint: number;
+  baseTint: number;
+  /** Raja Iblis: 1-3, from remaining HP; 0 for single-phase bosses. */
+  private phase = 0;
   private readonly arena: Arena;
-  private readonly patterns: readonly BossPattern[];
+  private patterns: readonly BossPattern[];
   /** Completed rotations: more projectiles and shorter pauses each loop. */
   private readonly loop: number;
   private mode: Mode = 'idle';
@@ -49,14 +65,42 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(b.w, b.h).setOffset(b.ox, b.oy);
     this.body.setAllowGravity(kind !== 'lich');
     this.modeAt = scene.time.now + 800;
+    if (kind === 'demonLord') {
+      this.phase = 1;
+      this.patterns = DEMON_PHASES[0];
+    }
   }
 
   get title(): string {
-    return this.loop ? `${BOSSES[this.kind].name} +${this.loop}` : BOSSES[this.kind].name;
+    const name = this.loop ? `${BOSSES[this.kind].name} +${this.loop}` : BOSSES[this.kind].name;
+    return this.phase ? `${name} - FASE ${this.phase}` : name;
   }
 
   private get idleMs(): number {
-    return Math.max(450, 1300 - 120 * (this.tier - 1));
+    // Later phases barely pause.
+    return Math.max(350, 1300 - 120 * (this.tier - 1)) * (this.phase ? 1 - 0.2 * (this.phase - 1) : 1);
+  }
+
+  /** Warning time before a wide attack lands: shorter every phase and every return of the boss. */
+  private get warnMs(): number {
+    return Math.max(550, 900 - 120 * (this.phase - 1) - 40 * this.loop);
+  }
+
+  /** Raja Iblis enters the next phase: roar, shockwaves, new tint and patterns, short pause. */
+  private checkPhase(time: number): void {
+    if (!this.phase) return;
+    const next = bossPhase(this.hp, this.maxHp);
+    if (next <= this.phase) return;
+    this.phase = next;
+    this.patterns = DEMON_PHASES[next - 1];
+    this.baseTint = PHASE_TINTS[next - 1];
+    this.setTint(this.baseTint).setVelocityX(0);
+    this.scene.cameras.main.flash(300, 255, 0, 77);
+    this.scene.cameras.main.shake(400, 0.02);
+    floatText(this.scene, this.x, this.y - 24, `FASE ${next}!`, '#ff004d');
+    this.arena.shockwave(this.x, this.body.bottom, Math.round(this.damage * 0.7));
+    this.mode = 'idle';
+    this.modeAt = time + 1200;
   }
 
   private get grounded(): boolean {
@@ -66,6 +110,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   tick(time: number): void {
     const target = this.arena.player;
     const toward = Math.sign(target.x - this.x) || 1;
+    this.checkPhase(time);
     const elapsed = time - this.modeAt;
 
     switch (this.mode) {
@@ -85,6 +130,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
           this.setTint(this.baseTint);
           this.enter(this.next, time);
           this.begin(this.next, target, toward);
+          // Super boss from phase 2: wide attacks sometimes come in pairs (dodge both at once).
+          if (this.phase >= 2 && WIDE.includes(this.next) && Math.random() < (this.phase >= 3 ? 0.6 : 0.35)) {
+            const other = this.patterns.filter((p) => WIDE.includes(p) && p !== this.next);
+            if (other.length) this.begin(Phaser.Math.RND.pick(other), target, toward);
+          }
         }
         break;
       case 'charge':
@@ -104,14 +154,15 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         }
         break;
       default:
-        // One-shot patterns: fired in begin(), then a short recovery.
-        if (elapsed > 600) this.rest(time);
+        // One-shot patterns: fired in begin(), then a short recovery (longer after wide attacks).
+        if (elapsed > (WIDE.includes(this.mode) ? 1100 : 600)) this.rest(time);
     }
   }
 
   private idleMove(time: number, toward: number): void {
     this.setFlipX(toward < 0);
-    if (this.kind === 'knight') this.setVelocityX(this.grounded ? toward * 25 : this.body.velocity.x);
+    if (this.kind === 'knight' || this.kind === 'demonLord')
+      this.setVelocityX(this.grounded ? toward * (this.phase ? 20 + 10 * this.phase : 25) : this.body.velocity.x);
     if (this.kind === 'slimeKing' && this.grounded) this.setVelocityX(0);
     if (this.kind === 'lich') {
       // Drift above the player with a slow bob.
@@ -159,6 +210,43 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       case 'bats':
         for (let i = 0; i < 2 + this.loop; i++) this.arena.summon('bat', this.x + (i % 2 ? 20 : -20), this.y);
         break;
+      case 'pillars': {
+        // Fire columns on most 32px lanes; the rest are the safe gaps. Phase 3 follows up on the gaps.
+        const lanes = Phaser.Utils.Array.Shuffle([...Array(W / 32).keys()]);
+        const safe = new Set(lanes.slice(0, Math.max(2, 4 - this.phase - this.loop)));
+        for (let i = 0; i < W / 32; i++) if (!safe.has(i)) this.arena.zone(i * 32 + 3, 0, 26, FLOOR_Y, this.warnMs, this.damage);
+        // Phase 3: once the first wave lands, the gaps get their own warning (so the safe lanes are readable first).
+        if (this.phase >= 3)
+          this.scene.time.delayedCall(this.warnMs, () => {
+            if (this.active) for (const i of safe) this.arena.zone(i * 32 + 3, 0, 26, FLOOR_Y, this.warnMs, this.damage);
+          });
+        break;
+      }
+      case 'laser': {
+        // Full-width beam at the player's height (a second one in phase 3): drop down or jump over.
+        const ys = [target.y, ...(this.phase >= 3 ? [target.y + Phaser.Math.RND.pick([-40, 40])] : [])];
+        for (const y of ys) this.arena.zone(0, Phaser.Math.Clamp(y - 7, 20, FLOOR_Y - 14), W, 14, this.warnMs, this.damage);
+        break;
+      }
+      case 'legion':
+        // Phase 3: calls in its guard of imps, ninjas and ice wraiths.
+        for (let i = 0; i < 2 + this.loop; i++)
+          this.arena.summon(Phaser.Math.RND.pick(['imp', 'ninja', 'wraith'] as const), this.x + (i % 2 ? 24 : -24), this.y - 10);
+        break;
+      case 'quake':
+        // The whole floor erupts: be in the air (or on a platform) when it hits.
+        this.arena.zone(0, FLOOR_Y - 12, W, 12, this.warnMs, this.damage);
+        this.scene.cameras.main.shake(this.warnMs, 0.004);
+        break;
+      case 'sweep': {
+        // A low wall of fire sweeps across the floor from the boss's side: jump it.
+        const dir = this.x < W / 2 ? 1 : -1;
+        for (let i = 0; i < 8; i++) {
+          const x = dir > 0 ? i * 40 : W - (i + 1) * 40;
+          this.arena.zone(x, FLOOR_Y - 26, 40, 26, this.warnMs * 0.65 + i * 100, this.damage);
+        }
+        break;
+      }
     }
   }
 

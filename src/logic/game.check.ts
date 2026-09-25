@@ -21,6 +21,9 @@ const {
   moveHitbox,
   coinReward,
   rerollCost,
+  PAIRS,
+  pairOf,
+  activePairs,
 } = await import('./loot.ts');
 const { loadSave, writeSave, defaultSave } = await import('./save.ts');
 const { PALETTE: PALETTE_CHECK } = await import('../gfx/sprites.ts');
@@ -32,7 +35,7 @@ const b2 = roundConfig(10);
 const b3 = roundConfig(15);
 assert.equal(b1.bossTier, 1);
 assert.equal(b1.enemyCount, 0);
-assert.ok(b2.bossHp > b1.bossHp && b3.bossHp > b2.bossHp);
+assert.ok(b2.bossHp > b1.bossHp && b3.bossHp > b1.bossHp && roundConfig(20).bossHp > b2.bossHp);
 assert.ok(b2.bossDamage > b1.bossDamage);
 assert.equal(roundConfig(4).boss, false);
 assert.ok(roundConfig(4).enemyCount > roundConfig(1).enemyCount);
@@ -78,29 +81,87 @@ const seq = (vals: number[]) => {
   return () => vals[i++ % vals.length];
 };
 assert.deepEqual(new Set(pickEnemies(1, 20)), new Set(['slime']));
-const late = pickEnemies(10, 200);
-for (const k of Object.keys(ENEMIES)) assert.ok(late.includes(k as never), `${k} never spawns by round 10`);
+const late = pickEnemies(12, 600);
+for (const k of Object.keys(ENEMIES)) assert.ok(late.includes(k as never), `${k} never spawns by round 12`);
+// Debuff enemies: every debuff has at least one source, each with a sprite.
+const { DEBUFFS } = await import('./stages.ts');
+const sources = new Set(Object.values(ENEMIES).map((e) => e.debuff));
+for (const d of Object.keys(DEBUFFS)) assert.ok(sources.has(d as never) || d === 'silence', `no enemy inflicts ${d}`);
+for (const d of Object.values(DEBUFFS)) assert.ok(d.ms > 0 && d.ms <= 4000, 'debuffs stay short');
 for (const k of pickEnemies(3, 100)) assert.ok(ENEMIES[k].from <= 3);
 assert.deepEqual(pickEnemies(3, 3, seq([0, 0.5, 0.99])), ['slime', 'bat', 'boar']);
 
 // Bosses rotate kinds; later loops unlock their third pattern.
-assert.deepEqual([1, 2, 3, 4].map(bossKind), ['knight', 'slimeKing', 'lich', 'knight']);
+// Boss every 5 rounds; every 10th is Raja Iblis (phases), the others rotate.
+assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8].map(bossKind), [
+  'knight',
+  'demonLord',
+  'slimeKing',
+  'demonLord',
+  'lich',
+  'demonLord',
+  'knight',
+  'demonLord',
+]);
+{
+  const { isPhaseBossRound, bossPhase, DEMON_PHASES, bossLoop } = await import('./stages.ts');
+  assert.deepEqual([5, 10, 15, 20].map(isPhaseBossRound), [false, true, false, true]);
+  assert.deepEqual(
+    [100, 67, 66, 34, 33, 1].map((hp) => bossPhase(hp, 100)),
+    [1, 1, 2, 2, 3, 3],
+  );
+  assert.equal(DEMON_PHASES.length, 3);
+  assert.ok(DEMON_PHASES[2].length > DEMON_PHASES[0].length, 'later phases add attacks');
+  assert.deepEqual([2, 4, 6].map(bossLoop), [0, 1, 2]);
+  assert.ok(roundConfig(10).bossHp > roundConfig(5).bossHp * 1.5, 'phase boss is a real step up');
+}
 assert.equal(bossPatterns('knight', 1).length, 2);
-assert.deepEqual(bossPatterns('knight', 4), BOSSES.knight.patterns);
+assert.deepEqual(bossPatterns('knight', 7), BOSSES.knight.patterns);
 assert.deepEqual(bossPatterns('lich', 30), BOSSES.lich.patterns);
 
 // Loot: weapon + items change stats; caps hold.
 const plain = runStats(base, WEAPONS.pedang, []);
 assert.equal(plain.damage, base.damage);
 assert.ok(runStats(base, WEAPONS.kapak, []).damage > plain.damage);
-assert.ok(runStats(base, WEAPONS.belati, []).swingCooldown < plain.swingCooldown);
-const stacked = runStats(base, WEAPONS.pedang, ['batu', 'batu', 'jantung', 'sayap', 'sayap', 'sayap', 'duri']);
-assert.equal(stacked.damage, Math.round(base.damage * 1.15 * 1.15));
+assert.ok(runStats(base, WEAPONS.katana, []).swingCooldown < plain.swingCooldown);
+// Items are unique: a duplicate id never stacks.
+const stacked = runStats(base, WEAPONS.pedang, ['batu', 'batu', 'jantung', 'sayap', 'sayap', 'duri']);
+assert.equal(stacked.damage, Math.round(base.damage * 1.15));
 assert.equal(stacked.maxHp, base.maxHp + 30);
-assert.equal(stacked.extraJumps, 3);
+assert.equal(stacked.extraJumps, 1);
 assert.equal(stacked.thorns, 8);
-assert.equal(runStats(base, WEAPONS.belati, Array(20).fill('sarung')).swingCooldown, 0.1);
-assert.equal(runStats(maxed, WEAPONS.belati, Array(10).fill('mata')).critChance, 0.9);
+assert.equal(runStats(maxed, WEAPONS.belati, ['mata', 'mataDewa', 'tulang']).critChance, 0.9);
+
+// Sets: every item has exactly one partner; the bonus needs both.
+const paired = PAIRS.flatMap((x) => [...x.items]);
+assert.equal(paired.length, Object.keys(ITEMS).length, 'every item is in a set');
+assert.equal(new Set(paired).size, paired.length, 'no item in two sets');
+assert.ok(Object.keys(ITEMS).length >= 48);
+for (const x of PAIRS) assert.ok(x.desc.length <= 35 && `SET ${x.name}`.length <= 20, `${x.name}: text too long`);
+assert.equal(pairOf('sepatu').partner, 'jubah');
+assert.equal(runStats(base, WEAPONS.pedang, ['sepatu']).critResetsDash, 0);
+assert.equal(runStats(base, WEAPONS.pedang, ['sepatu', 'jubah']).critResetsDash, 1);
+assert.equal(runStats(base, WEAPONS.pedang, ['batu', 'lonceng']).finisherWave, 1);
+assert.deepEqual(
+  activePairs(['batu', 'jubah', 'lonceng']).map((x) => x.name),
+  ['TEMPAAN PERANG'],
+);
+const all = runStats(base, WEAPONS.pedang, Object.keys(ITEMS));
+assert.ok(all.lifesteal <= 0.2 && all.rage <= 0.8 && all.skillCdMult >= 0.3);
+
+// Unique rewards: owned items are never offered; pools drain into potion.
+const ownAll = Object.keys(ITEMS).filter((id) => id !== 'batu');
+for (let i = 0; i < 100; i++) {
+  const owned = ['batu', 'sepatu', 'mahkota', 'hatiDewa'];
+  for (const round of [3, 5, 10]) assert.ok(rollRewards(round, owned).every((x) => x.type !== 'item' || !owned.includes(x.id)));
+}
+assert.deepEqual(
+  rollRewards(3, ownAll)
+    .map((x) => x.type)
+    .sort(),
+  ['item', 'potion'],
+);
+assert.deepEqual(rollRewards(5, Object.keys(ITEMS)), [{ type: 'potion' }]);
 
 // INT powers skills.
 assert.ok(up.skillCdMult < base.skillCdMult && up.skillPower > base.skillPower);
@@ -162,22 +223,20 @@ for (let i = 0; i < 200; i++) {
 const god = runStats(base, WEAPONS.pedang, [
   'mataDewa',
   'kalung',
+  'racun',
   'hatiDewa',
   'sayapDewa',
   'sayap',
-  'sayap',
+  'bulu',
   'perisai',
-  'perisai',
-  'perisai',
-  'perisai',
-  'perisai',
-  'perisai',
+  'cermin',
+  'sisik',
 ]);
 assert.equal(god.critMult, 3);
 assert.equal(god.maxHp, base.maxHp + 100);
 assert.equal(god.regen, 2);
 assert.equal(god.extraJumps, 3);
-assert.equal(god.damageTaken, 0.4);
+assert.ok(god.damageTaken < 0.75, 'set bonus stacks with its items');
 
 // Classes: each has its own weapon; the synergy only applies with that weapon.
 const { CLASSES, CLASS_IDS, hasSynergy } = await import('./classes.ts');
@@ -188,18 +247,29 @@ assert.equal(runStats(base, WEAPONS.kapak, [], 'berserker').lifesteal, 0.04);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').lifesteal, 0);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').rage, 0.25, 'class trait applies with any weapon');
 assert.equal(runStats(base, WEAPONS.busur, [], 'pemburu').pierceArrows, 1);
-assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').maxHp, Math.round(base.maxHp * 1.2));
+assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').maxHp, Math.round(base.maxHp * 1.1));
+assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').regen, 1, 'Avalon heals over time');
+assert.ok(WEAPONS.pedang.combo.length === 4 && WEAPONS.pedang.ult.name === 'EXCALIBUR');
 assert.equal(runStats(base, WEAPONS.belati, [], 'pembunuh').critMult, 2);
+// Fate reworks: Hassan executes, Heracles revives (twice with his weapon), Cu Chulainn dodges.
+assert.equal(runStats(base, WEAPONS.pedang, [], 'pembunuh').execute, 0.12);
+assert.equal(runStats(base, WEAPONS.belati, [], 'pembunuh').execute, 0.2);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').godHand, 1);
+assert.equal(runStats(base, WEAPONS.kapak, [], 'berserker').godHand, 2);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').godHand, 0);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'dragoon').dodge, 0.15);
 // Magic Archer: homing is the class trait (any weapon), the extra arrow needs the bow.
 assert.equal(runStats(base, WEAPONS.pedang, [], 'magicArcher').homingArrows, 1);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'magicArcher').extraArrows, 0);
-assert.equal(runStats(base, WEAPONS.busur, [], 'magicArcher').extraArrows, 1);
+assert.equal(runStats(base, WEAPONS.busurArkana, [], 'magicArcher').extraArrows, 1);
+assert.notEqual(CLASSES.magicArcher.weapon, CLASSES.pemburu.weapon, 'every class has its own weapon');
+assert.equal(new Set(CLASS_IDS.map((c) => CLASSES[c].weapon)).size, CLASS_IDS.length, 'no two classes share a weapon');
 assert.equal(runStats(base, WEAPONS.busur, [], 'pemburu').homingArrows, 0);
 // Grim Reaper: kill heal anywhere, hunting souls only with the scythe; items stack souls but capped.
 assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').healOnKill, 2);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').killSouls, 0);
 assert.equal(runStats(base, WEAPONS.sabit, [], 'reaper').killSouls, 1);
-assert.equal(runStats(base, WEAPONS.sabit, ['lentera', 'lentera', 'lentera'], 'reaper').killSouls, 3);
+assert.equal(runStats(base, WEAPONS.sabit, ['lentera', 'phoenix'], 'reaper').killSouls, 3);
 assert.equal(runStats(base, WEAPONS.pedang, ['mahkotaMaut', 'mahkotaMaut']).execute, 0.2);
 
 // Rewards: 3 distinct items/potion, never a weapon (weapons belong to the class).
@@ -221,7 +291,8 @@ assert.ok(coinReward(5) > coinReward(4) && coinReward(6) >= coinReward(1));
 assert.ok(coinReward(10) > coinReward(5));
 assert.equal(coinReward(1, 2), coinReward(1) + 2);
 assert.ok(rerollCost(1) > rerollCost(0) && rerollCost(0) > 0);
-assert.equal(runStats(base, WEAPONS.pedang, ['tapal', 'tapal']).coinBonus, 2);
+assert.equal(runStats(base, WEAPONS.pedang, ['tapal', 'koin']).coinBonus, 3);
+assert.equal(runStats(base, WEAPONS.pedang, ['kantong', 'koin']).coinBonus, 4);
 const { SPRITES: S } = await import('../gfx/sprites.ts');
 for (const id of Object.keys(WEAPONS)) assert.ok(`w_${id}` in S, `missing w_${id}`);
 for (const id of Object.keys(ITEMS)) assert.ok(`i_${id}` in S, `missing i_${id}`);
@@ -241,13 +312,9 @@ for (const [name, rows] of Object.entries(SPRITES)) {
 }
 
 // Balance regression: same inventory in any pickup order gives the same stats.
-const build = ['tulang', 'batu', 'mahkota', 'jantung', 'batu'] as const;
+const build = ['tulang', 'batu', 'mahkota', 'jantung', 'lonceng', 'mata'] as const;
 assert.deepEqual(runStats(base, WEAPONS.senapan, build, 'gunners'), runStats(base, WEAPONS.senapan, [...build].reverse(), 'gunners'));
-const capped = runStats(
-  base,
-  WEAPONS.senapan,
-  Array(30).fill('jubah').concat(Array(30).fill('cincin'), Array(30).fill('petir'), Array(30).fill('roti'), Array(30).fill('kalung')),
-);
+const capped = runStats(base, WEAPONS.senapan, Object.keys(ITEMS));
 assert.ok(capped.dashCooldown > 0.15, 'dash recovery must outlast its invulnerability');
 assert.ok(capped.iframes <= 1400 && capped.regen <= 5 && capped.killBolt <= 3 && capped.critMult <= 3);
 assert.equal(runStats(base, WEAPONS.senapan, ['tulang'], 'gunners').damage, 8, 'flat damage must respect the rifle multiplier');
@@ -255,6 +322,35 @@ const gunner = runStats(base, WEAPONS.senapan, [], 'gunners');
 assert.equal(gunner.maxHp, 110);
 assert.ok(gunner.swingCooldown < runStats(base, WEAPONS.senapan, []).swingCooldown);
 assert.ok(WEAPONS.senapan.automatic && WEAPONS.senapan.projectile?.texture === 'bullet');
+// Cultivator: flying swords home in; the synergy makes them pierce.
+assert.ok(WEAPONS.pedangTerbang.projectile?.homing && WEAPONS.pedangTerbang.projectile.returning);
+for (const m of [...WEAPONS.pedangTerbang.combo, WEAPONS.pedangTerbang.air])
+  assert.equal(m.angles?.length, 1, 'one sword in flight at a time');
+assert.equal(runStats(base, WEAPONS.pedangTerbang, [], 'cultivator').pierceArrows, 1);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'cultivator').pierceArrows, 0);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'cultivator').regen, 0.5);
+// Elementalis: fire moves burn, ice moves freeze; the synergy strengthens both.
+assert.ok(WEAPONS.tongkat.combo.some((m) => m.status?.burn) && WEAPONS.tongkat.combo.some((m) => m.status?.freeze));
+assert.equal(runStats(base, WEAPONS.tongkat, [], 'elementalis').elemental, 1.5);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'elementalis').elemental, 1);
+for (const w of Object.values(WEAPONS)) for (const m of [...w.combo, w.air]) if (m.shot) assert.ok(m.shot in S, `missing ${m.shot}`);
+for (const k of [
+  'spider',
+  'beetle',
+  'imp',
+  'wraith',
+  'golem',
+  'shaman',
+  'web',
+  'curse',
+  'splitter',
+  'mimic0',
+  'mimic1',
+  'ninja',
+  'totem',
+  'worm',
+])
+  assert.ok(k in S, `missing sprite ${k}`);
 for (const w of Object.values(WEAPONS)) {
   if (w.projectile) assert.ok(w.projectile.texture in S && w.projectile.speed > 0);
   for (const m of [...w.combo, w.air]) if (m.anim === 'shoot') assert.ok(w.projectile && m.angles?.length);
@@ -273,8 +369,65 @@ for (let round = 2; round <= 40; round++) {
     current = roundConfig(round);
   assert.ok(current.enemyHp >= prev.enemyHp && current.enemyDamage >= prev.enemyDamage);
 }
-assert.ok(roundConfig(20).enemyDamage < 25 && roundConfig(40).enemyHp < 600, 'late enemies must not return to exponential scaling');
-assert.ok(roundConfig(5).bossHp >= 240 && roundConfig(5).bossHp <= 280, 'first boss health budget');
+// Quadratic, not exponential: round 40 enemies stay within reach of a strong build.
+assert.ok(roundConfig(20).enemyDamage < 27 && roundConfig(40).enemyHp < 2500, 'late enemies must not return to exponential scaling');
+assert.ok(roundConfig(1).enemyHp >= 2 * derive({ str: 0, int: 0, agi: 0, dex: 0 }).damage, 'a fresh hero needs several hits per enemy');
+assert.ok(roundConfig(5).bossHp >= 360 && roundConfig(5).bossHp <= 420, 'first boss health budget');
+assert.ok(roundConfig(10).bossDamage > roundConfig(15).bossDamage, 'the super boss hits harder than the next regular boss');
+// Mini bosses and pace: elites can show up from round 1; enemies act faster each round, with a floor.
+const { ELITE, ELITE_AFFIXES, enemyPace } = await import('./stages.ts');
+assert.ok(ELITE.chance > 0 && ELITE.chance < 1 && ELITE.hp > 1);
+for (const a of Object.values(ELITE_AFFIXES)) assert.ok(a.every >= 2000 && (!a.debuff || a.debuff in DEBUFFS));
+assert.equal(enemyPace(1), 0.9);
+assert.ok(enemyPace(10) < enemyPace(2) && enemyPace(200) === 0.5);
+// New items: dash power / on-hit burn and freeze stack but stay capped.
+const everything = runStats(base, WEAPONS.pedang, Object.keys(ITEMS) as never[]);
+assert.ok(everything.dashPower > 1 && everything.dashPower <= 4);
+assert.ok(everything.burnChance > 0 && everything.burnChance <= 0.6 && everything.freezeChance <= 0.4);
+for (const x of PAIRS)
+  for (const id of x.items) {
+    const other = pairOf(id).partner;
+    assert.ok(`SET ${x.name} + ${ITEMS[other].name}`.length <= 35, `${x.name}: set line too wide`);
+  }
+for (const [id, it] of Object.entries(ITEMS)) assert.ok(it.name.length <= 16 && it.desc.length <= 32, `${id}: text too long`);
+// Dodge / block / gold / boss damage items: capped; block keeps the fastest item, sets shorten it.
+assert.equal(runStats(base, WEAPONS.pedang, ['gelang']).barrier, 15);
+assert.equal(runStats(base, WEAPONS.pedang, ['gelang', 'perisaiCahaya']).barrier, 8);
+assert.ok(Math.abs(runStats(base, WEAPONS.pedang, ['gelang', 'tanah']).barrier - 10.5) < 1e-9);
+assert.equal(runStats(base, WEAPONS.pedang, ['tanah']).barrier, 0, 'set bonus alone never grants a block');
+assert.ok(everything.dodge <= 0.4 && everything.barrier >= 3 && everything.goldChance <= 0.8 && everything.bossDamage <= 1.5);
+assert.ok(Object.keys(ITEMS).length >= 88);
+// Dark Avenger: awakening instead of an ult; the synergy makes it last longer.
+assert.ok(CLASSES.darkAvenger.awaken && !Object.values(CLASSES).some((c) => c !== CLASSES.darkAvenger && c.awaken));
+assert.equal(runStats(base, WEAPONS.pedangGelap, [], 'darkAvenger').awakenTime, 1.5);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'darkAvenger').awakenTime, 1);
+{
+  const s = runStats(base, WEAPONS.pedangGelap, [], 'darkAvenger');
+  const b = { ...s };
+  CLASSES.darkAvenger.awaken!.apply(b);
+  assert.ok(b.damage > s.damage && b.speed > s.speed && b.swingCooldown < s.swingCooldown && b.damageTaken < s.damageTaken);
+  assert.equal(b.maxHp, s.maxHp, 'awakening must not change max HP');
+}
+// Ashura: fury only for the class, synergy raises the cap; every combo move has phantom arms.
+assert.equal(runStats(base, WEAPONS.enamLengan, [], 'ashura').furyMax, 10);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'ashura').furyMax, 6);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').furyMax, 0);
+assert.ok([...WEAPONS.enamLengan.combo, WEAPONS.enamLengan.air].every((m) => (m.extra ?? 0) >= 1));
+assert.ok(WEAPONS.enamLengan.fist && WEAPONS.enamLengan.combo.every((m) => ['jab', 'hook', 'uppercut'].includes(m.anim)), 'Ashura punches');
+// Antares: fire immune everywhere; the synergy stretches dragon form to 10 s.
+assert.equal(runStats(base, WEAPONS.pedang, [], 'antares').fireImmune, 1);
+assert.ok(Math.abs(runStats(base, WEAPONS.cakarNaga, [], 'antares').formTime * 7 - 10) < 1e-9);
+assert.ok(
+  WEAPONS.cakarNaga.combo.every((m) => m.status?.burn),
+  'dragon claws burn',
+);
+// Gilgamesh: rich king; the synergy adds a treasure to every volley.
+assert.equal(runStats(base, WEAPONS.gerbangBabilonia, [], 'gilgamesh').extraArrows, 1);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'gilgamesh').extraArrows, 0);
+assert.ok(runStats(base, WEAPONS.pedang, [], 'gilgamesh').coinBonus >= 2 && WEAPONS.gerbangBabilonia.projectile?.gate);
+// Samurai: Bushido only with the katana.
+assert.equal(runStats(base, WEAPONS.katana, [], 'samurai').dashCrit, 1);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'samurai').dashCrit, 0);
 const soldierSave = { ...defaultSave(), cls: 'gunners' as const };
 writeSave(soldierSave);
 assert.deepEqual(loadSave(), soldierSave);

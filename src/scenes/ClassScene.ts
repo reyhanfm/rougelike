@@ -3,19 +3,23 @@ import { COLOR } from '../gfx/sprites.ts';
 import { text, W } from '../gfx/ui.ts';
 import { CLASS_IDS, CLASSES } from '../logic/classes.ts';
 import { WEAPONS, type WeaponId } from '../logic/loot.ts';
+import { DASHES } from '../entities/dashes.ts';
 import { loadSave, writeSave } from '../logic/save.ts';
 import { isTouchDevice } from '../touch.ts';
 import type { RunData } from './RunScene.ts';
 
-const ROW_Y = 25;
-const ROW_H = 22;
+const ROW_Y = 22;
+const ROW_H = 15;
+const COLS = 3;
+const CELL_W = 105;
 
 /** Pick a class before each run. Its weapon is the starting weapon and unlocks the synergy. */
 export class ClassScene extends Phaser.Scene {
   private selected = 0;
-  private markers: Phaser.GameObjects.Text[] = [];
+  private markers: Phaser.GameObjects.Rectangle[] = [];
   private names: Phaser.GameObjects.Text[] = [];
   private trait!: Phaser.GameObjects.Text;
+  private dash!: Phaser.GameObjects.Text;
   private synergyTitle!: Phaser.GameObjects.Text;
   private synergyDesc!: Phaser.GameObjects.Text;
 
@@ -36,15 +40,22 @@ export class ClassScene extends Phaser.Scene {
     this.names = [];
     CLASS_IDS.forEach((id, i) => {
       const c = CLASSES[id];
-      const x = (i % 2) * 156 + 4;
-      const y = ROW_Y + Math.floor(i / 2) * ROW_H;
-      this.add.rectangle(x + 76, y + 9, 150, 20, 0x1d2b53, 0.7);
-      this.markers.push(text(this, x + 2, y + 5, '>', COLOR.gold));
-      this.add.image(x + 22, y + 8, `hero_idle_${id}`).setDepth(100);
-      this.names.push(text(this, x + 34, y + 1, c.name));
-      text(this, x + 34, y + 12, WEAPONS[c.weapon].name, COLOR.gray, 6);
+      const x = (i % COLS) * CELL_W + 3;
+      const y = ROW_Y + Math.floor(i / COLS) * ROW_H;
+      this.add.rectangle(x + 51, y + 7, 102, 14, 0x1d2b53, 0.7);
+      this.markers.push(
+        this.add
+          .rectangle(x + 51, y + 7, 102, 14)
+          .setStrokeStyle(1, 0xffec27)
+          .setDepth(101),
+      );
       this.add
-        .zone(x + 76, y + 9, 150, 20)
+        .image(x + 8, y + 7, `hero_idle_${id}`)
+        .setScale(0.85)
+        .setDepth(100);
+      this.names.push(text(this, x + 16, y + 4, c.name, COLOR.text, 7));
+      this.add
+        .zone(x + 51, y + 7, 102, 14)
         .setDepth(110)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => {
@@ -55,19 +66,24 @@ export class ClassScene extends Phaser.Scene {
     });
 
     const wrap = { width: W - 30 };
-    this.trait = text(this, 16, 116, '', COLOR.text).setWordWrapWidth(wrap.width).setLineSpacing(3);
-    this.synergyTitle = text(this, 16, 139, '', COLOR.gold, 7);
-    this.synergyDesc = text(this, 16, 150, '', COLOR.blue, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
-    text(this, W / 2, 173, isTouchDevice() ? 'KETUK KELAS 2X UNTUK MULAI' : 'W/S PILIH  J MULAI  ESC KEMBALI', COLOR.gray, 6).setOrigin(
+    this.trait = text(this, 16, 102, '', COLOR.text, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
+    this.dash = text(this, 16, 124, '', '#00e436', 7).setWordWrapWidth(wrap.width);
+    this.synergyTitle = text(this, 16, 136, '', COLOR.gold, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
+    this.synergyDesc = text(this, 16, 146, '', COLOR.blue, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
+    text(this, W / 2, 173, isTouchDevice() ? 'KETUK KELAS 2X UNTUK MULAI' : 'WASD PILIH  J MULAI  ESC KEMBALI', COLOR.gray, 6).setOrigin(
       0.5,
       0,
     );
 
     const kb = this.input.keyboard!;
-    kb.on('keydown-W', () => this.move(-1));
-    kb.on('keydown-UP', () => this.move(-1));
-    kb.on('keydown-S', () => this.move(1));
-    kb.on('keydown-DOWN', () => this.move(1));
+    kb.on('keydown-W', () => this.move(-COLS));
+    kb.on('keydown-UP', () => this.move(-COLS));
+    kb.on('keydown-S', () => this.move(COLS));
+    kb.on('keydown-DOWN', () => this.move(COLS));
+    kb.on('keydown-A', () => this.move(-1));
+    kb.on('keydown-LEFT', () => this.move(-1));
+    kb.on('keydown-D', () => this.move(1));
+    kb.on('keydown-RIGHT', () => this.move(1));
     kb.on('keydown-J', () => this.start());
     kb.on('keydown-ENTER', () => this.start());
     kb.on('keydown-ESC', () => this.scene.start('hub'));
@@ -84,8 +100,10 @@ export class ClassScene extends Phaser.Scene {
     this.markers.forEach((m, i) => m.setVisible(i === this.selected));
     this.names.forEach((n, i) => n.setColor(i === this.selected ? COLOR.gold : COLOR.text));
     this.trait.setText(`SIFAT: ${c.trait}`);
-    this.synergyTitle.setText(`SINERGI: ${c.synergy.name}`);
-    this.synergyDesc.setText(c.synergy.desc);
+    this.dash.setText(`DASH (K): ${DASHES[CLASS_IDS[this.selected]].name}`);
+    this.synergyTitle.setText(`SINERGI (${WEAPONS[c.weapon].name}): ${c.synergy.name}`);
+    // A long title wraps; the description follows right under it.
+    this.synergyDesc.setText(c.synergy.desc).setY(this.synergyTitle.y + this.synergyTitle.height + 1);
   }
 
   private start(): void {

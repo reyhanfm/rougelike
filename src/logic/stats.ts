@@ -63,6 +63,33 @@ export interface Derived {
   killSouls: number;
   /** Enemies left below this fraction of max HP die instantly (half for bosses). */
   execute: number;
+  /** Multiplier on burn damage and freeze duration. */
+  elemental: number;
+  /** Samurai synergy: first basic hit after a dash is a crit. */
+  dashCrit: number;
+  /** Multiplier on class dash damage. */
+  dashPower: number;
+  /** Chance a basic hit sets the target burning / frozen. */
+  burnChance: number;
+  freezeChance: number;
+  /** Chance to dodge a hit completely. */
+  dodge: number;
+  /** Seconds between blocked hits (0 = no block). */
+  barrier: number;
+  /** Chance a kill drops 1 coin. */
+  goldChance: number;
+  /** Extra damage multiplier against bosses and elites. */
+  bossDamage: number;
+  /** Multiplier on how long an awakening (Dark Avenger mode) lasts. */
+  awakenTime: number;
+  /** Max AMARAH (fury) stacks; 0 = the class has no fury. */
+  furyMax: number;
+  /** 1 = cannot be set burning. */
+  fireImmune: number;
+  /** Multiplier on how long a transformation (dragon form) lasts. */
+  formTime: number;
+  /** Revives per round at 30% HP (Heracles' God Hand). */
+  godHand: number;
 }
 
 export function derive(s: StatLevels): Derived {
@@ -98,6 +125,20 @@ export function derive(s: StatLevels): Derived {
     coinBonus: 0,
     killSouls: 0,
     execute: 0,
+    elemental: 1,
+    dashCrit: 0,
+    dashPower: 1,
+    burnChance: 0,
+    freezeChance: 0,
+    dodge: 0,
+    barrier: 0,
+    goldChance: 0,
+    bossDamage: 0,
+    awakenTime: 1,
+    furyMax: 0,
+    fireImmune: 0,
+    formTime: 1,
+    godHand: 0,
   };
 }
 
