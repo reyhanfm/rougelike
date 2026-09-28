@@ -446,7 +446,7 @@ assert.equal(runStats(base, WEAPONS.pedang, [], 'jackFrost').extraJumps, 2);
 assert.ok(
   runStats(base, WEAPONS.tongkatFrost, [], 'jackFrost').freezeChance > runStats(base, WEAPONS.pedang, [], 'jackFrost').freezeChance,
 );
-// Bonus rounds: any mix of Mahoraga, Leviathan and Godzilla (up to all three); never on boss rounds or too early; each
+// Bonus rounds: any mix of Mahoraga, Leviathan, Godzilla and Kaguya (up to all four); never on boss rounds or too early; each
 // outclasses the regular boss. Elite rounds: every enemy an elite.
 {
   const { SPECIAL, LEVIATHAN, rollSpecials, specialConfig, specialStats, ADAPT_MULT, rollEliteRound, eliteRoundConfig, ELITE_ROUND } =
@@ -458,26 +458,30 @@ assert.ok(
   assert.ok(SPECIAL.from <= 7);
   assert.deepEqual(
     rollSpecials(7, () => 0),
-    ['mahoraga', 'leviathan', 'godzilla'],
-    'all three can come together',
+    ['mahoraga', 'leviathan', 'godzilla', 'kaguya'],
+    'all four can come together',
   );
-  assert.deepEqual(rollSpecials(7, seq(0, SPECIAL.three, 0, 0)), ['mahoraga', 'leviathan']);
+  assert.deepEqual(rollSpecials(7, seq(0, SPECIAL.four, 0, 0, 0)), ['mahoraga', 'leviathan', 'godzilla']);
+  assert.deepEqual(rollSpecials(7, seq(0, SPECIAL.four + SPECIAL.three, 0, 0)), ['mahoraga', 'leviathan']);
   assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.2)), ['mahoraga']);
-  assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.5)), ['leviathan']);
-  assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.8)), ['godzilla']);
+  assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.3)), ['leviathan']);
+  assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.6)), ['godzilla']);
+  assert.deepEqual(rollSpecials(7, seq(0, 0.99, 0.8)), ['kaguya']);
   assert.equal(rollSpecials(7, () => 0.99).length, 0);
   assert.ok(!rollSpecials(SPECIAL.from - 1, () => 0).length && !rollSpecials(10, () => 0).length && !rollSpecials(15, () => 0).length);
   const one = specialConfig(7, ['leviathan']);
   const two = specialConfig(7, ['mahoraga', 'leviathan']);
   const three = specialConfig(7, ['mahoraga', 'leviathan', 'godzilla']);
+  const four = specialConfig(7, ['mahoraga', 'leviathan', 'godzilla', 'kaguya']);
   assert.ok(one.boss && one.enemyCount === 0 && one.round === 7);
-  for (const k of ['mahoraga', 'leviathan', 'godzilla'] as const)
+  for (const k of ['mahoraga', 'leviathan', 'godzilla', 'kaguya'] as const)
     assert.ok(
       specialStats(k, one).hp > roundConfig(5).bossHp && specialStats(k, one).dmg > roundConfig(5).bossDamage,
       `${k} outclasses the regular boss`,
     );
   assert.ok(
-    specialStats('leviathan', three).hp < specialStats('leviathan', two).hp &&
+    specialStats('leviathan', four).hp < specialStats('leviathan', three).hp &&
+      specialStats('leviathan', three).hp < specialStats('leviathan', two).hp &&
       specialStats('leviathan', two).hp < specialStats('leviathan', one).hp,
     'the more come together, the less HP each',
   );

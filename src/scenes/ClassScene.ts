@@ -111,14 +111,14 @@ export class ClassScene extends Phaser.Scene {
     const save = loadSave();
     save.cls = cls;
     writeSave(save);
-    // Dev shortcuts: ?round=10 jumps to a boss, ?weapon=busur overrides the class weapon, ?mahoraga / ?leviathan / ?godzilla (any mix) force the bonus round, ?elite an elite round.
+    // Dev shortcuts: ?round=10 jumps to a boss, ?weapon=busur overrides the class weapon, ?mahoraga / ?leviathan / ?godzilla / ?kaguya (any mix) force the bonus round, ?elite an elite round.
     const q = new URLSearchParams(import.meta.env.DEV ? location.search : '');
     const weapon = q.get('weapon');
     this.scene.start('run', {
       round: Number(q.get('round')) || 1,
       cls,
       weapon: weapon && weapon in WEAPONS ? (weapon as WeaponId) : undefined,
-      specials: (['mahoraga', 'leviathan', 'godzilla'] as const).filter((k) => q.has(k)),
+      specials: (['mahoraga', 'leviathan', 'godzilla', 'kaguya'] as const).filter((k) => q.has(k)),
       eliteRound: q.has('elite'),
     } satisfies RunData);
   }

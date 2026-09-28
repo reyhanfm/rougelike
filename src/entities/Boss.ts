@@ -3,6 +3,7 @@ import { FLOOR_Y, W, floatText } from '../gfx/ui.ts';
 import {
   ADAPT_MULT,
   GODZILLA,
+  KAGUYA,
   LEVIATHAN,
   MAHORAGA,
   specialStats,
@@ -34,11 +35,12 @@ const BODY: Record<BossKind, { texture: string; w: number; h: number; ox: number
   mahoraga: { texture: 'mahoraga', w: 14, h: 22, ox: 3, oy: 2 },
   leviathan: { texture: 'leviathan', w: 34, h: 14, ox: 4, oy: 10, scale: 1.6 },
   godzilla: { texture: 'godzilla', w: 18, h: 22, ox: 8, oy: 5, scale: 2 },
+  kaguya: { texture: 'kaguya', w: 12, h: 20, ox: 2, oy: 2, scale: 1.5 },
 };
 /** Wide attacks: they stay dangerous until the warning ends, so the boss waits longer after them. */
 const WIDE: readonly BossPattern[] = ['pillars', 'laser', 'quake', 'sweep'];
 /** Patterns followed by the long recovery. */
-const LONG: readonly BossPattern[] = [...WIDE, 'exterminate', 'barrage', 'dive', 'breath', 'tail'];
+const LONG: readonly BossPattern[] = [...WIDE, 'exterminate', 'barrage', 'dive', 'breath', 'tail', 'truth', 'portal', 'dimension'];
 const ADAPT_LABEL: Record<AdaptKind, string> = { basic: 'SERANGAN', skill: 'SKILL', ult: 'ULTI', proc: 'EFEK', burn: 'API', freeze: 'ES' };
 const PHASE_TINTS = [0xffffff, 0xffb0b0, 0xff6060];
 
@@ -79,6 +81,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   /** Godzilla: next regeneration tick, and whether the nuclear pulse has gone off. */
   private nextRegenAt = 1000;
   private pulsed = false;
+  /** Kaguya: Infinite Tsukuyomi has been cast. */
+  private tsukuyomi = false;
   /** Leviathan's scales: they soak hits until they break. */
   private armor = 0;
   private maxArmor = 0;
@@ -106,7 +110,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.setTint(this.baseTint).setDepth(8).setCollideWorldBounds(true);
     this.body.setSize(b.w, b.h).setOffset(b.ox, b.oy);
     if (b.scale) this.setScale(b.scale);
-    this.body.setAllowGravity(kind !== 'lich');
+    this.body.setAllowGravity(kind !== 'lich' && kind !== 'kaguya');
     this.modeAt = scene.time.now + 800;
     if (kind === 'demonLord') {
       this.phase = 1;
@@ -117,6 +121,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       this.once(Phaser.GameObjects.Events.DESTROY, () => this.wheel?.destroy());
     }
     if (kind === 'leviathan' || kind === 'godzilla') scene.cameras.main.shake(800, 0.012);
+    if (kind === 'kaguya') scene.cameras.main.flash(500, 192, 128, 255);
   }
 
   preUpdate(time: number, delta: number): void {
@@ -135,6 +140,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       }
     }
     if (this.kind === 'godzilla') this.godzillaTick(now);
+    if (this.kind === 'kaguya') this.kaguyaTick();
   }
 
   /**
@@ -188,6 +194,66 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.arena.zone(this.x - 100, this.y - 100, 200, 200, 800, Math.round(this.damage * 1.5), 0x29adff);
   }
 
+  /** Infinite Tsukuyomi, once, when Kaguya is first pushed below half HP: a red moon, she withdraws out of reach while White Zetsu come out of the moonlight. */
+  private kaguyaTick(): void {
+    if (this.tsukuyomi || this.hp >= this.maxHp * KAGUYA.tsukuyomiAt) return;
+    this.tsukuyomi = true;
+    const s = this.scene;
+    s.cameras.main.flash(400, 255, 0, 77);
+    floatText(s, W / 2, 56, 'MUGEN TSUKUYOMI', '#ff004d');
+    const moon = [
+      s.add.circle(W / 2, 34, 22, 0xff004d, 0.85),
+      s.add.circle(W / 2, 34, 14).setStrokeStyle(1, 0x000000),
+      s.add.circle(W / 2, 34, 7).setStrokeStyle(1, 0x000000),
+      s.add.circle(W / 2, 34, 2, 0x000000),
+    ];
+    moon.forEach((m) => m.setDepth(1));
+    s.tweens.add({ targets: moon, alpha: 0, delay: KAGUYA.hideMs, duration: 600, onComplete: () => moon.forEach((m) => m.destroy()) });
+    this.untargetable = true;
+    this.setAlpha(0.4);
+    for (let i = 0; i < 3; i++) this.arena.summon('ninja', Phaser.Math.Between(40, W - 40), 40);
+    s.time.delayedCall(KAGUYA.hideMs, () => {
+      if (!this.active) return;
+      this.untargetable = false;
+      this.setAlpha(1);
+    });
+  }
+
+  /** Amenominaka: she drags the fight into another dimension (lava floor, falling ice, or a desert half) and reappears elsewhere. */
+  private shiftDimension(): void {
+    const s = this.scene;
+    const dim = Phaser.Math.RND.pick(['lava', 'ice', 'sand'] as const);
+    const color = { lava: 0xff004d, ice: 0x29adff, sand: 0xffa300 }[dim];
+    const veil = s.add
+      .rectangle(0, 0, W, FLOOR_Y + 20, color, 0.25)
+      .setOrigin(0)
+      .setDepth(3);
+    s.tweens.add({ targets: veil, alpha: 0, delay: 1200, duration: 400, onComplete: () => veil.destroy() });
+    s.cameras.main.flash(250, (color >> 16) & 255, (color >> 8) & 255, color & 255);
+    floatText(s, W / 2, 56, { lava: 'DIMENSI LAVA', ice: 'DIMENSI ES', sand: 'DIMENSI PASIR' }[dim], '#c080ff');
+    this.teleport();
+    if (dim === 'lava') this.arena.zone(0, FLOOR_Y - 12, W, 12, this.warnMs, this.damage, 0xff004d);
+    if (dim === 'ice')
+      for (let i = 0; i < 8; i++)
+        this.arena.fire(Phaser.Math.Between(10, W - 10), -8 - i * 14, 0, 160, 'iceshard', Math.round(this.damage * 0.6), false, 'freeze');
+    if (dim === 'sand') {
+      const left = this.arena.player.x < W / 2;
+      this.arena.zone(left ? 0 : W / 2, 0, W / 2, FLOOR_Y, this.warnMs, this.damage, 0xffa300);
+    }
+  }
+
+  /** A Yomotsu Hirasaka portal: a violet rift swirling open beside (x, y). */
+  private portalFx(x: number, y: number): void {
+    for (const side of [-1, 1]) {
+      const rift = this.scene.add
+        .ellipse(x + side * 22, y, 4, 22, 0x1d0f2e)
+        .setStrokeStyle(1, 0xc080ff)
+        .setDepth(12)
+        .setScale(0.2, 1);
+      this.scene.tweens.add({ targets: rift, scaleX: 1.6, duration: 150, yoyo: true, hold: 350, onComplete: () => rift.destroy() });
+    }
+  }
+
   /** Leviathan: armored, the scales take the hit and its HP only a sliver; exposed, it takes extra. */
   private scales(kind: AdaptKind, value: number): number {
     if (this.exposed) return Math.round(value * LEVIATHAN.exposed);
@@ -222,6 +288,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private get enraged(): boolean {
     if (this.kind === 'godzilla') return this.hp < this.maxHp * GODZILLA.enrage;
+    if (this.kind === 'kaguya') return this.hp < this.maxHp * KAGUYA.enrage;
     return this.kind === 'leviathan' && this.hp < this.maxHp * LEVIATHAN.enrage;
   }
 
@@ -236,6 +303,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       return this.turns ? `MAHORAGA - RODA ${this.turns} - ${left}` : `MAHORAGA - ${left}`;
     }
     if (this.kind === 'godzilla') return this.enraged ? 'GODZILLA - MURKA' : 'GODZILLA';
+    if (this.kind === 'kaguya') return this.untargetable ? 'KAGUYA - TSUKUYOMI' : this.enraged ? 'KAGUYA - MURKA' : 'OTSUTSUKI KAGUYA';
     if (this.kind === 'leviathan') return this.exposed ? 'LEVIATHAN - TERBUKA' : this.enraged ? 'LEVIATHAN - MURKA' : 'LEVIATHAN';
     const name = this.loop ? `${BOSSES[this.kind].name} +${this.loop}` : BOSSES[this.kind].name;
     return this.phase ? `${name} - FASE ${this.phase}` : name;
@@ -243,14 +311,14 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private get idleMs(): number {
     if (this.kind === 'mahoraga') return Math.max(300, 1000 - 70 * this.turns);
-    if (this.kind === 'leviathan' || this.kind === 'godzilla') return this.enraged ? 600 : 950;
+    if (this.kind === 'leviathan' || this.kind === 'godzilla' || this.kind === 'kaguya') return this.enraged ? 600 : 950;
     // Later phases barely pause.
     return Math.max(350, 1300 - 120 * (this.tier - 1)) * (this.phase ? 1 - 0.2 * (this.phase - 1) : 1);
   }
 
   /** Warning time before a wide attack lands: shorter every phase and every return of the boss. */
   private get warnMs(): number {
-    if (this.kind === 'leviathan' || this.kind === 'godzilla') return this.enraged ? 650 : 850;
+    if (this.kind === 'leviathan' || this.kind === 'godzilla' || this.kind === 'kaguya') return this.enraged ? 650 : 850;
     return Math.max(550, 900 - 120 * (this.phase - 1) - 40 * this.loop);
   }
 
@@ -293,10 +361,16 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         break;
       case 'windup':
         this.setVelocityX(0);
-        if (this.kind === 'lich') this.setVelocityY(0);
+        if (this.kind === 'lich' || this.kind === 'kaguya') this.setVelocityY(0);
         // Godzilla's dorsal plates glow blue before the atomic breath.
         this.setTint(
-          Math.floor(elapsed / 75) % 2 ? (this.kind === 'godzilla' && this.next === 'breath' ? 0x29adff : 0xff004d) : this.baseTint,
+          Math.floor(elapsed / 75) % 2
+            ? this.kind === 'godzilla' && this.next === 'breath'
+              ? 0x29adff
+              : this.kind === 'kaguya'
+                ? 0xc080ff
+                : 0xff004d
+            : this.baseTint,
         );
         if (elapsed > WINDUP_MS) {
           this.setTint(this.baseTint);
@@ -353,6 +427,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       // Drift above the player with a slow bob.
       const vx = Phaser.Math.Clamp(this.arena.player.x - this.x, -30, 30);
       this.setVelocity(vx, (50 + Math.sin(time / 400) * 10 - this.y) * 2);
+    }
+    if (this.kind === 'kaguya') {
+      // She floats at a distance from the player, swaying slowly, below the boss bars.
+      const px = this.arena.player.x;
+      const want = px + (this.x < px ? -80 : 80);
+      this.setVelocity(Phaser.Math.Clamp(want - this.x, -40, 40), (90 + Math.sin(time / 500) * 12 - this.y) * 2);
     }
   }
 
@@ -483,6 +563,58 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
             this.arena.zone(Phaser.Math.Clamp(this.arena.player.x - 20, 0, W - 40), FLOOR_Y - 64, 40, 64, 420, this.damage);
           });
         break;
+      case 'bones': {
+        // All-Killing Ash Bones: a spread of bones shot at the player; a hit leaves them weakened.
+        const base = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
+        const n = this.enraged ? 7 : 5;
+        for (let i = 0; i < n; i++) {
+          const a = base + (i - (n - 1) / 2) * 0.13;
+          this.arena.fire(this.x, this.y, Math.cos(a) * 170, Math.sin(a) * 170, 'bone', shotDmg, false, 'weak');
+        }
+        break;
+      }
+      case 'hair':
+        // Hair needles: two rings of hardened hair burst out all around her.
+        for (const k of [0, 1])
+          this.scene.time.delayedCall(k * 250, () => {
+            if (!this.active) return;
+            const n = this.enraged ? 20 : 14;
+            for (let i = 0; i < n; i++) this.shoot(k * (Math.PI / n) + (i / n) * Math.PI * 2, 95, 'hairNeedle', shotDmg);
+          });
+        break;
+      case 'truth': {
+        // Expansive Truth-Seeking Ball: a giant black ball falls on the player's spot; get out from under it.
+        const x = Phaser.Math.Clamp(target.x - 36, 0, W - 72);
+        this.arena.zone(x, 0, 72, FLOOR_Y, 1000, Math.round(this.damage * 1.5), 0x8a3fd1);
+        const ball = this.scene.add
+          .image(x + 36, -30, 'gudodama')
+          .setScale(6)
+          .setDepth(12);
+        this.scene.tweens.add({
+          targets: ball,
+          y: FLOOR_Y - 26,
+          duration: 1000,
+          ease: 'Quad.In',
+          onComplete: () => {
+            this.scene.cameras.main.shake(300, 0.02);
+            this.scene.tweens.add({ targets: ball, alpha: 0, scale: 8, duration: 250, onComplete: () => ball.destroy() });
+          },
+        });
+        break;
+      }
+      case 'portal':
+        // Yomotsu Hirasaka: rifts open beside the player and her palms strike through them, following them.
+        for (let k = 0; k < (this.enraged ? 3 : 2); k++)
+          this.scene.time.delayedCall(k * 450, () => {
+            if (!this.active) return;
+            const { x, y } = this.arena.player;
+            this.portalFx(x, y);
+            this.arena.zone(Phaser.Math.Clamp(x - 18, 0, W - 36), y - 18, 36, 36, 500, this.damage, 0xc080ff);
+          });
+        break;
+      case 'dimension':
+        this.shiftDimension();
+        break;
       case 'sweep': {
         // A low wall of fire sweeps across the floor from the boss's side: jump it.
         const dir = this.x < W / 2 ? 1 : -1;
@@ -499,11 +631,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.arena.fire(this.x, this.y, Math.cos(angle) * speed, Math.sin(angle) * speed, texture, dmg);
   }
 
-  /** Lich blinks to a new spot on the far side of the player. */
+  /** Lich (and Kaguya) blinks to a new spot on the far side of the player. */
   private teleport(): void {
     const px = this.arena.player.x;
     const x = Phaser.Math.Clamp(px + (px > W / 2 ? -1 : 1) * Phaser.Math.Between(60, 110), 20, W - 20);
-    this.scene.tweens.add({ targets: this, alpha: 0, duration: 120, yoyo: true, onYoyo: () => this.body.reset(x, 50) });
+    this.scene.tweens.add({ targets: this, alpha: 0, duration: 120, yoyo: true, onYoyo: () => this.body.reset(x, this.kind === 'kaguya' ? 90 : 50) });
   }
 
   private enter(mode: Mode, time: number): void {

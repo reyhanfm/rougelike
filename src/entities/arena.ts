@@ -40,6 +40,8 @@ export interface ShotSpec {
   /** Turns back after a hit (or a timeout, or the arena edge) and is gone once it reaches the player. */
   returning?: boolean;
   status?: Status;
+  /** Turns end over end in flight (thrown blades). */
+  spin?: boolean;
   /** Blows up on the first hit: area damage of this radius (80% of mult). */
   explode?: number;
 }

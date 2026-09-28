@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PALETTE, SPRITES } from '../gfx/sprites.ts';
+import { LEGS, PALETTE, SPRITES } from '../gfx/sprites.ts';
 import { H, W } from '../gfx/ui.ts';
 import { CLASSES, CLASS_IDS } from '../logic/classes.ts';
 
@@ -12,13 +12,15 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     for (const [key, rows] of Object.entries(SPRITES)) this.bake(key, rows);
-    // Hero frames recolored per class: the blue clothes take the class color, the head (rows 1-3) the hair color.
+    // Hero frames per class: its own head and torso (or the shared one, recolored: blue clothes take the class color,
+    // rows 1-3 the hair color), and its own costume below the waist.
     for (const cls of CLASS_IDS) {
-      const { color, hair = color, head } = CLASSES[cls];
+      const { color, hair = color, head, legs } = CLASSES[cls];
       for (const frame of HERO_FRAMES) {
+        const lower = LEGS[legs.kind][frame].map((r) => r.replaceAll('P', legs.pant).replaceAll('B', legs.boot));
         this.bake(
           `hero_${frame}_${cls}`,
-          SPRITES[`hero_${frame}`].map((r, y) => (head?.[y] ?? r).replaceAll('c', y >= 1 && y <= 3 ? hair : color)),
+          SPRITES[`hero_${frame}`].map((r, y) => (lower[y - 11] ?? head?.[y] ?? r).replaceAll('c', y >= 1 && y <= 3 ? hair : color)),
         );
       }
     }

@@ -38,3 +38,20 @@ export function burst(scene: Phaser.Scene, x: number, y: number, color: number, 
     });
   }
 }
+
+/** A thin blade cut drawn across (x, y): it snaps open along `angle`, then thins out and fades. */
+export function cutMark(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  color: number,
+  len = 24,
+  angle = Phaser.Math.FloatBetween(-0.9, 0.9),
+): void {
+  const glow = scene.add.rectangle(x, y, len, 3, color, 0.4).setRotation(angle).setDepth(50);
+  const core = scene.add.rectangle(x, y, len, 1, 0xfff1e8).setRotation(angle).setDepth(51);
+  const cut = [glow, core];
+  cut.forEach((c) => c.setScale(0, 1));
+  scene.tweens.add({ targets: cut, scaleX: 1, duration: 60, ease: 'Quad.Out' });
+  scene.tweens.add({ targets: cut, scaleY: 0, alpha: 0, delay: 90, duration: 200, onComplete: () => cut.forEach((c) => c.destroy()) });
+}

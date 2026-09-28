@@ -2,12 +2,13 @@ import Phaser from 'phaser';
 import type { Derived } from '../logic/stats.ts';
 import { moveHitbox, nextCombo, type Move, type Weapon } from '../logic/loot.ts';
 import { COLOR } from '../gfx/sprites.ts';
-import { flash, floatText, W } from '../gfx/ui.ts';
+import { cutMark, flash, floatText, W } from '../gfx/ui.ts';
 import type { PlayerWorld } from './arena.ts';
 import type { ClassId } from '../logic/classes.ts';
 import { SKILLS } from './skills.ts';
 import { CLASSES, FURY } from '../logic/classes.ts';
 import { DASHES } from './dashes.ts';
+import { STYLES, airTilt, emitTrail, pirouette } from './styles.ts';
 import { DEBUFFS, DOT_SHARE, DOT_TICK_MS, SLOW_MULT, type Debuff } from '../logic/stages.ts';
 
 const JUMP_VELOCITY = -250;
@@ -63,6 +64,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly skin: ClassId;
   private readonly keys: Keys;
   private readonly held: Phaser.GameObjects.Image;
+  /** Off-hand blade for twin-sword weapons. */
+  private readonly twin: Phaser.GameObjects.Image;
   private readonly slash: Phaser.GameObjects.Image;
   private comboIndex = -1;
   private coyoteUntil = 0;
@@ -82,6 +85,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private landFn?: () => void;
   /** A jump is rising and may still be cut short by releasing the key. */
   private jumpCut = false;
+  /** Last jump (for the class's airborne flip/roll), next running footstep particle, and when the hero left the ground. */
+  private jumpAt = 0;
+  private nextStep = 0;
+  private airSince = 0;
+  /** The current 'cross' move already turned into its return cut. */
+  private crossed = false;
 
   constructor(
     scene: Phaser.Scene,
@@ -107,6 +116,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(10).setCollideWorldBounds(true);
     this.body.setSize(6, 13).setOffset(2, 1);
     this.held = scene.add.image(x, y, `w_${weapon.id}`).setDepth(11);
+    this.twin = scene.add.image(x, y, 'w_bakuya').setDepth(9).setOrigin(0.15, 0.5).setVisible(false);
     this.slash = scene.add.image(x, y, 'slash').setDepth(12).setVisible(false);
     const K = Phaser.Input.Keyboard.KeyCodes;
     this.keys = scene.input.keyboard!.addKeys({
@@ -134,9 +144,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.move = weapon.combo[0];
     this.comboIndex = -1;
     this.hp = Math.min(this.hp, stats.maxHp);
-    this.held
-      .setTexture(`w_${weapon.id}`)
-      .setOrigin(weapon.id === 'busur' || weapon.id === 'busurArkana' ? 0.2 : weapon.fist ? 0.5 : 0.15, 0.5);
+    this.slash.setTexture(weapon.arc ?? 'slash').setTint(weapon.arcTint ?? 0xffffff);
+    this.held.setTexture(`w_${weapon.id}`).setOrigin(weapon.id === 'busurArkana' ? 0.2 : weapon.fist ? 0.5 : 0.15, 0.5);
+    if (weapon.twin) this.twin.setTexture(weapon.twin);
   }
 
   /** Melee hitbox is live. */
@@ -206,7 +216,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   ghost(tint: number): void {
-    const g = this.scene.add.image(this.x, this.y, this.texture.key).setFlipX(this.flipX).setTint(tint).setAlpha(0.5).setDepth(9);
+    const g = this.scene.add
+      .image(this.x, this.y, this.texture.key)
+      .setFlipX(this.flipX)
+      .setAngle(this.angle)
+      .setTint(tint)
+      .setAlpha(0.5)
+      .setDepth(9);
     this.scene.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
   }
 
@@ -214,6 +230,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const k = this.keys;
     const b = this.body;
     const grounded = b.blocked.down || b.touching.down;
+    const style = STYLES[this.skin];
+    // Landing after real airtime: a burst of the class's trail (and a thud for heavy classes).
+    if (grounded && this.airSince && time - this.airSince > 250) {
+      emitTrail(this.scene, this.x, this.y + 6, -this.facing, style.trail, 5);
+      if (style.heavy) this.scene.cameras.main.shake(70, 0.004);
+    }
+    this.airSince = grounded ? 0 : this.airSince || time;
     if (grounded) {
       this.coyoteUntil = time + COYOTE_MS;
       this.airJumps = this.stats.extraJumps;
@@ -256,9 +279,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!locked && Phaser.Input.Keyboard.JustDown(k.dash) && time >= this.dashReadyAt) this.dash(time);
     if (dashing) {
       this.ghost(DASHES[this.skin].tint);
+      if (Math.floor(time / 32) % 2) emitTrail(this.scene, this.x, this.y + 2, -this.facing, style.trail);
       this.dashHit();
     }
     if (time < this.swingUntil && this.move.trail && Math.floor(time / 32) % 2) this.ghost(this.move.trail);
+    // Tsubame Gaeshi: the return cut halfway through is a second hit.
+    if (this.move.anim === 'cross' && !this.crossed && time >= this.swingUntil - this.move.ms / 2) {
+      this.crossed = true;
+      this.hitThisSwing.clear();
+    }
 
     const attackPressed = Phaser.Input.Keyboard.JustDown(k.attack);
     const skillPressed = Phaser.Input.Keyboard.JustDown(k.skill);
@@ -284,9 +313,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!locked && !silenced && !this.awakening && Phaser.Input.Keyboard.JustDown(k.ult) && this.ult >= 100) this.useSkill(time, 'ult');
 
     const running = grounded && b.velocity.x !== 0;
-    const frame = !grounded ? 'jump' : running ? (Math.floor(time / 120) % 2 ? 'run1' : 'run0') : 'idle';
+    const frame = !grounded ? 'jump' : running ? (Math.floor(time / style.stride) % 2 ? 'run1' : 'run0') : 'idle';
     this.setTexture(dragon ? 'dragon' : `hero_${frame}_${this.skin}`);
-    this.setFlipX(this.facing < 0);
+    const sinceJump = time - this.jumpAt;
+    this.setFlipX(this.facing < 0 !== (!grounded && !dragon && pirouette(style.jump, sinceJump)));
+    // Class body language: lean into the run, flip/roll/dive/float in the air.
+    const tilt = dragon || dashing ? 0 : !grounded ? airTilt(style.jump, sinceJump, b.velocity.y, time) : running ? style.lean : 0;
+    this.setAngle(tilt * this.facing);
+    if (running && !dragon && time >= this.nextStep) {
+      this.nextStep = time + style.stride;
+      emitTrail(this.scene, this.x - this.facing * 3, this.y + 6, -this.facing, style.trail);
+    }
     this.setAlpha(time < this.invulnUntil && !dashing && Math.floor(time / 60) % 2 ? 0.3 : 1);
     this.poseWeapon(time);
     this.tintDebuffs(time);
@@ -313,6 +350,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (this.dashHits.has(t) || Phaser.Math.Distance.Between(this.x, this.y, t.x, t.y) > h.radius + t.displayWidth / 2) continue;
       this.dashHits.add(t);
       this.world.strike(t, h.mult * this.stats.dashPower, 'skill', !!h.crit, h.status);
+      if (h.cut) cutMark(this.scene, t.x, t.y, h.cut);
       if (h.heal) this.heal(h.heal);
     }
   }
@@ -362,6 +400,25 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         mult: m.dmg,
         source: 'basic',
         knockback: m.knockback,
+      });
+    });
+  }
+
+  /** Iai flash: once the lunge ends, a thin line of `color` hangs along the path from `fromX`, then snaps shut. */
+  private streak(fromX: number, ms: number, color: number): void {
+    this.scene.time.delayedCall(ms, () => {
+      if (!this.active) return;
+      const x = (fromX + this.x) / 2;
+      const w = Math.abs(this.x - fromX) + 16;
+      const line = [this.scene.add.rectangle(x, this.y, w, 3, color, 0.45), this.scene.add.rectangle(x, this.y, w, 1, 0xfff1e8)];
+      line.forEach((l) => l.setDepth(13));
+      this.scene.tweens.add({
+        targets: line,
+        scaleY: 0,
+        alpha: 0,
+        delay: 80,
+        duration: 220,
+        onComplete: () => line.forEach((l) => l.destroy()),
       });
     });
   }
@@ -489,6 +546,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.airJumps--;
       this.jump();
       this.ghost(0xfff1e8);
+      emitTrail(this.scene, this.x, this.y + 6, -this.facing, STYLES[this.skin].trail, 6);
     }
   }
 
@@ -543,9 +601,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.swingUntil = time + m.ms;
     this.swingReadyAt = time + this.stats.swingCooldown * m.cd * 1000 * (1 - FURY.step * this.fury);
     this.hitThisSwing.clear();
+    this.crossed = false;
     if (m.lunge) {
       this.setVelocityX(this.facing * m.lunge);
       this.lock(m.ms);
+      if (m.cut) this.streak(this.x, m.ms, m.cut);
     }
     // Air lift only once per airtime; spamming air attacks must not keep the player flying.
     if (m.hover && !this.hoverUsed) {
@@ -586,7 +646,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         y: this.y + 1,
         vx: Math.cos(a) * projectile!.speed * this.facing,
         vy: Math.sin(a) * projectile!.speed,
-        texture: m.shot ?? projectile!.texture,
+        // Twin blades: every other throw is the off-hand blade.
+        texture: m.shot ?? (this.weapon.twin && i % 2 ? this.weapon.twin : projectile!.texture),
         status: m.status,
         mult: m.dmg,
         source: 'basic',
@@ -594,6 +655,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         knockback: m.knockback,
         homing: projectile!.homing || (this.stats.homingArrows > 0 && i === lead),
         returning: projectile!.returning,
+        spin: projectile!.spin,
       });
       if (!projectile!.returning) this.thrown = undefined;
     }
@@ -655,6 +717,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private jump(): void {
     this.setVelocityY(JUMP_VELOCITY);
+    this.jumpAt = this.scene.time.now;
     this.jumpCut = true;
     this.jumpBufferUntil = 0;
     this.coyoteUntil = 0;
@@ -665,9 +728,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const f = this.facing;
     const active = time < this.swingUntil;
     const p = active ? 1 - (this.swingUntil - time) / m.ms : 1;
-    let x = this.x + f * (this.weapon.fist ? 5 : 3);
-    let y = this.y + 2;
-    let angle = this.weapon.projectile || this.weapon.fist ? 0 : this.weapon.id === 'tombak' ? 20 : 45;
+    // At rest the class carries its own weapon its own way; other weapons get the plain grip.
+    const hold =
+      CLASSES[this.skin].weapon === this.weapon.id
+        ? STYLES[this.skin].hold
+        : { angle: this.weapon.projectile || this.weapon.fist ? 0 : this.weapon.id === 'tombak' ? 20 : 45 };
+    let x = this.x + f * ((this.weapon.fist ? 5 : 3) + (active ? 0 : (hold.dx ?? 0)));
+    let y = this.y + 2 + (active ? 0 : (hold.dy ?? 0));
+    let angle = hold.angle;
     if (active) {
       // Fists: jab straight out and back, hook in a forward arc, uppercut rising from the hip.
       if (m.anim === 'jab') x += f * Math.sin(p * Math.PI) * (m.lunge ? 14 : 9);
@@ -685,6 +753,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (m.anim === 'down') angle = -100 + 150 * p;
       if (m.anim === 'up') angle = 60 - 160 * p;
       if (m.anim === 'overhead') angle = -150 + 220 * p;
+      if (m.anim === 'cross') angle = p < 0.5 ? -100 + 300 * p : 60 - 320 * (p - 0.5);
       if (m.anim === 'thrust') {
         angle = 0;
         x += f * Math.sin(p * Math.PI) * 10;
@@ -705,6 +774,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       .setAlpha(this.alpha)
       // A thrown sword is out of the hand until it comes back.
       .setVisible(!this.thrown?.active && !this.dragon);
+    // The off-hand blade mirrors the swing (a scissor motion; crossed at rest) from just behind the body.
+    this.twin
+      .setPosition(x - f * 4, y + 1)
+      .setScale(f, 1)
+      .setAngle(-angle * f)
+      .setAlpha(this.alpha)
+      .setVisible(!!this.weapon.twin && this.held.visible);
 
     if (spinning) {
       this.slash
@@ -715,18 +791,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         .setAlpha(0.7);
       return;
     }
-    const showSlash = active && (m.anim === 'down' || m.anim === 'up' || m.anim === 'overhead');
+    const showSlash = active && (m.anim === 'down' || m.anim === 'up' || m.anim === 'overhead' || m.anim === 'cross');
+    // Upswings (and the second half of a cross) draw the arc flipped vertically; a cross's arc fades in each half.
+    const rising = m.anim === 'up' || (m.anim === 'cross' && p >= 0.5);
+    const fade = m.anim === 'cross' ? (p % 0.5) * 2 : p;
     this.slash
       .setVisible(showSlash)
       .setAngle(0)
       .setPosition(this.x + f * (2 + m.reach.w / 2), this.y - 1)
-      // Upswings draw the arc flipped vertically.
-      .setScale((f * m.reach.w) / 14, ((m.anim === 'up' ? -1 : 1) * m.reach.h) / 16)
-      .setAlpha(1 - p * 0.6);
+      .setScale((f * m.reach.w) / 14, ((rising ? -1 : 1) * m.reach.h) / 16)
+      .setAlpha(1 - fade * 0.6);
   }
 
   destroy(fromScene?: boolean): void {
     this.held?.destroy();
+    this.twin?.destroy();
     this.slash?.destroy();
     super.destroy(fromScene);
   }

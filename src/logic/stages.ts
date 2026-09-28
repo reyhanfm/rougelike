@@ -10,7 +10,7 @@ export interface RoundConfig {
   enemyDamage: number;
   bossHp: number;
   bossDamage: number;
-  /** Bonus round: special bosses (any mix of Mahoraga, Leviathan, Godzilla) instead of the round's enemies. */
+  /** Bonus round: special bosses (any mix of Mahoraga, Leviathan, Godzilla, Kaguya) instead of the round's enemies. */
   specials?: SpecialBoss[];
   /** Elite round: every enemy is an elite. */
   eliteRound?: boolean;
@@ -49,16 +49,17 @@ export function roundConfig(round: number): RoundConfig {
   };
 }
 
-export type SpecialBoss = 'mahoraga' | 'leviathan' | 'godzilla';
+export type SpecialBoss = 'mahoraga' | 'leviathan' | 'godzilla' | 'kaguya';
 
 /**
- * Bonus rounds: from round `from`, a normal round becomes a special boss round with `chance`. It brings three special
- * bosses with chance `three`, two with `two`, else one; `hpShare[n - 1]` of its HP each when n come together.
+ * Bonus rounds: from round `from`, a normal round becomes a special boss round with `chance`. It brings all four special
+ * bosses with chance `four`, three with `three`, two with `two`, else one; `hpShare[n - 1]` of its HP each when n come
+ * together.
  */
-export const SPECIAL = { from: 4, chance: 0.22, two: 0.28, three: 0.1, hpShare: [1, 0.75, 0.6] } as const;
+export const SPECIAL = { from: 4, chance: 0.22, two: 0.28, three: 0.1, four: 0.04, hpShare: [1, 0.75, 0.6, 0.5] } as const;
 
 /** Fixed order: the HUD stacks their bars this way. */
-const SPECIAL_KINDS: readonly SpecialBoss[] = ['mahoraga', 'leviathan', 'godzilla'];
+const SPECIAL_KINDS: readonly SpecialBoss[] = ['mahoraga', 'leviathan', 'godzilla', 'kaguya'];
 
 /** hp/dmg: multipliers on the regular boss of the coming boss tier. A kill pays souls x`soul` and +`coins`. */
 export const SPECIAL_STATS: Record<SpecialBoss, { hp: number; dmg: number; soul: number; coins: number }> = {
@@ -66,6 +67,7 @@ export const SPECIAL_STATS: Record<SpecialBoss, { hp: number; dmg: number; soul:
   mahoraga: { hp: 0.8, dmg: 1.4, soul: 4, coins: 15 },
   leviathan: { hp: 2, dmg: 1.3, soul: 4, coins: 15 },
   godzilla: { hp: 3, dmg: 1.6, soul: 8, coins: 40 },
+  kaguya: { hp: 2.4, dmg: 1.5, soul: 7, coins: 35 },
 };
 
 /**
@@ -77,6 +79,12 @@ export const MAHORAGA = { turnMs: 4000, barrageAt: 3, leaveMs: 75000 } as const;
 
 /** Godzilla: regenerates `regen` of its max HP per second; below `enrage` it releases one nuclear pulse and fights faster. */
 export const GODZILLA = { regen: 0.008, enrage: 0.3 } as const;
+
+/**
+ * Kaguya: floats out of reach of the floor. Below `tsukuyomiAt` of her HP she casts Infinite Tsukuyomi once: she is out
+ * of reach for `hideMs` while White Zetsu come out of the moonlight. Below `enrage` she attacks faster.
+ */
+export const KAGUYA = { tsukuyomiAt: 0.5, hideMs: 2500, enrage: 0.3 } as const;
 
 /**
  * Leviathan: its scales (`armor` x max HP, +`armorGrowth` per break) take each hit in full while its HP takes only
@@ -100,11 +108,11 @@ export type AdaptKind = 'basic' | 'skill' | 'ult' | 'proc' | 'burn' | 'freeze';
 /** Damage (or freeze time) that still lands after 0, 1, 2... adaptation steps to one kind; the last step is immunity. */
 export const ADAPT_MULT = [1, 0.6, 0.3, 0.1, 0] as const;
 
-/** Which special bosses (if any) turn this round into a bonus round: one, two or all three of them. */
+/** Which special bosses (if any) turn this round into a bonus round: one, two, three or all four of them. */
 export function rollSpecials(round: number, rand: () => number = Math.random): SpecialBoss[] {
   if (round < SPECIAL.from || isBossRound(round) || rand() >= SPECIAL.chance) return [];
   const r = rand();
-  const n = r < SPECIAL.three ? 3 : r < SPECIAL.three + SPECIAL.two ? 2 : 1;
+  const n = r < SPECIAL.four ? 4 : r < SPECIAL.four + SPECIAL.three ? 3 : r < SPECIAL.four + SPECIAL.three + SPECIAL.two ? 2 : 1;
   const pool = [...SPECIAL_KINDS];
   const picked: SpecialBoss[] = [];
   while (picked.length < n) picked.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
@@ -235,7 +243,7 @@ export function pickEnemies(round: number, count: number, rand: () => number = M
   return Array.from({ length: count }, () => pool[Math.floor(rand() * pool.length)]);
 }
 
-export type BossKind = 'knight' | 'slimeKing' | 'lich' | 'demonLord' | 'mahoraga' | 'leviathan' | 'godzilla';
+export type BossKind = 'knight' | 'slimeKing' | 'lich' | 'demonLord' | 'mahoraga' | 'leviathan' | 'godzilla' | 'kaguya';
 export type BossPattern =
   | 'charge'
   | 'slam'
@@ -260,7 +268,13 @@ export type BossPattern =
   // Godzilla: atomic breath, tail swipe, roar.
   | 'breath'
   | 'tail'
-  | 'roar';
+  | 'roar'
+  // Kaguya: ash-killing bones, hair needles, the Truth-Seeking Ball, Yomotsu Hirasaka portals, dimension shift.
+  | 'bones'
+  | 'hair'
+  | 'truth'
+  | 'portal'
+  | 'dimension';
 
 const BOSS_ORDER: readonly BossKind[] = ['knight', 'slimeKing', 'lich'];
 
@@ -272,6 +286,7 @@ export const BOSSES: Record<BossKind, { name: string; patterns: readonly BossPat
   mahoraga: { name: 'MAHORAGA', patterns: ['charge', 'slam', 'exterminate'] },
   leviathan: { name: 'LEVIATHAN', patterns: ['charge', 'ring', 'laser', 'sweep', 'dive'] },
   godzilla: { name: 'GODZILLA', patterns: ['charge', 'quake', 'tail', 'breath', 'roar'] },
+  kaguya: { name: 'OTSUTSUKI KAGUYA', patterns: ['bones', 'hair', 'truth', 'portal', 'dimension'] },
 };
 
 /** Raja Iblis patterns per phase (HP above 66%, above 33%, below). */

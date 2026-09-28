@@ -23,7 +23,9 @@ export type ClassId =
   | 'madara'
   | 'hashirama'
   | 'itachi'
-  | 'jackFrost';
+  | 'jackFrost'
+  | 'naruto'
+  | 'sasuke';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -42,6 +44,8 @@ export interface GameClass {
   hair?: string;
   /** Own head and torso rows (palette chars) instead of the shared hero's; 'c' still takes the class color. */
   head?: string[];
+  /** Costume below the waist: a LEGS template in sprites.ts, with its cloth ('P') and boot ('B') palette chars. */
+  legs: { kind: 'pants' | 'robe' | 'armor' | 'coat' | 'float'; pant: string; boot: string };
   /**
    * Replaces the ult: when the meter is full the class awakens on its own, boosting its stats
    * and melee reach while the meter drains to empty over `ms` (times stats.awakenTime).
@@ -55,6 +59,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'ARTORIA',
     weapon: 'pedang',
     color: 'c',
+    legs: { kind: 'robe', pant: 'c', boot: '6' },
     hair: 'a',
     // Artoria Pendragon: blonde hair with its ahoge, green eyes, blue dress under a silver breastplate, gold belt.
     head: [
@@ -90,6 +95,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'KING HASSAN',
     weapon: 'belati',
     color: 'j',
+    legs: { kind: 'coat', pant: 'j', boot: '0' },
+    // Skull mask with curled horns and red-lit sockets, dark steel hood and gauntlets, gold belt.
+    head: [
+      '6........6',
+      '.6.0000.6.',
+      '..0jjjj0..',
+      '.0j7777j0.',
+      '.0j8778j0.',
+      '.0j7007j0.',
+      '..0j77j0..',
+      '.0jj55jj0.',
+      '0jj5jj5jj0',
+      '050jjjj050',
+      '..0jaaj0..',
+    ],
     hair: '7',
     trait: 'PAK TUA GUNUNG: EKSEKUSI MUSUH HP < 12%, KRITIS +10%',
     apply: (s) => {
@@ -112,6 +132,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'CU CHULAINN',
     weapon: 'tombak',
     color: 'k',
+    legs: { kind: 'pants', pant: 'k', boot: '6' },
+    // Blue hair with its long tail behind, red eyes, blue bodysuit with silver pauldrons.
+    head: [
+      '...1111...',
+      '..111111..',
+      '.11111111.',
+      '.1ffffff1.',
+      '.1f8ff8f1.',
+      '.0ffffff0.',
+      '1.0kkkk0..',
+      '1066kk660.',
+      '0fk6kk6kf0',
+      '0f0kkkk0f0',
+      '..066660..',
+    ],
     hair: '1',
     trait: 'PERLINDUNGAN PANAH: HINDAR 15%, +1 LOMPAT UDARA, LARI +10%',
     apply: (s) => {
@@ -134,6 +169,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'HERACLES',
     weapon: 'kapak',
     color: 'l',
+    legs: { kind: 'pants', pant: '5', boot: '5' },
+    // Wild black mane, burning red eyes, huge grey-skinned body, bronze loincloth.
+    head: [
+      '0.0.00.0.0',
+      '.00000000.',
+      '0000000000',
+      '.05555550.',
+      '.05855850.',
+      '.05555550.',
+      '0555555550',
+      '55l5555l55',
+      '5555005555',
+      '55.5555.55',
+      '..0llll0..',
+    ],
     hair: '0',
     trait: 'GOD HAND: BANGKIT 1X TIAP ROUND (30% HP), DAMAGE +20%, +25% SAAT HP < 50%',
     apply: (s) => {
@@ -156,6 +206,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'ARCHER',
     weapon: 'busur',
     color: '8',
+    legs: { kind: 'coat', pant: '8', boot: '0' },
+    // White hair swept back, grey eyes, black armor under a red mantle.
+    head: [
+      '....777...',
+      '.7777777..',
+      '777777777.',
+      '.07ffff70.',
+      '.0f5ff5f0.',
+      '.0ffffff0.',
+      '..088880..',
+      '.88000088.',
+      '8f000000f8',
+      '8f008800f8',
+      '..066660..',
+    ],
     hair: '7',
     trait: 'MATA ELANG: KRITIS +10%, SOUL +20%, COOLDOWN SKILL -15%',
     apply: (s) => {
@@ -165,7 +230,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     },
     synergy: {
       name: 'BROKEN PHANTASM',
-      desc: 'PANAH BIASA MENEMBUS MUSUH',
+      desc: 'LEMPARAN KANSHOU & BAKUYA MENEMBUS MUSUH',
       apply: (s) => void (s.pierceArrows = 1),
     },
   },
@@ -175,6 +240,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'MAGIC ARCHER',
     weapon: 'busurArkana',
     color: 'e',
+    legs: { kind: 'robe', pant: 'e', boot: 'd' },
+    // Pink hood over silver bangs, violet eyes, gold star clasp.
+    head: [
+      '....ee....',
+      '...eeee...',
+      '..eeeeee..',
+      '.ee6666ee.',
+      '.efdffdfe.',
+      '.eeffffee.',
+      '..0eaae0..',
+      '.0eeeeee0.',
+      '0feeaeeef0',
+      '0f0eeee0f0',
+      '..0d66d0..',
+    ],
     trait: '1 PANAH/TEMBAKAN MELACAK, DMG -15%, HP -10%',
     apply: (s) => {
       s.homingArrows = 1;
@@ -192,6 +272,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'GRIM REAPER',
     weapon: 'sabit',
     color: '6',
+    legs: { kind: 'float', pant: '5', boot: '5' },
+    // Black hood, bare skull with red sockets, bony hands, tattered robe.
+    head: [
+      '...0000...',
+      '..055550..',
+      '.05555550.',
+      '.05777750.',
+      '.05877850.',
+      '.05707750.',
+      '..055550..',
+      '.05555550.',
+      '0755555570',
+      '0705555070',
+      '..055550..',
+    ],
     trait: 'SOUL +20%, +2 HP/KILL, HP -10%',
     apply: (s) => {
       s.soulMult *= 1.2;
@@ -209,6 +304,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'GUNNERS',
     weapon: 'senapan',
     color: '3',
+    legs: { kind: 'pants', pant: '3', boot: '4' },
+    // Green helmet with goggles up, stubble, webbing straps, pouch belt.
+    head: [
+      '...3333...',
+      '..333333..',
+      '.33333333.',
+      '.00a00a00.',
+      '.0f0ff0f0.',
+      '.0f4444f0.',
+      '..033330..',
+      '.03533530.',
+      '0f353353f0',
+      '0f033330f0',
+      '..049940..',
+    ],
     trait: 'HP +10%, LARI -5%; TAHAN SERANG',
     apply: (s) => {
       s.maxHp *= 1.1;
@@ -225,6 +335,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'CULTIVATOR',
     weapon: 'pedangTerbang',
     color: '7',
+    legs: { kind: 'robe', pant: '7', boot: '0' },
+    // Long black hair under a gold crown, white robe with blue lapels and sash.
+    head: [
+      '...0aa0...',
+      '..000000..',
+      '.00000000.',
+      '000ffff000',
+      '00f0ff0f00',
+      '00ffffff00',
+      '0.0k77k0.0',
+      '.07k77k70.',
+      '7f777k77f7',
+      '7f077770f7',
+      '..0kkkk0..',
+    ],
     trait: 'QI: SKILL +20%, PULIH 0.5 HP/DTK, HP -10%',
     apply: (s) => {
       s.skillPower *= 1.2;
@@ -245,6 +370,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'ELEMENTALIS',
     weapon: 'tongkat',
     color: '2',
+    legs: { kind: 'robe', pant: '2', boot: '4' },
+    // Tall pointed purple hat, purple robe with a fire-and-ice gem, gold hem.
+    head: [
+      '......22..',
+      '.....222..',
+      '...22222..',
+      '2222222222',
+      '.0f0ff0f0.',
+      '.0ffffff0.',
+      '..0a22a0..',
+      '.0229k220.',
+      '0f222222f0',
+      '0f022220f0',
+      '..0a99a0..',
+    ],
     trait: 'SKILL +15%, SKILL CD -10%, HP -15%',
     apply: (s) => {
       s.skillPower *= 1.15;
@@ -261,7 +401,23 @@ export const CLASSES: Record<ClassId, GameClass> = {
     id: 'samurai',
     name: 'SAMURAI',
     weapon: 'katana',
-    color: '5',
+    color: 'v',
+    legs: { kind: 'robe', pant: 'v', boot: '7' },
+    hair: '0',
+    // Black topknot, red hachimaki with its tail flying behind, stern eyes, indigo kimono with a crossed white collar, red obi.
+    head: [
+      '....00....',
+      '..000000..',
+      '8.0000000.',
+      '.88888888.',
+      '.0f0ff0f0.',
+      '.0ffffff0.',
+      '..07cc70..',
+      '.0cc77cc0.',
+      '0fccc7ccf0',
+      '0f0cccc0f0',
+      '..088880..',
+    ],
     trait: 'KRITIS +10%, PENGALI KRITIS +0.25, HP -5%',
     apply: (s) => {
       s.critChance += 0.1;
@@ -279,6 +435,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'DARK AVENGER',
     weapon: 'pedangGelap',
     color: 'g',
+    legs: { kind: 'armor', pant: '5', boot: '0' },
+    // Horned black helm with a glowing violet visor, violet-trimmed dark plate.
+    head: [
+      '5........5',
+      '.5.5555.5.',
+      '..555555..',
+      '.55555555.',
+      '.50gg0gg5.',
+      '.55555555.',
+      '..05gg50..',
+      '.0g5555g0.',
+      '05g5gg5g50',
+      '050gggg050',
+      '..055550..',
+    ],
     trait: 'TANPA ULTI: METER PENUH = MODE AVENGER. METER +25%, HP +10%',
     apply: (s) => {
       s.ultGainMult *= 1.25;
@@ -308,6 +479,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'ASHURA',
     weapon: 'enamLengan',
     color: 'a',
+    legs: { kind: 'pants', pant: '8', boot: 'a' },
+    // Gold crown, red skin, gold eyes, two extra arms raised at the shoulders.
+    head: [
+      '..a.aa.a..',
+      '..aaaaaa..',
+      '.0a9aa9a0.',
+      '.08888880.',
+      '.08a88a80.',
+      '.08888880.',
+      '8.0aaaa0.8',
+      '808a88a808',
+      '08a8888a80',
+      '8.0aaaa0.8',
+      '..099990..',
+    ],
     trait: 'AMARAH: TIAP HIT +1 STACK (MAX 6), +5% DAMAGE & SERANG CEPAT PER STACK',
     apply: (s) => {
       s.furyMax = 6;
@@ -324,6 +510,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'ANTARES',
     weapon: 'cakarNaga',
     color: 'h',
+    legs: { kind: 'armor', pant: 'h', boot: '6' },
+    // Dragon horns, crimson hair, golden slit eyes, crimson scale armor.
+    head: [
+      '6........6',
+      '.6.hhhh.6.',
+      '..hhhhhh..',
+      '.hhffffhh.',
+      '.hfaffafh.',
+      '.0ffffff0.',
+      '..0hhhh0..',
+      '.0h9hh9h0.',
+      '0fhh99hhf0',
+      '0f0hhhh0f0',
+      '..09aa90..',
+    ],
     trait: 'RAJA NAGA: KEBAL TERBAKAR, HP +15%, DITERIMA -5%',
     apply: (s) => {
       s.fireImmune = 1;
@@ -344,6 +545,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'GILGAMESH',
     weapon: 'gerbangBabilonia',
     color: 'i',
+    legs: { kind: 'armor', pant: 'i', boot: 'a' },
     hair: 'a',
     // Golden hair swept up and back, red eyes, golden armor with white shine and orange trim, red cloth at the waist.
     head: [
@@ -376,6 +578,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'SUKUNA',
     weapon: 'shrine',
     color: 'm',
+    legs: { kind: 'robe', pant: 'm', boot: '0' },
     hair: 'e',
     // Spiky pink hair, red eyes, black face and arm markings, dark sash.
     head: [
@@ -411,6 +614,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'GOJO SATORU',
     weapon: 'mugen',
     color: 'n',
+    legs: { kind: 'pants', pant: 'n', boot: '0' },
     hair: '7',
     // Spiky white hair, black blindfold over the Six Eyes, high-collared navy uniform.
     head: [
@@ -446,6 +650,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'TOJI',
     weapon: 'sakahoko',
     color: 'o',
+    legs: { kind: 'pants', pant: '7', boot: '0' },
+    // Short black hair, green eyes, scar at the lip, tight dark shirt, the storage curse around his waist.
+    head: [
+      '..0.00.0..',
+      '.00000000.',
+      '.00000000.',
+      '.0ffffff0.',
+      '.0fbffbf0.',
+      '.0ff6fff0.',
+      '..0oooo0..',
+      '.0oo55oo0.',
+      '0foo55oof0',
+      '0f0oooo0f0',
+      '..0dddd0..',
+    ],
     hair: '0',
     trait: 'RESTRIKSI SURGAWI: DAMAGE & LARI +15%, HINDAR 10%, SKILL -25%',
     apply: (s) => {
@@ -468,6 +687,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'MADARA',
     weapon: 'gunbai',
     color: 'p',
+    legs: { kind: 'armor', pant: 'p', boot: '1' },
     hair: '0',
     // Long spiky black mane with a blue sheen, red Sharingan eyes, Uchiha war armor.
     head: [
@@ -504,6 +724,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'HASHIRAMA',
     weapon: 'mokuton',
     color: 'q',
+    legs: { kind: 'armor', pant: 'q', boot: '0' },
+    // Long brown hair, metal forehead protector, red Senju plate armor.
+    head: [
+      '...rrrr...',
+      '..rrrrrr..',
+      '.rrrrrrrr.',
+      '.r666666r.',
+      'rrf0ff0frr',
+      'rrffffffrr',
+      'r.0qqqq0.r',
+      'r0q4qq4q0r',
+      '0fqq44qqf0',
+      '0f0qqqq0f0',
+      '..044440..',
+    ],
     hair: 'r',
     trait: 'SEL HASHIRAMA: PULIH 2 HP/DTK, HP +20%, LARI -5%',
     apply: (s) => {
@@ -525,6 +760,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'ITACHI',
     weapon: 'kunai',
     color: 's',
+    legs: { kind: 'coat', pant: 's', boot: '1' },
     hair: '0',
     // Black hair, scratched Konoha headband, Sharingan, tear-trough lines, Akatsuki cloak with red clouds.
     head: [
@@ -560,6 +796,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'JACK FROST',
     weapon: 'tongkatFrost',
     color: 'u',
+    legs: { kind: 'pants', pant: '4', boot: 'f' },
+    // Frosted white hair, icy blue eyes, blue hoodie with frost patterns.
+    head: [
+      '..7.77.7..',
+      '.07777770.',
+      '0777777770',
+      '.07ffff70.',
+      '.0fcffcf0.',
+      '.0ffffff0.',
+      '.u0uuuu0u.',
+      '.0u7uu7u0.',
+      '0fuuuuuuf0',
+      '0f0uuuu0f0',
+      '..0u77u0..',
+    ],
     hair: '7',
     trait: 'ANGIN MEMBAWAKU: +2 LOMPAT UDARA, LARI +10%, BEKU/BURN +30%',
     apply: (s) => {
@@ -573,6 +824,80 @@ export const CLASSES: Record<ClassId, GameClass> = {
       apply: (s) => {
         s.freezeChance += 0.2;
         s.soulMult *= 1.25;
+      },
+    },
+  },
+  naruto: {
+    id: 'naruto',
+    name: 'NARUTO',
+    weapon: 'rasengan',
+    color: '9',
+    legs: { kind: 'coat', pant: '9', boot: '0' },
+    hair: 'a',
+    // Six Paths Sage Mode: spiky blond hair, forehead protector, orange sage eyes and whisker marks, a glowing cloak
+    // with black magatama at the collar.
+    head: [
+      '.a.aa.a.a.',
+      '.aaaaaaaa.',
+      'aaaaaaaaaa',
+      '.a066660a.',
+      '.0f9ff9f0.',
+      '.05ffff50.',
+      '..090090..',
+      '.0a9aa9a0.',
+      '0f9a99a9f0',
+      '0f099990f0',
+      '..055550..',
+    ],
+    trait: 'CHAKRA KURAMA: HP +20%, PULIH 1 HP/DTK, ULTI +15% CEPAT',
+    apply: (s) => {
+      s.maxHp *= 1.2;
+      s.regen += 1;
+      s.ultGainMult *= 1.15;
+    },
+    synergy: {
+      name: 'MODE RIKUDO SENNIN',
+      desc: 'KLON: 30% HIT MEMUKUL LAGI, SKILL +20%',
+      apply: (s) => {
+        s.echo += 0.3;
+        s.skillPower *= 1.2;
+      },
+    },
+  },
+  sasuke: {
+    id: 'sasuke',
+    name: 'SASUKE',
+    weapon: 'kusanagi',
+    color: 'w',
+    legs: { kind: 'coat', pant: 'w', boot: '0' },
+    hair: '0',
+    // Black hair swept back with bangs over the Rinnegan (violet, left) and the Sharingan (red, right), grey shirt under
+    // a dark cape, purple rope belt.
+    head: [
+      '..0.00....',
+      '.0000000..',
+      '000000000.',
+      '.0000ff00.',
+      '.0fdff8f0.',
+      '.0ffffff0.',
+      '.w066660w.',
+      'ww066660ww',
+      'wf666666fw',
+      'wf0gggg0fw',
+      '..055550..',
+    ],
+    trait: 'RINNEGAN: HINDAR 15%, KRITIS +10%, SKILL CD -15%',
+    apply: (s) => {
+      s.dodge += 0.15;
+      s.critChance += 0.1;
+      s.skillCdMult *= 0.85;
+    },
+    synergy: {
+      name: 'CHIDORI',
+      desc: '20% HIT MELUMPUHKAN (BEKU), PENGALI KRITIS +0.3',
+      apply: (s) => {
+        s.freezeChance += 0.2;
+        s.critMult += 0.3;
       },
     },
   },

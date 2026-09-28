@@ -23,7 +23,9 @@ export type WeaponId =
   | 'gunbai'
   | 'mokuton'
   | 'kunai'
-  | 'tongkatFrost';
+  | 'tongkatFrost'
+  | 'rasengan'
+  | 'kusanagi';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
@@ -33,7 +35,8 @@ export interface Status {
   slow?: number;
 }
 
-export type MoveAnim = 'down' | 'up' | 'overhead' | 'thrust' | 'shoot' | 'spin' | 'plunge' | 'jab' | 'hook' | 'uppercut';
+/** cross: a down cut and an up cut in one move, each hitting (Tsubame Gaeshi). */
+export type MoveAnim = 'down' | 'up' | 'overhead' | 'thrust' | 'shoot' | 'spin' | 'plunge' | 'jab' | 'hook' | 'uppercut' | 'cross';
 
 /** One step of a weapon's attack combo. dmg/cd are relative to the weapon. */
 export interface Move {
@@ -63,6 +66,8 @@ export interface Move {
   extra?: number;
   /** Afterimages of this tint trail the player during the move (Artoria's Mana Burst). */
   trail?: number;
+  /** A thin cut of this color flashes across each enemy hit (and along the path of a lunge). */
+  cut?: number;
   /** Projectile texture for this move instead of the weapon's. */
   shot?: string;
   status?: Status;
@@ -79,12 +84,23 @@ export interface Weapon {
   /** returning: one projectile at a time; it flies back and must be caught before the next attack. */
   /** gate: shots come out of golden portals behind the player as random treasure weapons (Gilgamesh). */
   /** pierce: every shot passes through enemies (Sukuna's Kai). */
-  projectile?: { texture: string; speed: number; homing?: boolean; returning?: boolean; gate?: boolean; pierce?: boolean };
+  /** spin: thrown blades turn end over end in flight. */
+  projectile?: { texture: string; speed: number; homing?: boolean; returning?: boolean; gate?: boolean; pierce?: boolean; spin?: boolean };
+  /** Second blade in the off hand (twin swords); it mirrors the main blade's swing and alternates in throws. */
+  twin?: string;
   automatic?: boolean;
   /** Fists: held upright at the hand instead of as a blade. */
   fist?: boolean;
   /** The attack key casts a technique (SKILLS[id].basic) instead of swinging; combo[0] describes one cast for balance. */
   cast?: boolean;
+  /** Texture of the swing arc instead of the broad 'slash'. */
+  arc?: string;
+  /** Tint of the swing arc. */
+  arcTint?: number;
+  /** Cut mark color on every melee hit (a move's own `cut` wins). */
+  cut?: number;
+  /** Fists: a burst of this color on every melee hit. */
+  impact?: number;
   /** Attack and skill pressed together cast this instead (SKILLS[id].fusion). cd in seconds. */
   fusion?: { name: string; desc: string; cd: number };
   combo: Move[];
@@ -106,6 +122,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1,
     cd: 1,
     crit: 0,
+    cut: 0xc2f0ff,
     combo: [
       { anim: 'down', dmg: 1, cd: 1, ms: 110, reach: box(22, 20), knockback: 100 },
       { anim: 'up', dmg: 1, cd: 1, ms: 110, reach: box(22, 22), knockback: 100 },
@@ -135,6 +152,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1.3,
     cd: 1.3,
     crit: 0.1,
+    arc: 'slashWide',
+    arcTint: 0x9aa0c8,
+    cut: 0x29adff,
     combo: [
       { anim: 'down', dmg: 1, cd: 1, ms: 130, reach: box(24, 22), knockback: 130 },
       { anim: 'up', dmg: 1, cd: 1, ms: 130, reach: box(24, 24), knockback: 130 },
@@ -163,6 +183,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1.1,
     cd: 1.1,
     crit: 0,
+    arc: 'slashMoon',
+    arcTint: 0xff4a6e,
+    cut: 0xff004d,
     combo: [
       { anim: 'thrust', dmg: 1, cd: 1, ms: 140, reach: box(34, 8), knockback: 150 },
       { anim: 'thrust', dmg: 1.1, cd: 1, ms: 140, reach: box(34, 8), knockback: 150, lunge: 110 },
@@ -189,6 +212,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1.8,
     cd: 1.7,
     crit: 0,
+    arc: 'slashWide',
+    arcTint: 0xd08a50,
+    cut: 0xffa300,
     combo: [
       { anim: 'down', dmg: 1, cd: 1, ms: 180, reach: box(24, 30), knockback: 220 },
       { anim: 'up', dmg: 0.9, cd: 1, ms: 180, reach: box(24, 30), knockback: 180 },
@@ -211,27 +237,36 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   },
   busur: {
     id: 'busur',
-    name: 'BUSUR HITAM',
-    desc: 'PANAH JARAK JAUH',
-    projectile: { texture: 'arrow', speed: 260 },
-    dmg: 0.8,
-    cd: 1.1,
+    name: 'KANSHOU & BAKUYA',
+    desc: 'PEDANG KEMBAR, DILEMPAR KEMBALI KE TANGAN',
+    // The pair are drawn to each other: thrown, they spin out and fly back to his hands.
+    projectile: { texture: 'w_busur', speed: 240, returning: true, spin: true },
+    twin: 'w_bakuya',
+    dmg: 1,
+    cd: 0.8,
     crit: 0.05,
+    arc: 'slashTwin',
+    cut: 0xfff1e8,
     combo: [
-      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0] },
-      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0] },
-      { anim: 'shoot', dmg: 0.9, cd: 1.5, ms: 140, reach: box(0, 0), knockback: 80, angles: [-0.12, 0, 0.12] },
+      // Kanshou: the black blade cuts down while Bakuya sweeps up behind it.
+      { anim: 'down', dmg: 0.9, cd: 0.8, ms: 80, reach: box(22, 18), knockback: 70 },
+      // Bakuya answers: the white blade rises.
+      { anim: 'up', dmg: 0.9, cd: 0.8, ms: 80, reach: box(22, 20), knockback: 70 },
+      // Both blades together, crossing: two hits.
+      { anim: 'cross', dmg: 0.7, cd: 1, ms: 150, reach: box(26, 22), knockback: 110, cut: 0xff004d },
+      // Throw the pair; they curve back to him.
+      { anim: 'shoot', dmg: 1.1, cd: 1.3, ms: 120, reach: box(0, 0), knockback: 90, angles: [-0.15, 0.15] },
     ],
     air: {
-      name: 'PANAH MIRING',
-      anim: 'shoot',
-      dmg: 0.9,
-      cd: 1.3,
-      ms: 120,
-      reach: box(0, 0),
-      knockback: 60,
-      angles: [0.45, 0.8, 1.15],
-      hover: 70,
+      name: 'SAYAP BANGAU',
+      anim: 'cross',
+      dmg: 0.7,
+      cd: 1.1,
+      ms: 180,
+      reach: box(28, 28),
+      knockback: 100,
+      hitbox: 'around',
+      hover: 100,
     },
     skill: { name: 'CALADBOLG II', desc: 'PANAH SPIRAL YANG MELEDAK SAAT KENA', cd: 5 },
     ult: { name: 'UNLIMITED BLADE WORKS', desc: 'DUNIA PEDANG: HUJAN PEDANG KE SEMUA MUSUH' },
@@ -243,6 +278,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1.3,
     cd: 1.3,
     crit: 0.05,
+    arc: 'slashMoon',
+    arcTint: 0xc2c3c7,
+    cut: 0x29adff,
     combo: [
       { anim: 'down', dmg: 1, cd: 1, ms: 150, reach: box(30, 22), knockback: 120 },
       { anim: 'up', dmg: 1, cd: 1, ms: 150, reach: box(30, 22), knockback: 120 },
@@ -339,28 +377,34 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   katana: {
     id: 'katana',
     name: 'KATANA',
-    desc: 'TEBASAN CEPAT, FINISHER MELESAT',
+    desc: 'TEBASAN KILAT, FINISHER IAI MENEMBUS',
     dmg: 1,
     cd: 0.8,
     crit: 0.1,
+    arc: 'slashKatana',
     combo: [
-      { anim: 'down', dmg: 1, cd: 1, ms: 90, reach: box(22, 18), knockback: 90 },
-      { anim: 'up', dmg: 1, cd: 1, ms: 90, reach: box(22, 20), knockback: 90 },
-      { anim: 'thrust', dmg: 1.8, cd: 1.6, ms: 160, reach: box(30, 10), knockback: 200, lunge: 260 },
+      // Kesa-giri: diagonal cut down from the shoulder.
+      { anim: 'down', dmg: 1, cd: 0.9, ms: 90, reach: box(26, 22), knockback: 90, cut: 0xfff1e8 },
+      // Kiri-age: the blade comes straight back up.
+      { anim: 'up', dmg: 1, cd: 0.9, ms: 90, reach: box(26, 22), knockback: 90, cut: 0xfff1e8 },
+      // Karatake-wari: overhead cut that splits straight down.
+      { anim: 'overhead', dmg: 1.3, cd: 1.1, ms: 130, reach: box(28, 30), knockback: 140, cut: 0xfff1e8 },
+      // Iai: a flash-draw straight through the enemy.
+      { anim: 'thrust', dmg: 2, cd: 1.6, ms: 150, reach: box(32, 12), knockback: 200, lunge: 320, trail: 0xfff1e8, cut: 0xff004d },
     ],
     air: {
-      name: 'TEBASAN WALET',
-      anim: 'spin',
-      dmg: 1,
-      cd: 1,
-      ms: 180,
-      reach: box(26, 26),
-      knockback: 120,
-      hitbox: 'around',
+      name: 'TSUBAME GAESHI',
+      anim: 'cross',
+      dmg: 0.7,
+      cd: 1.1,
+      ms: 200,
+      reach: box(28, 26),
+      knockback: 100,
       hover: 110,
+      cut: 0xfff1e8,
     },
-    skill: { name: 'IAI', desc: 'MELESAT, TEBAS SEMUA DI JALUR, PASTI KRITIS', cd: 4 },
-    ult: { name: 'ISSEN', desc: 'WAKTU BERHENTI, TEBASAN KE SEMUA MUSUH' },
+    skill: { name: 'IAIDO', desc: 'KUDA-KUDA, MELESAT MENEBAS SEMUA DI JALUR, PASTI KRITIS', cd: 4 },
+    ult: { name: 'MUSOU ISSEN', desc: 'WAKTU BERHENTI, KILAT PEDANG MENEBAS SEMUA MUSUH, SARUNG = LEDAK' },
   },
   busurArkana: {
     id: 'busurArkana',
@@ -396,22 +440,24 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1.3,
     cd: 1.3,
     crit: 0,
+    arc: 'slashMoon',
+    arcTint: 0xa860f0,
+    cut: 0x7e2553,
     combo: [
       { anim: 'down', dmg: 1, cd: 1, ms: 140, reach: box(24, 22), knockback: 140 },
       { anim: 'up', dmg: 1, cd: 1, ms: 140, reach: box(24, 24), knockback: 140 },
       { anim: 'overhead', dmg: 1.7, cd: 1.5, ms: 220, reach: box(30, 30), knockback: 260, lunge: 80 },
     ],
     air: {
-      name: 'JATUH KEGELAPAN',
-      anim: 'plunge',
-      dmg: 1.3,
+      name: 'BULAN GELAP',
+      anim: 'up',
+      dmg: 1.2,
       cd: 1.2,
-      ms: 1200,
-      reach: box(14, 18),
-      knockback: 200,
-      hitbox: 'below',
-      dive: { vx: 120, vy: 340 },
-      slam: 26,
+      ms: 200,
+      reach: box(28, 34),
+      knockback: 220,
+      hover: 170,
+      trail: 0x8a3fd1,
     },
     skill: { name: 'TEBASAN GELAP', desc: 'GELOMBANG GELAP MENEMBUS, X3 SAAT MODE AVENGER', cd: 5 },
     // Never cast: the Dark Avenger awakens instead of using an ult.
@@ -424,6 +470,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 0.7,
     cd: 0.6,
     crit: 0.05,
+    impact: 0xffec27,
     fist: true,
     combo: [
       { anim: 'jab', dmg: 1, cd: 1, ms: 80, reach: box(16, 12), knockback: 60, extra: 1 },
@@ -432,17 +479,16 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'jab', dmg: 1.5, cd: 1.6, ms: 180, reach: box(30, 24), knockback: 180, lunge: 140, extra: 2 },
     ],
     air: {
-      name: 'TINJU MENUKIK',
-      anim: 'plunge',
-      dmg: 1.1,
-      cd: 1.1,
-      ms: 700,
-      reach: box(12, 14),
-      knockback: 120,
-      hitbox: 'below',
-      dive: { vx: 100, vy: 320 },
-      bounce: 180,
-      extra: 2,
+      name: 'RODA ASURA',
+      anim: 'hook',
+      dmg: 0.8,
+      cd: 1.2,
+      ms: 220,
+      reach: box(30, 26),
+      knockback: 100,
+      hitbox: 'around',
+      hover: 90,
+      extra: 3,
     },
     skill: { name: 'TINJU SERIBU', desc: 'RENTETAN PUKULAN KE DEPAN', cd: 5 },
     ult: { name: 'WUJUD ASHURA', desc: 'ENAM GELOMBANG TINJU, AMARAH PENUH, KEBAL' },
@@ -454,22 +500,25 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1.1,
     cd: 1,
     crit: 0.05,
+    arc: 'slashClaw',
+    arcTint: 0xff6a3d,
+    cut: 0xffa300,
     combo: [
       { anim: 'down', dmg: 1, cd: 1, ms: 110, reach: box(22, 20), knockback: 110, status: { burn: 0.15 } },
       { anim: 'up', dmg: 1, cd: 1, ms: 110, reach: box(22, 22), knockback: 110, status: { burn: 0.15 } },
       { anim: 'overhead', dmg: 1.6, cd: 1.5, ms: 180, reach: box(28, 28), knockback: 220, lunge: 100, status: { burn: 0.25 } },
     ],
     air: {
-      name: 'SAYAP API',
-      anim: 'spin',
-      dmg: 1,
-      cd: 1.1,
-      ms: 200,
-      reach: box(28, 28),
-      knockback: 120,
-      hitbox: 'around',
-      hover: 80,
-      status: { burn: 0.15 },
+      name: 'TERKAMAN NAGA',
+      anim: 'thrust',
+      dmg: 1.2,
+      cd: 1.2,
+      ms: 260,
+      reach: box(24, 22),
+      knockback: 160,
+      dive: { vx: 200, vy: 240 },
+      trail: 0xff004d,
+      status: { burn: 0.2 },
     },
     skill: { name: 'SEMBURAN API', desc: '7 BOLA API MENYEMBUR, MEMBAKAR', cd: 5 },
     ult: { name: 'WUJUD NAGA', desc: 'JADI NAGA: TERBANG, NAPAS API, TAHAN BANTING' },
@@ -541,6 +590,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 0.9,
     cd: 0.75,
     crit: 0.1,
+    arc: 'slashThin',
+    arcTint: 0xe8e8f0,
+    cut: 0xc2c3c7,
     combo: [
       { anim: 'thrust', dmg: 1, cd: 1, ms: 90, reach: box(26, 10), knockback: 90 },
       { anim: 'thrust', dmg: 1, cd: 1, ms: 90, reach: box(26, 10), knockback: 90, lunge: 120 },
@@ -548,19 +600,18 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'thrust', dmg: 1.7, cd: 1.5, ms: 160, reach: box(32, 12), knockback: 220, lunge: 300 },
     ],
     air: {
-      name: 'TIKAMAN LANGIT',
-      anim: 'plunge',
+      name: 'TIKAMAN KILAT',
+      anim: 'thrust',
       dmg: 1.2,
       cd: 1.1,
-      ms: 900,
-      reach: box(12, 16),
-      knockback: 180,
-      hitbox: 'below',
-      dive: { vx: 140, vy: 360 },
-      slam: 22,
+      ms: 200,
+      reach: box(30, 12),
+      knockback: 200,
+      dive: { vx: 340, vy: 30 },
+      trail: 0xfff1e8,
     },
     skill: { name: 'PLAYFUL CLOUD', desc: 'TONGKAT 3 RUAS BERPUTAR, HANTAM 3X', cd: 5 },
-    ult: { name: 'PEMBELAH JIWA', desc: 'MUNCUL DI BELAKANG TIAP MUSUH, TEBASAN KRITIS' },
+    ult: { name: 'RANTAI SERIBU MIL', desc: 'TOMBAK BERANTAI MEMANTUL KE TIAP MUSUH, DITARIK, LALU DIHANTAM' },
   },
   gunbai: {
     id: 'gunbai',
@@ -570,6 +621,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1.1,
     cd: 1.1,
     crit: 0.05,
+    arc: 'slashFan',
+    arcTint: 0xd0b0ff,
+    cut: 0xfff1e8,
     combo: [
       { anim: 'down', dmg: 1, cd: 1, ms: 130, reach: box(26, 24), knockback: 140 },
       { anim: 'up', dmg: 1, cd: 1, ms: 130, reach: box(26, 26), knockback: 140 },
@@ -580,13 +634,12 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     ],
     air: {
       name: 'KIPASAN BADAI',
-      anim: 'spin',
-      dmg: 1.1,
+      anim: 'overhead',
+      dmg: 1.2,
       cd: 1.2,
       ms: 220,
-      reach: box(30, 30),
-      knockback: 180,
-      hitbox: 'around',
+      reach: box(34, 34),
+      knockback: 280,
       hover: 90,
     },
     skill: { name: 'KATON: GOKAKYU', desc: 'BOLA API RAKSASA MENEMBUS & MEMBAKAR', cd: 6 },
@@ -599,6 +652,8 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 1.2,
     cd: 1.2,
     crit: 0,
+    arc: 'slashBranch',
+    cut: 0x00e436,
     combo: [
       { anim: 'thrust', dmg: 1, cd: 1, ms: 130, reach: box(34, 10), knockback: 150 },
       { anim: 'up', dmg: 1, cd: 1, ms: 130, reach: box(26, 26), knockback: 140 },
@@ -606,16 +661,15 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'spin', dmg: 1.5, cd: 1.5, ms: 220, reach: box(44, 32), knockback: 220, hitbox: 'around', status: { freeze: 300 } },
     ],
     air: {
-      name: 'PILAR KAYU',
-      anim: 'plunge',
-      dmg: 1.3,
-      cd: 1.3,
-      ms: 1200,
-      reach: box(14, 18),
-      knockback: 200,
-      hitbox: 'below',
-      dive: { vx: 40, vy: 400 },
-      slam: 30,
+      name: 'CAMBUK AKAR',
+      anim: 'down',
+      dmg: 1.1,
+      cd: 1.1,
+      ms: 200,
+      reach: box(32, 28),
+      knockback: 120,
+      hover: 60,
+      status: { freeze: 400 },
     },
     skill: { name: 'JUKAI KOTAN', desc: 'POHON RAKSASA TUMBUH, CABANG MENGIKAT (UDARA JUGA)', cd: 6 },
     ult: { name: 'MOKUTON: SHIN SUSENJU', desc: 'BUDDHA KAYU SERIBU TANGAN MENGHANTAM SEMUA MUSUH' },
@@ -628,6 +682,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     dmg: 0.9,
     cd: 0.9,
     crit: 0.05,
+    arc: 'slashThin',
+    arcTint: 0xff6060,
+    cut: 0xff004d,
     combo: [
       // Close in: two quick kunai cuts.
       { anim: 'down', dmg: 1, cd: 1, ms: 90, reach: box(22, 18), knockback: 90 },
@@ -699,6 +756,83 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     },
     skill: { name: 'FROST NOVA', desc: 'LEDAKAN DINGIN DI SEKITAR, BEKUKAN MUSUH', cd: 5 },
     ult: { name: 'ABSOLUTE ZERO', desc: 'ARENA MEMBEKU: MUSUH MELAMBAT, BEKU, HP TERKIKIS' },
+  },
+  rasengan: {
+    id: 'rasengan',
+    name: 'SENJUTSU RIKUDO',
+    desc: 'TAIJUTSU SENNIN, FINISHER RASENGAN',
+    fist: true,
+    projectile: { texture: 'rasenganShot', speed: 190, pierce: true },
+    dmg: 1,
+    cd: 0.85,
+    crit: 0.05,
+    impact: 0xffa300,
+    combo: [
+      // Sage-mode jab: nature energy lands even a hair off target.
+      { anim: 'jab', dmg: 0.9, cd: 0.8, ms: 80, reach: box(20, 14), knockback: 70 },
+      { anim: 'hook', dmg: 0.9, cd: 0.8, ms: 90, reach: box(20, 16), knockback: 80 },
+      // Uzumaki Naruto Rendan: the rising blow that launches.
+      { anim: 'uppercut', dmg: 1.1, cd: 1, ms: 110, reach: box(18, 26), knockback: 140 },
+      // A Rasengan hurled forward, grinding through everything.
+      { anim: 'shoot', dmg: 1.6, cd: 1.4, ms: 140, reach: box(0, 0), knockback: 200, angles: [0] },
+    ],
+    air: {
+      name: 'ODAMA RASENGAN',
+      anim: 'jab',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 700,
+      reach: box(16, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 150, vy: 280 },
+      slam: 34,
+    },
+    skill: { name: 'RASENSHURIKEN', desc: 'SHURIKEN ANGIN MELESAT, MELEDAK JADI KUBAH RIBUAN SAYATAN', cd: 6 },
+    ult: { name: 'BIJUDAMA KURAMA', desc: 'KURAMA BANGKIT, BOLA BIJU MENGHANCURKAN SEMUA DI DEPAN' },
+  },
+  kusanagi: {
+    id: 'kusanagi',
+    name: 'KUSANAGI',
+    desc: 'PEDANG BERALIR CHIDORI, SENBON PETIR DI UDARA',
+    projectile: { texture: 'senbon', speed: 320 },
+    dmg: 1,
+    cd: 0.85,
+    crit: 0.1,
+    arc: 'slashBolt',
+    cut: 0x29adff,
+    combo: [
+      // A quick Chidori-charged stab.
+      { anim: 'thrust', dmg: 0.9, cd: 0.8, ms: 90, reach: box(28, 10), knockback: 80 },
+      { anim: 'down', dmg: 0.9, cd: 0.8, ms: 90, reach: box(24, 20), knockback: 90 },
+      { anim: 'up', dmg: 1, cd: 0.9, ms: 90, reach: box(24, 22), knockback: 100 },
+      // Chidori Katana: a lunge with the lightning-sheathed blade that paralyzes.
+      {
+        anim: 'thrust',
+        dmg: 1.8,
+        cd: 1.5,
+        ms: 150,
+        reach: box(32, 12),
+        knockback: 220,
+        lunge: 300,
+        trail: 0x29adff,
+        status: { freeze: 250 },
+      },
+    ],
+    air: {
+      name: 'CHIDORI SENBON',
+      anim: 'shoot',
+      dmg: 0.6,
+      cd: 1.1,
+      ms: 110,
+      reach: box(0, 0),
+      knockback: 30,
+      angles: [0.35, 0.65, 0.95],
+      hover: 80,
+      status: { freeze: 150 },
+    },
+    skill: { name: 'CHIDORI EISO', desc: 'TOMBAK PETIR MEMANJANG, MENEMBUS & MELUMPUHKAN SEMUA DI GARIS', cd: 5 },
+    ult: { name: 'INDRA NO YA', desc: 'SUSANOO UNGU MEREGANG BUSUR, PANAH PETIR MEMBELAH ARENA' },
   },
 };
 

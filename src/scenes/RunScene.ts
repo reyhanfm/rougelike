@@ -4,7 +4,7 @@ import { Boss } from '../entities/Boss.ts';
 import { createEnemy, Enemy } from '../entities/Enemy.ts';
 import { Player } from '../entities/Player.ts';
 import { COLOR } from '../gfx/sprites.ts';
-import { burst, flash, floatText, FLOOR_Y, H, text, TILE, W } from '../gfx/ui.ts';
+import { burst, cutMark, flash, floatText, FLOOR_Y, H, text, TILE, W } from '../gfx/ui.ts';
 import {
   activePairs,
   ITEMS,
@@ -230,7 +230,14 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       const sp = this.cfg.specials;
       if (sp) {
         this.cameras.main.flash(600, 255, 255, 255);
-        const title = sp.length === 3 ? 'BONUS TRIPEL!' : sp.length === 2 ? 'BONUS GANDA!' : `BONUS: ${BOSSES[sp[0]].name}`;
+        const title =
+          sp.length === 4
+            ? 'SEMUA BOS BONUS!'
+            : sp.length === 3
+              ? 'BONUS TRIPEL!'
+              : sp.length === 2
+                ? 'BONUS GANDA!'
+                : `BONUS: ${BOSSES[sp[0]].name}`;
         const intro = text(this, W / 2, 44, title, COLOR.gold, 16).setOrigin(0.5);
         this.tweens.add({ targets: intro, alpha: 0, delay: 1500, duration: 500, onComplete: () => intro.destroy() });
       }
@@ -288,6 +295,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       if (landed || h.x < -10 || h.x > W + 10 || h.y > H + 10 || h.y < -40) h.destroy();
     }
     for (const s of this.shots.getChildren() as Phaser.Physics.Arcade.Image[]) {
+      if ((s.getData('shot') as ShotSpec).spin) s.rotation += delta * 0.03;
       if ((s.getData('shot') as ShotSpec).returning) {
         this.boomerang(s, delta);
         continue;
@@ -310,7 +318,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.hazards.add(h);
     h.setData({ dmg: damage, debuff })
       .setVelocity(vx, vy)
-      .setRotation(['arrow', 'fireball', 'iceshard'].includes(texture) ? Math.atan2(vy, vx) : 0);
+      .setRotation(['arrow', 'fireball', 'iceshard', 'bone', 'hairNeedle'].includes(texture) ? Math.atan2(vy, vx) : 0);
     (h.body as Phaser.Physics.Arcade.Body).setAllowGravity(gravity);
   }
 
@@ -581,7 +589,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const p = this.player;
     if (Phaser.Math.Distance.Between(s.x, s.y, p.x, p.y) < 10) return void s.destroy();
     this.physics.moveToObject(s, p, RETURN_SPEED);
-    s.setRotation(Phaser.Math.Angle.Between(p.x, p.y, s.x, s.y));
+    if (!(s.getData('shot') as ShotSpec).spin) s.setRotation(Phaser.Math.Angle.Between(p.x, p.y, s.x, s.y));
   }
 
   private hittables(): Hittable[] {
@@ -646,6 +654,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       // Ashura phantom arms: golden fists fly in from beside the player, each a follow-up hit for 40%.
       for (let i = 1; i <= (move.extra ?? 0); i++) this.phantomFist(t, move.dmg * 0.4, 70 * i);
       if (move.anim === 'overhead') this.cameras.main.shake(80, 0.008);
+      const cut = move.cut ?? this.player.weapon.cut;
+      if (cut) cutMark(this, t.x, t.y, cut);
+      if (this.player.weapon.impact) burst(this, t.x, t.y, this.player.weapon.impact, 6);
       if (move.bounce) {
         this.player.pogo();
         if (this.stats.pogoQuake) {
@@ -862,9 +873,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       ? 'BERTAHAN HIDUP!'
       : sp
         ? sp.length > 1
-          ? sp.length === 3
-            ? 'KETIGANYA TUMBANG!'
-            : 'KEDUANYA TUMBANG!'
+          ? ['', '', 'KEDUANYA TUMBANG!', 'KETIGANYA TUMBANG!', 'KEEMPATNYA TUMBANG!'][sp.length]
           : `${BOSSES[sp[0]].name} TUMBANG!`
         : this.cfg.boss
           ? 'BOSS KALAH!'
@@ -880,14 +889,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   }
 
   /**
-   * A bonus round pays like the boss one tier past the coming one per special boss, one more with Godzilla; an elite
+   * A bonus round pays like the boss one tier past the coming one per special boss, one more each with Godzilla and
+   * Kaguya; an elite
    * round like the coming boss. Outlasting Mahoraga (it left) pays like a normal round.
    */
   private get rewardRound(): number {
     const sp = this.cfg.specials;
     if (this.cfg.eliteRound) return (Math.floor(this.cfg.round / BOSS_EVERY) + 1) * BOSS_EVERY;
     if (!sp || this.bossLeft) return this.cfg.round;
-    return (this.cfg.bossTier + sp.length + (sp.includes('godzilla') ? 1 : 0)) * BOSS_EVERY;
+    return (this.cfg.bossTier + sp.length + (sp.includes('godzilla') ? 1 : 0) + (sp.includes('kaguya') ? 1 : 0)) * BOSS_EVERY;
   }
 
   bossLeaves(b: Phaser.GameObjects.Sprite): void {
