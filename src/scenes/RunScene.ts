@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { Arena, HitSource, PlayerWorld, ShotSpec } from '../entities/arena.ts';
 import { Boss } from '../entities/Boss.ts';
+import { INTROS, invasionBanner } from '../entities/invasions.ts';
 import { createEnemy, Enemy } from '../entities/Enemy.ts';
 import { Player } from '../entities/Player.ts';
 import { padConnected } from '../gamepad.ts';
@@ -40,6 +41,8 @@ import {
   BOSSES,
   rollSpecials,
   rollEliteRound,
+  rollInvasion,
+  INVASION,
   eliteRoundConfig,
   SPECIAL_STATS,
   specialConfig,
@@ -71,6 +74,8 @@ export interface RunData {
   specials?: SpecialBoss[];
   /** Elite round: every enemy is an elite. */
   eliteRound?: boolean;
+  /** Invasion: this hidden boss crashes into the (normal) round partway through. */
+  invasion?: SpecialBoss;
 }
 
 type Hittable = Enemy | Boss;
@@ -119,6 +124,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   /** Refreshes bought on the current reward panel. */
   private rerolls = 0;
   private cleared = false;
+  /** Invasion still to come (cleared once its boss is on the field); `invaded` remembers who came. */
+  private invasion?: SpecialBoss;
+  private invaded?: SpecialBoss;
+  private invadeAt = 0;
+  private waveSize = 0;
+  private invading = false;
+  private floorBody!: Phaser.GameObjects.TileSprite;
   private over = false;
   private paused = false;
   private rewards?: Reward[];
@@ -167,7 +179,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.spent = [...(data.spent ?? [])];
     this.runSouls = data.runSouls ?? 0;
     this.coins = data.coins ?? 0;
-    this.cleared = this.over = this.paused = false;
+    this.cleared = this.over = this.paused = this.invading = false;
+    this.invasion = this.invaded = undefined;
     this.regenAcc = this.lifestealAcc = 0;
     this.bosses = [];
     this.bossLeft = false;
@@ -183,6 +196,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.physics.world.setBoundsCollision(true, true, false, true);
 
     const floor = this.solid(0, FLOOR_Y, W, TILE, 'ground');
+    this.floorBody = floor;
     this.add
       .tileSprite(0, FLOOR_Y + TILE, W, H - FLOOR_Y - TILE, 'dirt')
       .setOrigin(0)
@@ -225,15 +239,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.time.delayedCall(150, () => sfx('boss'));
       const kinds: (SpecialBoss | undefined)[] = this.cfg.specials ?? [undefined];
       this.bosses = kinds.map((k, i) => new Boss(this, this, W - 40 - i * 60, FLOOR_Y - 40, this.cfg, k));
-      for (const boss of this.bosses) {
-        this.physics.add.collider(boss, floor);
-        this.physics.add.overlap(
-          this.player,
-          boss,
-          () => boss.active && !boss.untargetable && !this.frozen(boss) && this.hurtPlayer(boss.damage, boss.x, boss),
-        );
-        this.physics.add.overlap(this.shots, boss, (a, b) => this.shotHit(a, b));
-      }
+      for (const boss of this.bosses) this.wireBoss(boss);
       const sp = this.cfg.specials;
       if (sp) {
         this.cameras.main.flash(600, 255, 255, 255);
@@ -261,6 +267,12 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
         this.cameras.main.flash(400, 255, 236, 39);
         const intro = text(this, W / 2, 44, 'RONDE ELIT!', COLOR.gold, 16).setOrigin(0.5);
         this.tweens.add({ targets: intro, alpha: 0, delay: 1500, duration: 500, onComplete: () => intro.destroy() });
+      }
+      // A hidden boss may crash in once enough of the wave has fallen (or after a while).
+      if (data.invasion && !all) {
+        this.invasion = data.invasion;
+        this.waveSize = this.cfg.enemyCount;
+        this.invadeAt = this.time.now + INVASION.afterMs;
       }
     }
 
@@ -319,7 +331,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       if (landed || s.x < -20 || s.x > W + 20 || s.y < -40) s.destroy();
     }
 
-    if (!this.cleared && this.enemies.countActive() === 0 && !this.bosses.length) this.clearRound();
+    if (
+      this.invasion &&
+      !this.invading &&
+      (this.enemies.countActive() <= Math.floor(this.waveSize * (1 - INVASION.afterKills)) || time >= this.invadeAt)
+    )
+      this.invade(this.invasion);
+    if (!this.cleared && this.enemies.countActive() === 0 && !this.bosses.length && !this.invasion) this.clearRound();
     if (this.portal && this.physics.overlap(this.player, this.portal)) this.nextRound();
     this.drawHud();
   }
@@ -413,19 +431,33 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.enemies.add(e);
     e.setup();
     if (!elite) return;
-    const affix = Phaser.Utils.Array.GetRandom(Object.keys(ELITE_AFFIXES)) as EliteAffix;
-    e.setScale(ELITE.scale).setData({ elite: affix, eliteNext: this.time.now + 2500 });
+    // From ELITE.twoAffixFrom an elite carries two different affixes, each on its own timer.
+    const [affix, second] = Phaser.Utils.Array.Shuffle(Object.keys(ELITE_AFFIXES) as EliteAffix[]);
+    const two = this.cfg.round >= ELITE.twoAffixFrom;
+    e.setScale(ELITE.scale).setData({
+      elite: affix,
+      eliteNext: this.time.now + 2500,
+      elite2: two ? second : undefined,
+      elite2Next: this.time.now + 3700,
+    });
     if (!announce) return;
     this.elite = e;
-    this.eliteTitle = text(this, W / 2, 14, `ELIT ${ENEMIES[kind].name} ${ELITE_AFFIXES[affix].name}`, COLOR.gold, 7).setOrigin(0.5, 0);
+    const names = two ? `${ELITE_AFFIXES[affix].name}+${ELITE_AFFIXES[second].name}` : ELITE_AFFIXES[affix].name;
+    this.eliteTitle = text(this, W / 2, 14, `ELIT ${ENEMIES[kind].name} ${names}`, COLOR.gold, 7).setOrigin(0.5, 0);
   }
 
   /** Mini boss affix attacks: fire/ice rings, lightning strikes at the player, or minions. */
   private eliteAct(e: Enemy, time: number): void {
-    const affix = e.getData('elite') as EliteAffix | undefined;
-    if (!affix || time < (e.getData('eliteNext') as number)) return;
+    for (const key of ['elite', 'elite2'] as const) {
+      const affix = e.getData(key) as EliteAffix | undefined;
+      if (!affix || time < (e.getData(`${key}Next`) as number)) continue;
+      e.setData(`${key}Next`, time + ELITE_AFFIXES[affix].every * this.pace);
+      this.eliteAffix(e, affix);
+    }
+  }
+
+  private eliteAffix(e: Enemy, affix: EliteAffix): void {
     const a = ELITE_AFFIXES[affix];
-    e.setData('eliteNext', time + a.every * this.pace);
     if (affix === 'pemanggil') {
       for (const dx of [-16, 16]) this.summon(Phaser.Math.RND.pick(['slime', 'bat'] as const), e.x + dx, e.y - 8);
       return;
@@ -444,9 +476,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       return;
     }
     const texture = affix === 'api' ? 'fireball' : 'iceshard';
-    for (let i = 0; i < 8; i++) {
-      const ang = (i / 8) * Math.PI * 2;
-      this.fire(e.x, e.y, Math.cos(ang) * 90, Math.sin(ang) * 90, texture, Math.round(e.damage * 0.6), false, a.debuff);
+    // A ring of 10, turned a little each time so the gaps move.
+    const turn = Math.random() * Math.PI;
+    for (let i = 0; i < 10; i++) {
+      const ang = turn + (i / 10) * Math.PI * 2;
+      this.fire(e.x, e.y, Math.cos(ang) * 105, Math.sin(ang) * 105, texture, Math.round(e.damage * 0.6), false, a.debuff);
     }
   }
 
@@ -893,14 +927,49 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.drawInventory();
   }
 
+  /** Colliders and hit checks for a boss on the field. */
+  private wireBoss(boss: Boss): void {
+    this.physics.add.collider(boss, this.floorBody);
+    this.physics.add.overlap(
+      this.player,
+      boss,
+      () => boss.active && !boss.untargetable && !this.frozen(boss) && this.hurtPlayer(boss.damage, boss.x, boss),
+    );
+    this.physics.add.overlap(this.shots, boss, (a, b) => this.shotHit(a, b));
+  }
+
+  /**
+   * A hidden boss crashes into the round: its own entrance cinematic (the player cannot be hurt while it plays), then
+   * it joins the fight with its own HP bar. It is as strong as a lone bonus boss of the coming tier.
+   */
+  private invade(kind: SpecialBoss): void {
+    this.invading = true;
+    // Opposite side from the player, so it does not land on them.
+    const x = this.player.x < W / 2 ? W - 60 : 60;
+    const ms = INTROS[kind](this, x);
+    invasionBanner(this, BOSSES[kind].name, ms);
+    this.player.invuln(ms + 800);
+    playMusic('special');
+    sfx('boss');
+    this.time.delayedCall(ms, () => {
+      if (this.over) return;
+      const boss = new Boss(this, this, x, FLOOR_Y - 40, specialConfig(this.cfg.round, [kind]), kind);
+      this.bosses.push(boss);
+      this.wireBoss(boss);
+      this.bossHud.push({ boss, title: text(this, W / 2, 14 + this.bossHud.length * 17, boss.title, COLOR.red).setOrigin(0.5, 0) });
+      this.invaded = kind;
+      this.invasion = undefined;
+    });
+  }
+
   private clearRound(): void {
     this.cleared = true;
     sfx('clear');
     playMusic('run');
-    const heal = this.cfg.boss ? this.stats.maxHp : Math.round(this.stats.maxHp * 0.25);
+    const heal = this.cfg.boss || this.invaded ? this.stats.maxHp : Math.round(this.stats.maxHp * 0.25);
     this.player.heal(heal);
     floatText(this, this.player.x, this.player.y - 16, `+${heal} HP`, COLOR.red);
-    const sp = this.cfg.specials;
+    const sp = this.cfg.specials ?? (this.invaded ? [this.invaded] : undefined);
     const msg = this.bossLeft
       ? 'BERTAHAN HIDUP!'
       : sp
@@ -926,10 +995,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
    * round like the coming boss. Outlasting Mahoraga (it left) pays like a normal round.
    */
   private get rewardRound(): number {
-    const sp = this.cfg.specials;
+    const sp = this.cfg.specials ?? (this.invaded ? [this.invaded] : undefined);
     if (this.cfg.eliteRound) return (Math.floor(this.cfg.round / BOSS_EVERY) + 1) * BOSS_EVERY;
     if (!sp || this.bossLeft) return this.cfg.round;
-    return (this.cfg.bossTier + sp.length + (sp.includes('godzilla') ? 1 : 0) + (sp.includes('kaguya') ? 1 : 0)) * BOSS_EVERY;
+    const tier = this.cfg.bossTier || Math.max(1, Math.ceil(this.cfg.round / BOSS_EVERY));
+    return (tier + sp.length + (sp.includes('godzilla') ? 1 : 0) + (sp.includes('kaguya') ? 1 : 0)) * BOSS_EVERY;
   }
 
   bossLeaves(b: Phaser.GameObjects.Sprite): void {
@@ -1109,10 +1179,12 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.portal = undefined;
     const round = this.cfg.round + 1;
     const specials = rollSpecials(round);
+    const eliteRound = !specials.length && rollEliteRound(round);
     this.scene.restart({
       round,
       specials,
-      eliteRound: !specials.length && rollEliteRound(round),
+      eliteRound,
+      invasion: specials.length || eliteRound ? undefined : rollInvasion(round),
       hp: this.player.hp,
       runSouls: this.runSouls,
       weapon: this.weaponId,

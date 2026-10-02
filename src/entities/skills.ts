@@ -1289,7 +1289,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         for (const t of world.targets(p.x, p.y)) {
           if (rammed.has(t) || Phaser.Math.Distance.Between(p.x, p.y, t.x, t.y) > 22) continue;
           rammed.add(t);
-          world.strike(t, 1 * power, 'skill', false);
+          world.strike(t, 0.6 * power, 'skill', false);
           cutMark(scene, t.x, t.y, 0xffa300, 24);
         }
       };
@@ -1361,7 +1361,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
             for (const t of world.targets(x, gy)) {
               if (trampled.has(t) || Math.abs(t.x - x) > 14 || Math.abs(t.y - gy) > 40) continue;
               trampled.add(t);
-              world.strike(t, 1.5 * power, 'skill', false);
+              world.strike(t, 0.9 * power, 'skill', false);
               cutMark(scene, t.x, t.y, 0xffa300, 26);
               rocks(scene, t.x, FLOOR_Y - 2, 4);
               cam.shake(80, 0.01);
@@ -1410,7 +1410,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
             for (const t of world.targets(ax, ay)) {
               if (swung.has(t) || Phaser.Math.Distance.Between(ax, ay, t.x, t.y) > 46) continue;
               swung.add(t);
-              world.strike(t, 1.6 * power, 'skill', false);
+              world.strike(t, 1.1 * power, 'skill', false);
               cutMark(scene, t.x, t.y, 0xff004d, 30);
             }
             sparks(scene, ax, ay, [0xffa300, 0xfff1e8], 14, 40);
@@ -1462,7 +1462,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
                 onComplete: () => wall.destroy(),
               });
             }
-            world.area(ax, FLOOR_Y - 10, 84, 1.6 * power, 280, 'skill', { slow: 900 });
+            world.area(ax, FLOOR_Y - 10, 84, 0.9 * power, 280, 'skill', { slow: 900 });
           },
         });
       };
@@ -6108,242 +6108,391 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
     },
   },
   rasengan: {
-    // Rasenshuriken: a ball of wind chakra with four screaming blades flies ahead; on the first enemy (or at range) it
-    // swells into a dome of countless tiny cuts that hits everything inside again and again.
+    // Senpo: Rasenshuriken. Sage Mode flares (orange pigment around his eyes, the sage aura). He raises his hand and the
+    // Rasenshuriken spins up overhead: a blue core in a ring of four screaming white blades. When he throws it, it is
+    // aimed at the thickest knot of enemies right now, in the air or not. On arrival it swells into a sphere of
+    // countless wind needles that drags everything nearby into it and cuts it over and over at the cellular level
+    // (slowed), and collapses with a last burst.
     skill: ({ p, world, scene, power }) => {
-      const f = p.facing;
-      p.lock(200);
-      p.setVelocityX(0);
-      const orb = scene.add.container(p.x + f * 10, p.y - 4).setDepth(13);
-      orb.add([
-        scene.add.circle(0, 0, 9, 0xc2f0ff, 0.35),
-        ...[0, 1, 2, 3].map((k) =>
-          scene.add
-            .triangle(0, 0, 0, -2, 16, 0, 0, 2, 0xfff1e8)
-            .setOrigin(0, 0.5)
-            .setRotation((k * Math.PI) / 2),
-        ),
-        scene.add.circle(0, 0, 4, 0x29adff).setStrokeStyle(1, 0xfff1e8),
-      ]);
-      scene.tweens.add({ targets: orb, angle: f * 2000, duration: 2000 });
-      let exploded = false;
-      let fly: Phaser.Tweens.Tween | undefined;
-      const boom = () => {
-        if (exploded) return;
-        exploded = true;
-        fly?.stop();
-        const { x, y } = orb;
-        orb.destroy();
-        const dome = scene.add.circle(x, y, 6, 0xc2f0ff, 0.45).setStrokeStyle(1, 0xfff1e8).setDepth(13);
-        scene.tweens.add({ targets: dome, radius: 38, duration: 200, ease: 'Quad.Out' });
-        scene.tweens.add({ targets: dome, alpha: 0, delay: 900, duration: 300, onComplete: () => dome.destroy() });
-        scene.cameras.main.shake(300, 0.012);
-        for (let i = 0; i < 6; i++)
-          later(scene, i * 150, () => {
-            for (let k = 0; k < 6; k++) cutMark(scene, x + Phaser.Math.Between(-28, 28), y + Phaser.Math.Between(-28, 28), 0xc2f0ff, 12);
-            world.area(x, y, 38, 0.6 * power, 20, 'skill');
-          });
-      };
-      fly = scene.tweens.add({
-        targets: orb,
-        x: Phaser.Math.Clamp(p.x + f * 150, 10, W - 10),
-        duration: 600,
-        onUpdate: () => {
-          if (world.targets(orb.x, orb.y).some((t) => Phaser.Math.Distance.Between(orb.x, orb.y, t.x, t.y) < 14)) boom();
-        },
-        onComplete: boom,
-      });
-    },
-    // Rasengan Rendan: Naruto crosses his fingers ("Tajuu Kage Bunshin!") and shadow clones pop out of white smoke
-    // around him, one for every enemy. Each clone has a Rasengan already spinning in its palm and leaps in an arc to its
-    // own target, wherever it is now (flyers too); it drives the sphere in, the ball grinds into the enemy, swells and
-    // bursts in a spiral of wind, and the clone vanishes in a puff of smoke. When the last one lands he shouts his
-    // catchphrase.
-    fusion: ({ p, world, scene, power }) => {
-      const foes = world.targets(p.x, p.y).slice(0, 7);
-      if (!foes.length) return false;
-      p.lock(350);
-      p.invuln(500);
-      p.setVelocityX(0);
-      // A puff of smoke: overlapping grey-white balls that billow out and fade.
-      const poof = (x: number, y: number) => {
-        for (let i = 0; i < 7; i++) {
-          const a = (i / 7) * Math.PI * 2;
-          const c = scene.add
-            .circle(x, y, 3, i % 2 ? 0xfff1e8 : 0xc2c3c7, 0.9)
-            .setStrokeStyle(1, 0x83769c)
-            .setDepth(14);
-          scene.tweens.add({
-            targets: c,
-            x: x + Math.cos(a) * 7,
-            y: y + Math.sin(a) * 5 - 2,
-            radius: 5,
-            alpha: 0,
-            duration: 320,
-            onComplete: () => c.destroy(),
-          });
-        }
-      };
-      // The Rasengan: a blue sphere with a dark rim, a pale shell, a white core and wind streaks spinning around it.
-      const sphere = (r: number) => {
-        const ball = scene.add.container(0, 0).setDepth(14);
-        const swirl = scene.add.graphics();
-        swirl.lineStyle(1, 0xfff1e8, 0.9);
-        for (let k = 0; k < 3; k++)
-          swirl
-            .beginPath()
-            .arc(0, 0, r * (0.45 + k * 0.2), k * 2.1, k * 2.1 + 2.2)
-            .strokePath();
-        ball.add([
-          scene.add.circle(0, 0, r + 2, 0x29adff, 0.3),
-          scene.add.circle(0, 0, r, 0x1d2b53),
-          scene.add.circle(0, 0, r - 1, 0x29adff),
-          scene.add.circle(-r * 0.2, -r * 0.2, r * 0.55, 0xc2f0ff),
-          scene.add.circle(0, 0, r * 0.25, 0xfff1e8),
-          swirl,
-        ]);
-        scene.tweens.add({ targets: swirl, angle: 360, duration: 200, repeat: -1 });
-        ball.once('destroy', () => scene.tweens.killTweensOf(swirl));
-        return ball;
-      };
-      const key = p.texture.key;
-      floatText(scene, p.x, p.y - 30, 'KAGE BUNSHIN!', '#ffa300');
-      foes.forEach((t, i) => {
-        // The clones pop out in a row beside him.
-        const sx = Phaser.Math.Clamp(p.x + (i % 2 ? 1 : -1) * (10 + Math.floor(i / 2) * 9), 6, W - 6);
-        const sy = p.y;
-        later(scene, 120 + i * 40, () => {
-          poof(sx, sy);
-          const clone = scene.add.image(sx, sy, key).setDepth(10);
-          const ball = sphere(4);
-          const hold = (dir: number) => ball.setPosition(clone.x + dir * 7, clone.y - 1);
-          hold(Math.sign(t.x - sx) || 1);
-          later(scene, 200 + i * 70, () => {
-            if (!t.active) {
-              poof(clone.x, clone.y);
-              clone.destroy();
-              ball.destroy();
-              return;
-            }
-            // Leap: an arc from where it stands to where its enemy is now.
-            const dir = Math.sign(t.x - clone.x) || 1;
-            clone.setFlipX(dir < 0);
-            const [x0, y0] = [clone.x, clone.y];
-            const [x1, y1] = [t.x - dir * 8, t.y];
-            const [cx, cy] = [(x0 + x1) / 2, Math.min(y0, y1) - 34];
-            scene.tweens.addCounter({
-              from: 0,
-              to: 1,
-              duration: 260,
-              ease: 'Sine.InOut',
-              onUpdate: (tw) => {
-                const k = tw.getValue() ?? 0;
-                clone.setPosition(...bez(x0, y0, cx, cy, x1, y1, k)).setAngle(dir * k * 360);
-                hold(dir);
-              },
-              onComplete: () => {
-                clone.setAngle(0);
-                // Driven in: the sphere grinds into the enemy three times, swelling...
-                const [bx, by] = [t.active ? t.x : x1 + dir * 8, t.active ? t.y : y1];
-                scene.tweens.add({ targets: ball, x: bx, y: by, scale: 2.4, duration: 240 });
-                for (let k = 0; k < 3; k++)
-                  later(scene, k * 80, () => {
-                    if (!t.active) return;
-                    world.strike(t, 0.4 * power, 'skill', false, { slow: 600 });
-                    sparks(scene, t.x, t.y, [0x29adff, 0xc2f0ff, 0xfff1e8], 5, 12);
-                    scene.cameras.main.shake(40, 0.005);
-                  });
-                // ...then bursts in a spiral of wind, and the clone is gone.
-                later(scene, 260, () => {
-                  ball.destroy();
-                  ring(scene, bx, by, 0xc2f0ff, 6, 30, 300, 2);
-                  ring(scene, bx, by, 0x29adff, 3, 20, 250, 1);
-                  for (let s = 0; s < 10; s++) {
-                    const a = (s / 10) * Math.PI * 2;
-                    const w = scene.add
-                      .rectangle(bx, by, 6, 1, s % 2 ? 0xfff1e8 : 0x29adff)
-                      .setRotation(a + 1.2)
-                      .setDepth(14);
-                    scene.tweens.add({
-                      targets: w,
-                      x: bx + Math.cos(a) * 22,
-                      y: by + Math.sin(a) * 22,
-                      angle: w.angle + 120,
-                      alpha: 0,
-                      duration: 300,
-                      onComplete: () => w.destroy(),
-                    });
-                  }
-                  if (t.active) world.strike(t, 1.6 * power, 'skill', true);
-                  scene.cameras.main.shake(90, 0.01);
-                  poof(clone.x, clone.y);
-                  clone.destroy();
-                });
-              },
-            });
-          });
-        });
-      });
-      later(scene, 120 + foes.length * 110 + 700, () => p.active && floatText(scene, p.x, p.y - 22, 'DATTEBAYO!', '#ffa300'));
-    },
-    // Tailed Beast Ball: Kurama rises behind him in orange chakra, gathers black and violet chakra into a ball at its
-    // jaws, and fires it across the arena: everything in front is blown apart, the tails lash whatever is behind.
-    ult: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
       const f = p.facing;
-      p.invuln(2600);
-      p.lock(2200);
+      p.lock(420);
+      p.setVelocityX(0);
+      // Sage Mode: an orange glint over the eyes and a ring of nature energy.
+      glint(scene, p.x + f * 2, p.y - 6);
+      ring(scene, p.x, p.y, 0xffa300, 4, 22, 300, 1);
+      const hx = p.x;
+      const hy = p.y - 22;
+      // The shuriken: outlined blades (dark edge, white body, cyan highlight) around a layered blue core.
+      const bg = scene.add.graphics();
+      for (let k = 0; k < 4; k++) {
+        const a = (k * Math.PI) / 2;
+        const [c, s] = [Math.cos(a), Math.sin(a)];
+        const blade = (w: number, l: number, color: number) =>
+          bg
+            .fillStyle(color)
+            .fillTriangle(c * 4 - s * w, s * 4 + c * w, c * 4 + s * w, s * 4 - c * w, c * l - s * w * 2.5, s * l + c * w * 2.5);
+        blade(3, 20, 0x1d2b53);
+        blade(2.2, 18, 0xfff1e8);
+        blade(0.8, 15, 0xc2f0ff);
+      }
+      bg.fillStyle(0x29adff, 0.35).fillCircle(0, 0, 9);
+      bg.fillStyle(0x1d2b53).fillCircle(0, 0, 6);
+      bg.fillStyle(0x29adff).fillCircle(0, 0, 5);
+      bg.fillStyle(0xc2f0ff).fillCircle(-1, -1, 2.5);
+      const orb = scene.add.container(hx, hy, [bg]).setDepth(13).setScale(0.2);
+      scene.tweens.add({ targets: orb, scale: 1, duration: 300, ease: 'Back.Out' });
+      const spin = scene.tweens.add({ targets: orb, angle: f * 3600, duration: 3000 });
+      // The whine: thin rings tightening on the core while it charges.
+      for (let i = 0; i < 4; i++) later(scene, i * 70, () => ring(scene, hx, hy, 0xc2f0ff, 26, 6, 200, 1));
+      later(scene, 330, () => {
+        // Aim on release: the enemy with the most others within the sphere's reach.
+        const foes = world.targets(hx, hy);
+        if (!foes.length) {
+          spin.stop();
+          return void orb.destroy();
+        }
+        const R = 40;
+        const near = (e: Phaser.GameObjects.Sprite) => foes.filter((o) => Phaser.Math.Distance.Between(e.x, e.y, o.x, o.y) < R).length;
+        const mark = foes.reduce((b, e) => (near(e) > near(b) ? e : b));
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          duration: 380,
+          ease: 'Quad.In',
+          onUpdate: (tw) => {
+            const t = tw.getValue() ?? 0;
+            const [tx, ty] = mark.active ? [mark.x, mark.y] : [orb.x, orb.y];
+            orb.setPosition(hx + (tx - hx) * t, hy + (ty - hy) * t - Math.sin(t * Math.PI) * 14);
+            if (Math.random() < 0.6) {
+              const w = scene.add.rectangle(orb.x, orb.y, 4, 1, 0xc2f0ff).setDepth(12);
+              scene.tweens.add({ targets: w, alpha: 0, scaleX: 3, duration: 200, onComplete: () => w.destroy() });
+            }
+          },
+          onComplete: () => {
+            spin.stop();
+            const { x, y } = orb;
+            orb.destroy();
+            scene.cameras.main.shake(500, 0.014);
+            // The sphere: a pale shell with a darker rim, the needle storm drawn fresh every frame inside it.
+            const shell = scene.add.circle(x, y, 6, 0xc2f0ff, 0.28).setStrokeStyle(2, 0x29adff).setDepth(12);
+            const core = scene.add.circle(x, y, 3, 0xfff1e8).setDepth(13);
+            scene.tweens.add({ targets: shell, radius: R, duration: 180, ease: 'Quad.Out' });
+            const needles = scene.add.graphics().setDepth(13);
+            const storm = scene.time.addEvent({
+              delay: 30,
+              loop: true,
+              callback: () => {
+                needles.clear();
+                for (let i = 0; i < 22; i++) {
+                  const a = Math.random() * Math.PI * 2;
+                  const r0 = Math.random() * R * 0.8;
+                  const len = Phaser.Math.Between(5, 12);
+                  needles
+                    .lineStyle(1, i % 3 ? 0xfff1e8 : 0x29adff)
+                    .lineBetween(x + Math.cos(a) * r0, y + Math.sin(a) * r0, x + Math.cos(a) * (r0 + len), y + Math.sin(a) * (r0 + len));
+                }
+              },
+            });
+            for (let k = 0; k < 6; k++)
+              later(scene, k * 140, () => {
+                world.pull(x, y, R + 30, 90);
+                world.area(x, y, R, 0.45 * power, 0, 'skill', { slow: 1500 });
+              });
+            // The collapse: the sphere snaps inward and bursts.
+            later(scene, 880, () => {
+              storm.remove();
+              needles.destroy();
+              scene.tweens.add({
+                targets: shell,
+                radius: 4,
+                duration: 100,
+                onComplete: () => {
+                  shell.destroy();
+                  core.destroy();
+                  ring(scene, x, y, 0xfff1e8, 6, R + 14, 300, 2);
+                  sparks(scene, x, y, [0xc2f0ff, 0xfff1e8, 0x29adff], 16, R);
+                  world.area(x, y, R + 6, 0.9 * power, 140, 'skill');
+                },
+              });
+            });
+          },
+        });
+      });
+    },
+    // Senpo: Chojo Odama Rasen Tarengan. Naruto enters Kurama Link Mode: the golden chakra cloak flares over him, black
+    // seal lines and magatama burning on it. Golden chakra arms (outlined, with a lighter edge and a clawed hand) burst
+    // from his back and reach for every enemy on the field, flyers too; each hand forms a Super Big Ball Rasengan and
+    // slams it in, one after another, the spheres grinding into their targets until they all burst together.
+    fusion: ({ p, world, scene, power }) => {
+      const foes = world.targets(p.x, p.y).slice(0, 8);
+      if (!foes.length) return false;
+      p.invuln(1900);
+      p.lock(1500);
       p.setVelocity(0, 0);
+      const cam = scene.cameras.main;
+      // The cloak: a golden flame aura with dark seal marks, flickering over him.
+      const cloak = scene.add.graphics().setDepth(11);
+      const aura = scene.time.addEvent({
+        delay: 50,
+        loop: true,
+        callback: () => {
+          cloak.clear();
+          for (let i = 0; i < 10; i++) {
+            const fx = p.x + Phaser.Math.Between(-7, 7);
+            const fh = Phaser.Math.Between(6, 14);
+            cloak.fillStyle(i % 3 ? 0xffec27 : 0xffa300, 0.7).fillTriangle(fx - 3, p.y + 7, fx + 3, p.y + 7, fx, p.y + 7 - fh - 8);
+          }
+          cloak
+            .fillStyle(0x1d0f2e)
+            .fillRect(p.x - 4, p.y - 2, 8, 1)
+            .fillCircle(p.x - 3, p.y - 4, 1)
+            .fillCircle(p.x + 3, p.y - 4, 1);
+        },
+      });
+      cam.flash(150, 255, 236, 39);
+      const ax = p.x;
+      const ay = p.y - 8;
+      // One arm per enemy: a thick golden curve from his back to the target, redrawn as it grows and follows it.
+      const arms = foes.map((t, i) => {
+        const g = scene.add.graphics().setDepth(12);
+        const side = i % 2 ? -1 : 1;
+        return { t, g, side, grow: 0, ball: undefined as Phaser.GameObjects.Container | undefined, lx: t.x, ly: t.y };
+      });
+      const drawArm = (a: (typeof arms)[number]) => {
+        if (a.t.active) [a.lx, a.ly] = [a.t.x, a.t.y];
+        const cx = (ax + a.lx) / 2 + a.side * 20;
+        const cy = Math.min(ay, a.ly) - 34;
+        a.g.clear();
+        const N = 14;
+        const pts: [number, number][] = [];
+        for (let k = 0; k <= N * a.grow; k++) pts.push(bez(ax, ay, cx, cy, a.lx, a.ly, k / N));
+        for (const [w, c] of [
+          [7, 0xab5236],
+          [5, 0xffa300],
+          [2, 0xffec27],
+        ] as const)
+          for (let k = 1; k < pts.length; k++) a.g.lineStyle(w * (1 - (k / N) * 0.35), c).lineBetween(...pts[k - 1], ...pts[k]);
+        const [hx, hy] = pts[pts.length - 1];
+        a.g.fillStyle(0xab5236).fillCircle(hx, hy, 5);
+        a.g.fillStyle(0xffec27).fillCircle(hx, hy, 3.5);
+        return [hx, hy] as const;
+      };
+      arms.forEach((a, i) =>
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          delay: 150 + i * 60,
+          duration: 260,
+          ease: 'Quad.Out',
+          onUpdate: (tw) => {
+            a.grow = tw.getValue() ?? 0;
+            const [hx, hy] = drawArm(a);
+            a.ball?.setPosition(hx, hy);
+          },
+          onComplete: () => {
+            // The Odama Rasengan forms in the hand: a big layered sphere with a white spiral.
+            const sg = scene.add.graphics();
+            sg.fillStyle(0x29adff, 0.3).fillCircle(0, 0, 13);
+            sg.fillStyle(0x1d2b53).fillCircle(0, 0, 10);
+            sg.fillStyle(0x29adff).fillCircle(0, 0, 9);
+            sg.fillStyle(0xc2f0ff).fillCircle(-2, -2, 5);
+            sg.lineStyle(1, 0xfff1e8)
+              .beginPath()
+              .arc(0, 0, 7, 0, Math.PI * 1.3)
+              .strokePath();
+            a.ball = scene.add.container(a.lx, a.ly, [sg]).setDepth(13).setScale(0);
+            scene.tweens.add({ targets: a.ball, scale: 1, duration: 200, ease: 'Back.Out' });
+            scene.tweens.add({ targets: a.ball, angle: 720, duration: 1200 });
+          },
+        }),
+      );
+      const follow = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () =>
+          arms.forEach((a) => {
+            if (a.grow < 1) return;
+            const [hx, hy] = drawArm(a);
+            a.ball?.setPosition(hx, hy);
+          }),
+      });
+      // The slams, one after another, then every sphere bursts together.
+      arms.forEach((a, i) =>
+        later(scene, 650 + i * 90, () => {
+          if (!a.t.active) return;
+          cam.shake(70, 0.01);
+          sparks(scene, a.t.x, a.t.y, [0x29adff, 0xc2f0ff, 0xffec27], 7, 14);
+          world.strike(a.t, 1.1 * power, 'skill', false);
+        }),
+      );
+      later(scene, 650 + arms.length * 90 + 200, () => {
+        follow.remove();
+        aura.remove();
+        cloak.destroy();
+        cam.shake(350, 0.022);
+        arms.forEach((a) => {
+          const [x, y] = [a.lx, a.ly];
+          a.g.destroy();
+          a.ball?.destroy();
+          ring(scene, x, y, 0xc2f0ff, 6, 36, 320, 2);
+          ring(scene, x, y, 0xffec27, 4, 26, 260, 1);
+          if (a.t.active) world.strike(a.t, 1.1 * power, 'skill', true, { slow: 1200 });
+        });
+      });
+    },
+    // Baryon Mode: Kurama gives everything. The sky goes black, the fox's spirit coils around Naruto and they fuse into
+    // the Baryon cloak: orange flame with violet edges and Kurama's ear-horns. He blinks from enemy to enemy faster than
+    // the eye, each Baryon fist burning away a target's life force and pulling it back into him. Then he rises above
+    // the arena as Kurama's last Tailed Beast Ball gathers in his hands, black and violet with a white rim, and hurls it
+    // into the field: it hits everything ("BIJUDAMA!").
+    ult: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
+      const cam = scene.cameras.main;
+      // The blitz targets: up to 8 enemies, nearest first.
+      const foes = world
+        .targets(p.x, p.y)
+        .sort((a, b) => Phaser.Math.Distance.Between(p.x, p.y, a.x, a.y) - Phaser.Math.Distance.Between(p.x, p.y, b.x, b.y))
+        .slice(0, 8);
+      const tBall = 1150 + foes.length * 150 + 150;
+      p.invuln(tBall + 1600);
+      p.lock(tBall + 1400);
+      p.setVelocity(0, 0);
+      const home = { x: p.x, y: p.y };
+      const night = scene.add.rectangle(0, 0, W, H, 0x05030a, 0.75).setOrigin(0).setDepth(8).setAlpha(0);
+      scene.tweens.add({ targets: night, alpha: 1, duration: 400 });
+      // Kurama's spirit coils around him and sinks in.
       const fox = scene.add
-        .image(p.x - f * 4, p.y - 22, 'kurama')
-        .setFlipX(f < 0)
-        .setScale(0)
-        .setAlpha(0.85)
-        .setDepth(8);
-      scene.tweens.add({ targets: fox, scale: 3, duration: 400, ease: 'Back.Out' });
-      scene.cameras.main.flash(200, 255, 163, 0);
-      floatText(scene, W / 2, 36, 'KURAMA!', '#ffa300');
-      for (let i = 0; i < 30; i++)
-        later(scene, i * 50, () => {
-          const fl = scene.add
-            .circle(fox.x + Phaser.Math.Between(-30, 30), fox.y + Phaser.Math.Between(-10, 22), 3, 0xffa300, 0.6)
-            .setDepth(8);
-          scene.tweens.add({ targets: fl, y: fl.y - 14, scale: 0.3, alpha: 0, duration: 400, onComplete: () => fl.destroy() });
-        });
-      const mx = p.x + f * 22;
-      const my = p.y - 24;
-      const ball = scene.add.circle(mx, my, 1, 0x1d0f2e).setStrokeStyle(2, 0x8a3fd1).setDepth(12);
-      scene.tweens.add({ targets: ball, radius: 14, duration: 900, delay: 400 });
-      for (let i = 0; i < 30; i++)
-        later(scene, 400 + i * 30, () => {
+        .image(p.x, p.y - 20, 'kurama')
+        .setFlipX(p.facing < 0)
+        .setScale(3)
+        .setAlpha(0)
+        .setDepth(9);
+      scene.tweens.add({ targets: fox, alpha: 0.8, duration: 300 });
+      scene.tweens.add({ targets: fox, scale: 0.4, x: p.x, y: p.y, alpha: 0, delay: 500, duration: 450, ease: 'Quad.In' });
+      for (let i = 0; i < 24; i++)
+        later(scene, i * 30, () => {
           const a = Math.random() * Math.PI * 2;
-          const m = scene.add.rectangle(mx + Math.cos(a) * 50, my + Math.sin(a) * 50, 2, 2, i % 3 ? 0x8a3fd1 : 0xfff1e8).setDepth(12);
-          scene.tweens.add({ targets: m, x: mx, y: my, duration: 250, onComplete: () => m.destroy() });
+          const m = scene.add.rectangle(p.x + Math.cos(a) * 46, p.y + Math.sin(a) * 46, 2, 2, i % 3 ? 0xffa300 : 0x8a3fd1).setDepth(12);
+          scene.tweens.add({ targets: m, x: p.x, y: p.y, duration: 260, onComplete: () => m.destroy() });
         });
-      later(scene, 1400, () => {
-        floatText(scene, W / 2, 48, 'BIJUDAMA!', '#8a3fd1');
-        scene.cameras.main.shake(600, 0.03);
+      // The Baryon cloak: orange flames tipped violet, two ear-horns, flickering over him for the whole ult.
+      const cloak = scene.add.graphics().setDepth(11);
+      let lit = false;
+      const flame = scene.time.addEvent({
+        delay: 45,
+        loop: true,
+        callback: () => {
+          cloak.clear();
+          if (!lit) return;
+          for (let i = 0; i < 12; i++) {
+            const fx = p.x + Phaser.Math.Between(-8, 8);
+            const fh = Phaser.Math.Between(8, 16);
+            cloak.fillStyle(0x8a3fd1, 0.7).fillTriangle(fx - 3, p.y + 7, fx + 3, p.y + 7, fx, p.y - fh - 2);
+            cloak.fillStyle(0xffa300, 0.8).fillTriangle(fx - 2, p.y + 7, fx + 2, p.y + 7, fx, p.y - fh + 3);
+          }
+          cloak.fillStyle(0xffa300).fillTriangle(p.x - 5, p.y - 7, p.x - 2, p.y - 7, p.x - 5, p.y - 15);
+          cloak.fillStyle(0xffa300).fillTriangle(p.x + 5, p.y - 7, p.x + 2, p.y - 7, p.x + 5, p.y - 15);
+        },
+      });
+      later(scene, 950, () => {
+        lit = true;
+        cam.flash(200, 255, 163, 0);
+        ring(scene, p.x, p.y, 0x8a3fd1, 6, 50, 350, 3);
+      });
+      // The blitz: each target struck once by a Baryon fist; the drain heals him.
+      foes.forEach((t, i) =>
+        later(scene, 1150 + i * 150, () => {
+          if (!t.active) return;
+          const side = t.x < p.x ? 1 : -1;
+          afterimage(scene, p, p.x, p.y, 0.5, 0xffa300);
+          p.body.reset(Phaser.Math.Clamp(t.x + side * 10, 8, W - 8), Math.min(t.y, FLOOR_Y - 8));
+          p.setFlipX(side > 0);
+          cam.shake(80, 0.012);
+          const burn = scene.add.circle(t.x, t.y, 4, 0xffa300, 0.9).setStrokeStyle(2, 0x8a3fd1).setDepth(13);
+          scene.tweens.add({ targets: burn, radius: 16, alpha: 0, duration: 260, onComplete: () => burn.destroy() });
+          cutMark(scene, t.x, t.y, 0xffa300, 22, side * 0.4);
+          world.strike(t, 1.3 * power, 'ult', true, { burn: 0.3 });
+          // The life force he takes: a violet wisp flying back into him.
+          const wisp = scene.add.circle(t.x, t.y, 2, 0xc080ff).setDepth(14);
+          scene.tweens.add({
+            targets: wisp,
+            x: p.x,
+            y: p.y,
+            duration: 220,
+            onComplete: () => {
+              wisp.destroy();
+              if (p.active) p.heal(3);
+            },
+          });
+        }),
+      );
+      // The Tailed Beast Ball: back home, he rises and gathers it overhead, then hurls it into the field.
+      // He hovers there (held in place every frame: the player's own update turns gravity back on).
+      let hover: { y: number } | undefined;
+      const hold = scene.time.addEvent({ delay: 16, loop: true, callback: () => hover && p.body.reset(home.x, hover.y) });
+      later(scene, tBall, () => {
+        hover = { y: Math.min(home.y, FLOOR_Y - 8) };
+        scene.tweens.add({ targets: hover, y: 70, duration: 300, ease: 'Quad.Out' });
+      });
+      const bx = Phaser.Math.Clamp(home.x, 40, W - 40);
+      const ball = scene.add.container(bx, 48).setDepth(13).setScale(0);
+      const bg = scene.add.graphics();
+      bg.fillStyle(0x8a3fd1, 0.35).fillCircle(0, 0, 20);
+      bg.fillStyle(0x1d0f2e).fillCircle(0, 0, 16);
+      bg.fillStyle(0x3b1a5a).fillCircle(-3, -3, 10);
+      bg.lineStyle(2, 0xfff1e8, 0.9).strokeCircle(0, 0, 16);
+      bg.lineStyle(1, 0xc080ff)
+        .beginPath()
+        .arc(0, 0, 11, 0.4, Math.PI * 1.5)
+        .strokePath();
+      ball.add(bg);
+      later(scene, tBall + 300, () => {
+        scene.tweens.add({ targets: ball, scale: 1, duration: 500, ease: 'Quad.Out' });
+        scene.tweens.add({ targets: ball, angle: 540, duration: 1100 });
+        for (let i = 0; i < 26; i++)
+          later(scene, i * 20, () => {
+            const a = Math.random() * Math.PI * 2;
+            const m = scene.add.rectangle(bx + Math.cos(a) * 60, 48 + Math.sin(a) * 60, 2, 2, i % 2 ? 0x8a3fd1 : 0xfff1e8).setDepth(13);
+            scene.tweens.add({ targets: m, x: bx, y: 48, duration: 240, onComplete: () => m.destroy() });
+          });
+      });
+      later(scene, tBall + 900, () => {
+        const gx = W / 2;
+        const gy = FLOOR_Y - 20;
         scene.tweens.add({
           targets: ball,
-          x: f > 0 ? W + 30 : -30,
-          y: p.y,
-          duration: 500,
+          x: gx,
+          y: gy,
+          scale: 1.6,
+          duration: 260,
           ease: 'Quad.In',
-          onComplete: () => ball.destroy(),
+          onComplete: () => {
+            ball.destroy();
+            cam.flash(260, 200, 140, 255);
+            cam.shake(700, 0.035);
+            floatText(scene, W / 2, 40, 'BIJUDAMA!', '#c080ff');
+            const dome = scene.add.circle(gx, gy, 10, 0x1d0f2e, 0.85).setStrokeStyle(3, 0xfff1e8).setDepth(13);
+            scene.tweens.add({
+              targets: dome,
+              radius: W * 0.7,
+              alpha: 0,
+              duration: 700,
+              ease: 'Quad.Out',
+              onComplete: () => dome.destroy(),
+            });
+            ring(scene, gx, gy, 0x8a3fd1, 10, W * 0.6, 600, 4);
+            for (let i = 0; i < 6; i++) rocks(scene, Phaser.Math.Between(10, W - 10), FLOOR_Y, 3);
+            for (const t of world.targets(gx, gy)) world.strike(t, 3 * power, 'ult', true);
+          },
         });
-        for (const t of world.targets(p.x, p.y)) {
-          const ahead = Math.sign(t.x - p.x) === f;
-          const frac = Phaser.Math.Clamp(Math.abs(t.x - p.x) / W, 0, 1);
-          later(scene, ahead ? 150 + frac * 400 : 100, () => {
-            if (!t.active) return;
-            if (!ahead) return void world.strike(t, 1.5 * power, 'ult', false);
-            const blast = scene.add.circle(t.x, t.y, 6, 0x1d0f2e, 0.9).setStrokeStyle(2, 0x8a3fd1).setDepth(13);
-            scene.tweens.add({ targets: blast, radius: 34, alpha: 0, duration: 400, onComplete: () => blast.destroy() });
-            ring(scene, t.x, t.y, 0xfff1e8, 8, 44, 350, 2);
-            world.strike(t, 4 * power, 'ult', true);
-          });
-        }
-        scene.tweens.add({ targets: fox, alpha: 0, delay: 500, duration: 400, onComplete: () => fox.destroy() });
+      });
+      later(scene, tBall + 1400, () => {
+        flame.remove();
+        cloak.destroy();
+        hold.remove();
+        scene.tweens.add({ targets: night, alpha: 0, duration: 400, onComplete: () => night.destroy() });
+        fox.destroy();
       });
     },
   },

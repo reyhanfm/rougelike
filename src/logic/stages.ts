@@ -18,7 +18,7 @@ export interface RoundConfig {
 
 /** Regular boss HP and damage for a boss tier (1 = round 5). */
 function bossBase(tier: number): { hp: number; dmg: number } {
-  return { hp: 550 * (1 + 0.7 * (tier - 1) + 0.2 * (tier - 1) ** 2), dmg: 20 + 5 * (tier - 1) };
+  return { hp: 600 * (1 + 0.8 * (tier - 1) + 0.25 * (tier - 1) ** 2), dmg: 22 + 6 * (tier - 1) };
 }
 
 export function isBossRound(round: number): boolean {
@@ -32,7 +32,7 @@ export function isPhaseBossRound(round: number): boolean {
 
 export function roundConfig(round: number): RoundConfig {
   const progress = Math.max(0, round - 1);
-  const scale = 1 + 0.24 * progress + 0.018 * progress ** 2;
+  const scale = 1 + 0.28 * progress + 0.02 * progress ** 2;
   const phase = isPhaseBossRound(round);
   const boss = isBossRound(round);
   const tier = boss ? round / BOSS_EVERY : 0;
@@ -40,9 +40,9 @@ export function roundConfig(round: number): RoundConfig {
     round,
     boss,
     bossTier: tier,
-    enemyCount: boss ? 0 : Math.min(12, 4 + Math.floor(round / 2)),
-    enemyHp: Math.round(80 * scale),
-    enemyDamage: Math.round(14 * (1 + 0.1 * progress)),
+    enemyCount: boss ? 0 : Math.min(12, 5 + Math.floor(round / 2)),
+    enemyHp: Math.round(85 * scale),
+    enemyDamage: Math.round(15 * (1 + 0.11 * progress)),
     // Every 10th round is the super boss: double HP and hits 30% harder than a regular boss of the same tier.
     bossHp: boss ? Math.round(bossBase(tier).hp * (phase ? 2 : 1)) : 0,
     bossDamage: boss ? Math.round(bossBase(tier).dmg * (phase ? 1.3 : 1)) : 0,
@@ -64,10 +64,10 @@ const SPECIAL_KINDS: readonly SpecialBoss[] = ['mahoraga', 'leviathan', 'godzill
 /** hp/dmg: multipliers on the regular boss of the coming boss tier. A kill pays souls x`soul` and +`coins`. */
 export const SPECIAL_STATS: Record<SpecialBoss, { hp: number; dmg: number; soul: number; coins: number }> = {
   // Low HP for a special: it has to fall before it adapts to everything.
-  mahoraga: { hp: 0.8, dmg: 1.4, soul: 4, coins: 15 },
-  leviathan: { hp: 2, dmg: 1.3, soul: 4, coins: 15 },
-  godzilla: { hp: 3, dmg: 1.6, soul: 8, coins: 40 },
-  kaguya: { hp: 2.4, dmg: 1.5, soul: 7, coins: 35 },
+  mahoraga: { hp: 1, dmg: 1.6, soul: 4, coins: 15 },
+  leviathan: { hp: 2.5, dmg: 1.5, soul: 4, coins: 15 },
+  godzilla: { hp: 3.6, dmg: 1.8, soul: 8, coins: 40 },
+  kaguya: { hp: 3, dmg: 1.7, soul: 7, coins: 35 },
 };
 
 /**
@@ -119,6 +119,18 @@ export function rollSpecials(round: number, rand: () => number = Math.random): S
   return SPECIAL_KINDS.filter((k) => picked.includes(k));
 }
 
+/**
+ * Invasion: from round `from`, a normal round (no bonus boss, not an elite round) has `chance` that one hidden boss
+ * crashes in partway through, once `afterKills` of the wave has fallen (or after `afterMs`). The round is cleared only
+ * when it falls too, and it pays like a bonus round with that boss.
+ */
+export const INVASION = { from: 6, chance: 0.12, afterKills: 0.5, afterMs: 15000 } as const;
+
+export function rollInvasion(round: number, rand: () => number = Math.random): SpecialBoss | undefined {
+  if (round < INVASION.from || isBossRound(round) || rand() >= INVASION.chance) return undefined;
+  return SPECIAL_KINDS[Math.floor(rand() * SPECIAL_KINDS.length)];
+}
+
 export function specialConfig(round: number, specials: SpecialBoss[]): RoundConfig {
   return { ...roundConfig(round), boss: true, specials, bossTier: Math.max(1, Math.ceil(round / BOSS_EVERY)), enemyCount: 0 };
 }
@@ -131,7 +143,7 @@ export function specialStats(kind: SpecialBoss, cfg: RoundConfig): { hp: number;
 }
 
 /** Elite = mini boss: at most one per normal round, any round (even the first). Big, tough, pays out. */
-export const ELITE = { chance: 0.45, hp: 6, dmg: 1.7, soul: 5, coins: 3, scale: 1.5 } as const;
+export const ELITE = { chance: 0.5, hp: 7.5, dmg: 2, soul: 5, coins: 3, scale: 1.5, twoAffixFrom: 8 } as const;
 
 /** Elite round: from round `from`, `chance` per normal round (when no bonus boss came); `share` of the usual count, all elites. */
 export const ELITE_ROUND = { from: 3, chance: 0.12, share: 0.5 } as const;
@@ -149,15 +161,15 @@ export type EliteAffix = 'api' | 'es' | 'petir' | 'pemanggil';
 
 /** Each elite rolls one affix: its touch debuff and an extra attack every `every` ms. */
 export const ELITE_AFFIXES: Record<EliteAffix, { name: string; debuff?: Debuff; every: number }> = {
-  api: { name: 'BERAPI', debuff: 'burn', every: 3500 },
-  es: { name: 'BEKU', debuff: 'freeze', every: 4000 },
-  petir: { name: 'PETIR', debuff: 'shock', every: 2800 },
-  pemanggil: { name: 'PEMANGGIL', every: 6000 },
+  api: { name: 'BERAPI', debuff: 'burn', every: 3000 },
+  es: { name: 'BEKU', debuff: 'freeze', every: 3500 },
+  petir: { name: 'PETIR', debuff: 'shock', every: 2400 },
+  pemanggil: { name: 'PEMANGGIL', every: 5000 },
 };
 
 /** Multiplier on enemy pauses between actions: already quicker in round 1, then faster each round, down to 40%. */
 export function enemyPace(round: number): number {
-  return Math.max(0.4, 0.8 - 0.03 * (round - 1));
+  return Math.max(0.35, 0.72 - 0.035 * (round - 1));
 }
 
 /** `weight` is the per-enemy-kind soul multiplier (ENEMIES[kind].soul). */

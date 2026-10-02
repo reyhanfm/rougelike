@@ -854,9 +854,13 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       dive: { vx: 150, vy: 280 },
       slam: 34,
     },
-    skill: { name: 'RASENSHURIKEN', desc: 'SHURIKEN ANGIN MELESAT, MELEDAK JADI KUBAH RIBUAN SAYATAN', cd: 6 },
-    fusion: { name: 'RASENGAN RENDAN', desc: 'J+L: KAGE BUNSHIN MELOMPAT KE TIAP MUSUH (UDARA JUGA), RASENGAN BERUNTUN', cd: 10 },
-    ult: { name: 'BIJUDAMA KURAMA', desc: 'KURAMA BANGKIT, BOLA BIJU MENGHANCURKAN SEMUA DI DEPAN' },
+    skill: { name: 'SENPO: RASENSHURIKEN', desc: 'MODE SENNIN: SHURIKEN ANGIN DIBIDIK KE KERUMUNAN, BOLA JARUM ANGIN MENYEDOT', cd: 6 },
+    fusion: {
+      name: 'CHOJO ODAMA RASEN TARENGAN',
+      desc: 'J+L: MODE KURAMA, TANGAN CHAKRA EMAS MEMBANTING ODAMA RASENGAN KE TIAP MUSUH',
+      cd: 11,
+    },
+    ult: { name: 'MODE BARYON', desc: 'NARUTO & KURAMA MENYATU: TINJU BARYON KE TIAP MUSUH, LALU BIJUDAMA RAKSASA' },
   },
   kusanagi: {
     id: 'kusanagi',
