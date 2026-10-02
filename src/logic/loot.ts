@@ -346,6 +346,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 80,
     },
     skill: { name: 'FORMASI PEDANG', desc: '6 PEDANG MELINGKAR LALU MEMBURU', cd: 5 },
+    fusion: { name: 'PEDANG LANGIT', desc: 'J+L: PEDANG RAKSASA MENGHUNJAM, LALU PECAH JADI PEDANG PEMBURU', cd: 10 },
     ult: { name: 'SERIBU PEDANG', desc: 'PEDANG DARI SEGALA ARAH, KEBAL' },
   },
   tongkat: {
@@ -388,6 +389,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 70,
     },
     skill: { name: 'SIKLUS ELEMEN', desc: 'TIAP CAST GANTI ELEMEN: INFERNO, GLACIER, THUNDER, QUAKE', cd: 5 },
+    fusion: { name: 'REAKSI ELEMEN', desc: 'J+L: ELEMEN KINI + BERIKUTNYA BERTABRAKAN: UAP/KRISTAL/PLASMA/MAGMA', cd: 10 },
     ult: { name: 'KIAMAT ELEMEN', desc: 'LINGKARAN SIHIR RAKSASA: METEOR, PETIR, ES, BUMI, LALU LEDAKAN PRISMA' },
   },
   katana: {
@@ -420,6 +422,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       cut: 0xfff1e8,
     },
     skill: { name: 'IAIDO', desc: 'KUDA-KUDA, MELESAT MENEBAS SEMUA DI JALUR, PASTI KRITIS', cd: 4 },
+    fusion: { name: 'KUZURYUSEN', desc: 'J+L: SEMBILAN TEBASAN SERENTAK DARI SEMBILAN ARAH', cd: 9 },
     ult: { name: 'MUSOU ISSEN', desc: 'WAKTU BERHENTI, KILAT PEDANG MENEBAS SEMUA MUSUH, SARUNG = LEDAK' },
   },
   busurArkana: {
@@ -476,6 +479,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0x8a3fd1,
     },
     skill: { name: 'TEBASAN GELAP', desc: 'GELOMBANG GELAP MENEMBUS, X3 SAAT MODE AVENGER', cd: 5 },
+    fusion: { name: 'GERHANA', desc: 'J+L: BULAN HITAM, TANAH TERBELAH, TOMBAK GELAP JATUH (X2 AVENGER)', cd: 10 },
     // Never cast: the Dark Avenger awakens instead of using an ult.
     ult: { name: 'MODE AVENGER', desc: 'OTOMATIS SAAT METER PENUH' },
   },
@@ -507,6 +511,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       extra: 3,
     },
     skill: { name: 'TINJU SERIBU', desc: 'RENTETAN PUKULAN KE DEPAN', cd: 5 },
+    fusion: { name: 'GENGGAMAN ASURA', desc: 'J+L: ENAM LENGAN GAIB MENCENGKERAM 6 MUSUH, MEREMAS & MEMBANTING', cd: 9 },
     ult: { name: 'WUJUD ASHURA', desc: 'ENAM GELOMBANG TINJU, AMARAH PENUH, KEBAL' },
   },
   cakarNaga: {
@@ -925,6 +930,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       status: { slow: 1200 },
     },
     skill: { name: 'GRAVITY ORDER', desc: 'GRAVITASI x100: MUSUH DI SEKITAR DIHANTAM KE TANAH & TERTEKAN', cd: 6 },
+    fusion: { name: 'ORBIT PLANET', desc: 'J+L: TIGA PLANET MENGORBIT KE SELURUH ARENA, LALU SEJAJAR MENGHANTAM', cd: 11 },
     ult: { name: 'BLACK HOLE', desc: 'LUBANG HITAM MENYEDOT SELURUH MUSUH DI ARENA, LALU RUNTUH' },
   },
 };
