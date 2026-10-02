@@ -643,6 +643,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0xfff1e8,
     },
     skill: { name: 'PLAYFUL CLOUD', desc: 'TONGKAT 3 RUAS BERPUTAR, HANTAM 3X', cd: 5 },
+    fusion: { name: 'SPLIT SOUL KATANA', desc: 'J+L: MEMANTUL DINDING KE DINDING MENEBAS SEMUA, LALU JIWANYA TERBELAH', cd: 10 },
     ult: { name: 'RANTAI SERIBU MIL', desc: 'TOMBAK BERANTAI MEMANTUL KE TIAP MUSUH, DITARIK, LALU DIHANTAM' },
   },
   gunbai: {
@@ -675,6 +676,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 90,
     },
     skill: { name: 'KATON: GOKAKYU', desc: 'BOLA API RAKSASA MENEMBUS & MEMBAKAR', cd: 6 },
+    fusion: { name: 'TENGAI SHINSEI', desc: 'J+L: DUA METEOR RAKSASA JATUH KE KERUMUNAN MUSUH, TANAH HANCUR', cd: 12 },
     ult: { name: 'SUSANOO SEMPURNA', desc: 'SUSANOO BIRU BANGKIT, PEDANGNYA MEMBELAH MUSUH' },
   },
   mokuton: {
@@ -749,6 +751,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 70,
     },
     skill: { name: 'AMATERASU', desc: 'API HITAM ABADI MEMBAKAR MUSUH & MENJALAR', cd: 7 },
+    fusion: { name: 'TOTSUKA NO TSURUGI', desc: 'J+L: SUSANOO MERAH, PEDANG TOTSUKA MENUSUK TIAP MUSUH LALU MENYEGELNYA', cd: 11 },
     ult: { name: 'TSUKUYOMI', desc: 'DUNIA MERAH: SEMUA MUSUH TERJEBAK 72 JAM DALAM SEDETIK' },
   },
   tongkatFrost: {
@@ -806,6 +809,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       desc: 'ANGIN MEMUTAR PUTING BELIUNG SALJU SETINGGI LANGIT: MENYEDOT MUSUH DARAT & UDARA, LALU MEMBEKUKAN',
       cd: 6,
     },
+    fusion: { name: 'FROST FERN', desc: 'J+L: POLA ES MENJALAR DI LANTAI & MENJULANG KE MUSUH (UDARA JUGA), LALU PECAH', cd: 9 },
     ult: { name: 'ETERNAL WINTER', desc: 'BADAI SALJU & HUJAN ES RAKSASA, MUSUH TERKURUNG KRISTAL LALU PECAH' },
   },
   rasengan: {
@@ -840,6 +844,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       slam: 34,
     },
     skill: { name: 'RASENSHURIKEN', desc: 'SHURIKEN ANGIN MELESAT, MELEDAK JADI KUBAH RIBUAN SAYATAN', cd: 6 },
+    fusion: { name: 'RASENGAN RENDAN', desc: 'J+L: KAGE BUNSHIN MELOMPAT KE TIAP MUSUH (UDARA JUGA), RASENGAN BERUNTUN', cd: 10 },
     ult: { name: 'BIJUDAMA KURAMA', desc: 'KURAMA BANGKIT, BOLA BIJU MENGHANCURKAN SEMUA DI DEPAN' },
   },
   kusanagi: {
@@ -883,6 +888,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       status: { freeze: 150 },
     },
     skill: { name: 'CHIDORI EISO', desc: 'TOMBAK PETIR MEMANJANG, MENEMBUS & MELUMPUHKAN SEMUA DI GARIS', cd: 5 },
+    fusion: { name: 'KIRIN', desc: 'J+L: AWAN BADAI, PETIR BERWUJUD KIRIN MENUKIK KE KERUMUNAN & MENYAMBAR SEMUA', cd: 12 },
     ult: { name: 'INDRA NO YA', desc: 'SUSANOO UNGU MEREGANG BUSUR, PANAH PETIR MEMBELAH ARENA' },
   },
   gravitasi: {
