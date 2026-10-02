@@ -206,6 +206,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       bounce: 240,
     },
     skill: { name: 'GAE BOLG', desc: 'TUSUKAN YANG PASTI MENGENAI JANTUNG, KRITIS', cd: 5 },
+    fusion: { name: 'ANSUZ', desc: 'J+L: RUNE API DIUKIR DI UDARA, MENCAP & MEMBAKAR SEMUA MUSUH', cd: 10 },
     ult: { name: 'TOMBAK TERBANG PEMBUNUH', desc: 'LOMPAT TINGGI, LEMPAR TOMBAK YANG MEMBELAH' },
   },
   kapak: {
@@ -236,6 +237,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       slam: 32,
     },
     skill: { name: 'RAUNGAN GILA', desc: 'RAUNGAN MENGHEMPAS DAN MEMBEKUKAN SEKITAR', cd: 6 },
+    fusion: { name: 'GOD HAND', desc: 'J+L: KEBAL, MENERJANG ARENA, MELOMPAT KE MUSUH UDARA, MENGHANTAM BUMI', cd: 11 },
     ult: { name: 'NINE LIVES', desc: '9 TEBASAN BERUNTUN KE MUSUH TERDEKAT' },
   },
   busur: {
@@ -272,6 +274,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 100,
     },
     skill: { name: 'CALADBOLG II', desc: 'PANAH SPIRAL YANG MELEDAK SAAT KENA', cd: 5 },
+    fusion: { name: 'KAKUYOKU SANREN', desc: 'J+L: TIGA PASANG KANSHOU & BAKUYA MENGAPIT MUSUH, LALU OVEREDGE', cd: 9 },
     ult: { name: 'UNLIMITED BLADE WORKS', desc: 'DUNIA PEDANG: HUJAN PEDANG KE SEMUA MUSUH' },
   },
   sabit: {
@@ -301,6 +304,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 60,
     },
     skill: { name: 'TUAI JIWA', desc: 'TARIK MUSUH SEKITAR LALU TEBAS', cd: 5 },
+    fusion: { name: 'JAM PASIR AJAL', desc: 'J+L: JAM PASIR DI ATAS TIAP MUSUH, SAAT HABIS SABIT MENEBAS (HP RENDAH X2)', cd: 10 },
     ult: { name: 'PANEN MAUT', desc: 'TEBAS SEMUA MUSUH, PULIH TIAP KENA' },
   },
   senapan: {
@@ -319,6 +323,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     ],
     air: { name: 'TEMBAK MENUKIK', anim: 'shoot', dmg: 1, cd: 1.1, ms: 80, reach: box(0, 0), knockback: 12, angles: [0.35] },
     skill: { name: 'GRANAT', desc: 'LEMPAR GRANAT, LEDAKAN AREA', cd: 5 },
+    fusion: { name: 'SERANGAN UDARA', desc: 'J+L: SUAR MERAH, PESAWAT MEMBOM DARAT & MEMBERONDONG MUSUH UDARA', cd: 12 },
     ult: { name: 'TEMBAKAN PENEKAN', desc: '12 PELURU MENEMBUS, ARAH TERKUNCI' },
   },
   pedangTerbang: {
@@ -346,6 +351,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 80,
     },
     skill: { name: 'FORMASI PEDANG', desc: '6 PEDANG MELINGKAR LALU MEMBURU', cd: 5 },
+    fusion: { name: 'PEDANG LANGIT', desc: 'J+L: PEDANG RAKSASA MENGHUNJAM, LALU PECAH JADI PEDANG PEMBURU', cd: 10 },
     ult: { name: 'SERIBU PEDANG', desc: 'PEDANG DARI SEGALA ARAH, KEBAL' },
   },
   tongkat: {
@@ -388,6 +394,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 70,
     },
     skill: { name: 'SIKLUS ELEMEN', desc: 'TIAP CAST GANTI ELEMEN: INFERNO, GLACIER, THUNDER, QUAKE', cd: 5 },
+    fusion: { name: 'REAKSI ELEMEN', desc: 'J+L: ELEMEN KINI + BERIKUTNYA BERTABRAKAN: UAP/KRISTAL/PLASMA/MAGMA', cd: 10 },
     ult: { name: 'KIAMAT ELEMEN', desc: 'LINGKARAN SIHIR RAKSASA: METEOR, PETIR, ES, BUMI, LALU LEDAKAN PRISMA' },
   },
   katana: {
@@ -420,6 +427,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       cut: 0xfff1e8,
     },
     skill: { name: 'IAIDO', desc: 'KUDA-KUDA, MELESAT MENEBAS SEMUA DI JALUR, PASTI KRITIS', cd: 4 },
+    fusion: { name: 'KUZURYUSEN', desc: 'J+L: SEMBILAN TEBASAN SERENTAK DARI SEMBILAN ARAH', cd: 9 },
     ult: { name: 'MUSOU ISSEN', desc: 'WAKTU BERHENTI, KILAT PEDANG MENEBAS SEMUA MUSUH, SARUNG = LEDAK' },
   },
   busurArkana: {
@@ -447,6 +455,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 70,
     },
     skill: { name: 'LINGKARAN ARKANA', desc: '8 PANAH SIHIR MELINGKAR LALU MEMBURU', cd: 5 },
+    fusion: { name: 'RASI PENGIKAT', desc: 'J+L: PANAH JADI BINTANG, RASI MENGIKAT SEMUA MUSUH LALU MELEDAK', cd: 10 },
     ult: { name: 'HUJAN BINTANG', desc: 'BINTANG ARKANA JATUH MEMBURU MUSUH' },
   },
   pedangGelap: {
@@ -476,6 +485,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0x8a3fd1,
     },
     skill: { name: 'TEBASAN GELAP', desc: 'GELOMBANG GELAP MENEMBUS, X3 SAAT MODE AVENGER', cd: 5 },
+    fusion: { name: 'GERHANA', desc: 'J+L: BULAN HITAM, TANAH TERBELAH, TOMBAK GELAP JATUH (X2 AVENGER)', cd: 10 },
     // Never cast: the Dark Avenger awakens instead of using an ult.
     ult: { name: 'MODE AVENGER', desc: 'OTOMATIS SAAT METER PENUH' },
   },
@@ -507,6 +517,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       extra: 3,
     },
     skill: { name: 'TINJU SERIBU', desc: 'RENTETAN PUKULAN KE DEPAN', cd: 5 },
+    fusion: { name: 'GENGGAMAN ASURA', desc: 'J+L: ENAM LENGAN GAIB MENCENGKERAM 6 MUSUH, MEREMAS & MEMBANTING', cd: 9 },
     ult: { name: 'WUJUD ASHURA', desc: 'ENAM GELOMBANG TINJU, AMARAH PENUH, KEBAL' },
   },
   cakarNaga: {
@@ -643,6 +654,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0xfff1e8,
     },
     skill: { name: 'PLAYFUL CLOUD', desc: 'TONGKAT 3 RUAS BERPUTAR, HANTAM 3X', cd: 5 },
+    fusion: { name: 'SPLIT SOUL KATANA', desc: 'J+L: MEMANTUL DINDING KE DINDING MENEBAS SEMUA, LALU JIWANYA TERBELAH', cd: 10 },
     ult: { name: 'RANTAI SERIBU MIL', desc: 'TOMBAK BERANTAI MEMANTUL KE TIAP MUSUH, DITARIK, LALU DIHANTAM' },
   },
   gunbai: {
@@ -675,6 +687,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 90,
     },
     skill: { name: 'KATON: GOKAKYU', desc: 'BOLA API RAKSASA MENEMBUS & MEMBAKAR', cd: 6 },
+    fusion: { name: 'TENGAI SHINSEI', desc: 'J+L: DUA METEOR RAKSASA JATUH KE KERUMUNAN MUSUH, TANAH HANCUR', cd: 12 },
     ult: { name: 'SUSANOO SEMPURNA', desc: 'SUSANOO BIRU BANGKIT, PEDANGNYA MEMBELAH MUSUH' },
   },
   mokuton: {
@@ -749,6 +762,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 70,
     },
     skill: { name: 'AMATERASU', desc: 'API HITAM ABADI MEMBAKAR MUSUH & MENJALAR', cd: 7 },
+    fusion: { name: 'TOTSUKA NO TSURUGI', desc: 'J+L: SUSANOO MERAH, PEDANG TOTSUKA MENUSUK TIAP MUSUH LALU MENYEGELNYA', cd: 11 },
     ult: { name: 'TSUKUYOMI', desc: 'DUNIA MERAH: SEMUA MUSUH TERJEBAK 72 JAM DALAM SEDETIK' },
   },
   tongkatFrost: {
@@ -806,6 +820,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       desc: 'ANGIN MEMUTAR PUTING BELIUNG SALJU SETINGGI LANGIT: MENYEDOT MUSUH DARAT & UDARA, LALU MEMBEKUKAN',
       cd: 6,
     },
+    fusion: { name: 'FROST FERN', desc: 'J+L: POLA ES MENJALAR DI LANTAI & MENJULANG KE MUSUH (UDARA JUGA), LALU PECAH', cd: 9 },
     ult: { name: 'ETERNAL WINTER', desc: 'BADAI SALJU & HUJAN ES RAKSASA, MUSUH TERKURUNG KRISTAL LALU PECAH' },
   },
   rasengan: {
@@ -840,6 +855,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       slam: 34,
     },
     skill: { name: 'RASENSHURIKEN', desc: 'SHURIKEN ANGIN MELESAT, MELEDAK JADI KUBAH RIBUAN SAYATAN', cd: 6 },
+    fusion: { name: 'RASENGAN RENDAN', desc: 'J+L: KAGE BUNSHIN MELOMPAT KE TIAP MUSUH (UDARA JUGA), RASENGAN BERUNTUN', cd: 10 },
     ult: { name: 'BIJUDAMA KURAMA', desc: 'KURAMA BANGKIT, BOLA BIJU MENGHANCURKAN SEMUA DI DEPAN' },
   },
   kusanagi: {
@@ -883,6 +899,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       status: { freeze: 150 },
     },
     skill: { name: 'CHIDORI EISO', desc: 'TOMBAK PETIR MEMANJANG, MENEMBUS & MELUMPUHKAN SEMUA DI GARIS', cd: 5 },
+    fusion: { name: 'KIRIN', desc: 'J+L: AWAN BADAI, PETIR BERWUJUD KIRIN MENUKIK KE KERUMUNAN & MENYAMBAR SEMUA', cd: 12 },
     ult: { name: 'INDRA NO YA', desc: 'SUSANOO UNGU MEREGANG BUSUR, PANAH PETIR MEMBELAH ARENA' },
   },
   gravitasi: {
@@ -925,6 +942,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       status: { slow: 1200 },
     },
     skill: { name: 'GRAVITY ORDER', desc: 'GRAVITASI x100: MUSUH DI SEKITAR DIHANTAM KE TANAH & TERTEKAN', cd: 6 },
+    fusion: { name: 'ORBIT PLANET', desc: 'J+L: TIGA PLANET MENGORBIT KE SELURUH ARENA, LALU SEJAJAR MENGHANTAM', cd: 11 },
     ult: { name: 'BLACK HOLE', desc: 'LUBANG HITAM MENYEDOT SELURUH MUSUH DI ARENA, LALU RUNTUH' },
   },
 };

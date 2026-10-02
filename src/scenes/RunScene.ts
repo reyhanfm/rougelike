@@ -4,6 +4,7 @@ import { Boss } from '../entities/Boss.ts';
 import { createEnemy, Enemy } from '../entities/Enemy.ts';
 import { Player } from '../entities/Player.ts';
 import { padConnected } from '../gamepad.ts';
+import { duckMusic, playMusic, sfx, soundLabel, stopMusic, toggleSound } from '../audio.ts';
 import { COLOR } from '../gfx/sprites.ts';
 import { burst, cutMark, flash, floatText, FLOOR_Y, H, text, TILE, W } from '../gfx/ui.ts';
 import {
@@ -218,7 +219,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     });
     this.physics.add.overlap(this.shots, this.enemies, (a, b) => this.shotHit(a, b));
 
+    playMusic(this.cfg.specials?.length ? 'special' : this.cfg.boss ? 'boss' : 'run');
+    duckMusic(false);
     if (this.cfg.boss) {
+      this.time.delayedCall(150, () => sfx('boss'));
       const kinds: (SpecialBoss | undefined)[] = this.cfg.specials ?? [undefined];
       this.bosses = kinds.map((k, i) => new Boss(this, this, W - 40 - i * 60, FLOOR_Y - 40, this.cfg, k));
       for (const boss of this.bosses) {
@@ -271,6 +275,12 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     kb.on('keydown-J', () => this.takeReward());
     kb.on('keydown-ENTER', () => this.takeReward());
     kb.on('keydown-R', () => this.reroll());
+    kb.on('keydown-M', () => {
+      const label = toggleSound();
+      // Paused: time is frozen, so the label goes into the pause box instead of floating.
+      if (this.paused) this.showPauseText();
+      else floatText(this, this.player.x, this.player.y - 16, label, COLOR.gray);
+    });
     this.cameras.main.fadeIn(200);
   }
 
@@ -318,6 +328,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   fire(x: number, y: number, vx: number, vy: number, texture: string, damage: number, gravity = false, debuff?: Debuff): void {
     const h = this.physics.add.image(x, y, texture).setDepth(6);
+    sfx('enemyShot');
     this.hazards.add(h);
     h.setData({ dmg: damage, debuff })
       .setVelocity(vx, vy)
@@ -331,6 +342,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   private explode(x: number, damage: number): void {
     const y = FLOOR_Y - 6;
+    sfx('explode');
     burst(this, x, y, 0xffa300, 14);
     const ring = this.add.circle(x, y, 4).setStrokeStyle(1, 0xff004d).setDepth(12);
     this.tweens.add({ targets: ring, radius: 24, alpha: 0, duration: 250, onComplete: () => ring.destroy() });
@@ -783,6 +795,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   /** Returns true when this killed the target. */
   private damage(t: Hittable, dmg: number, color: string, knockback: number): boolean {
     t.hp -= dmg;
+    sfx('hit');
     floatText(this, t.x, t.y - 10, `${dmg}`, color);
     const execute = t instanceof Boss || t.getData('elite') ? this.stats.execute / 2 : this.stats.execute;
     if (t.hp > 0 && t.hp <= t.maxHp * execute) {
@@ -796,6 +809,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (!(t instanceof Boss) && knockback)
       t.knockback(Math.sign(t.x - this.player.x) || this.player.facing, t.getData('elite') ? knockback * 0.3 : knockback);
     if (t.hp > 0) return false;
+    sfx(t instanceof Boss ? 'bossKill' : 'kill');
     const souls =
       t instanceof Boss
         ? soulReward('boss', this.cfg.round, this.stats.soulMult) * (t.special ? SPECIAL_STATS[t.special].soul : 1)
@@ -806,6 +820,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     floatText(this, t.x, t.y - 20, `+${souls}`, COLOR.blue);
     if (!(t instanceof Boss) && t.getData('elite')) {
       this.coins += ELITE.coins;
+      sfx('coin');
       floatText(this, t.x, t.y - 30, `+${ELITE.coins} KOIN`, COLOR.gold);
       burst(this, t.x, t.y, 0xffec27, 16);
       this.cameras.main.shake(200, 0.012);
@@ -813,6 +828,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (this.stats.healOnKill) this.player.heal(this.stats.healOnKill);
     if (Math.random() < this.stats.goldChance) {
       this.coins++;
+      sfx('coin');
       floatText(this, t.x, t.y - 28, '+1 KOIN', COLOR.gold);
     }
     if (t instanceof Boss) {
@@ -853,6 +869,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.player.clearDebuffs();
       this.player.hp = Math.round(this.stats.maxHp * 0.3);
       this.player.invuln(1500);
+      sfx('revive');
       this.cameras.main.flash(300, 255, 236, 39);
       floatText(this, this.player.x, this.player.y - 16, 'GOD HAND!', COLOR.gold);
       return;
@@ -869,6 +886,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.player.equip(this.currentStats(), WEAPONS[this.weaponId]);
     this.player.hp = Math.round(this.stats.maxHp * 0.5);
     this.player.invuln(2000);
+    sfx('revive');
     burst(this, this.player.x, this.player.y, 0xffa300, 24);
     this.cameras.main.flash(300, 255, 163, 0);
     floatText(this, this.player.x, this.player.y - 16, 'BANGKIT!', COLOR.gold);
@@ -877,6 +895,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   private clearRound(): void {
     this.cleared = true;
+    sfx('clear');
+    playMusic('run');
     const heal = this.cfg.boss ? this.stats.maxHp : Math.round(this.stats.maxHp * 0.25);
     this.player.heal(heal);
     floatText(this, this.player.x, this.player.y - 16, `+${heal} HP`, COLOR.red);
@@ -1002,11 +1022,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (!this.rewards || this.paused) return;
     const cost = rerollCost(this.rerolls);
     if (this.coins < cost) {
+      sfx('deny');
       this.cameras.main.shake(80, 0.005);
       floatText(this, W / 2, REWARD_Y - 24, 'KOIN KURANG', COLOR.red);
       return;
     }
     this.coins -= cost;
+    sfx('coin');
     this.rerolls++;
     this.rewards = rollRewards(this.rewardRound, [...this.items, ...this.spent]);
     this.buildRewardUi();
@@ -1014,6 +1036,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   private moveReward(d: number): void {
     if (!this.rewards) return;
+    sfx('move');
     this.rewardSel = Phaser.Math.Wrap(this.rewardSel + d, 0, SKIP_ROW + 1);
     this.refreshRewards();
   }
@@ -1050,6 +1073,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.rewardUi?.destroy();
     // The J/W presses used in the menu must not leak into a swing or jump.
     this.input.keyboard!.resetKeys();
+    sfx(r ? 'reward' : 'back');
     if (r) this.applyReward(r);
     else floatText(this, this.player.x, this.player.y - 16, 'DILEWATI', COLOR.gray);
     this.openPortal();
@@ -1065,12 +1089,14 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     floatText(this, this.player.x, this.player.y - 16, rewardInfo(r).name, COLOR.gold);
     if (completes && r.type === 'item') {
       floatText(this, this.player.x, this.player.y - 28, `SET ${pairOf(r.id).pair.name}!`, COLOR.gold);
+      sfx('set');
       this.cameras.main.flash(200, 255, 236, 39);
     }
     this.drawInventory();
   }
 
   private openPortal(): void {
+    sfx('portal');
     this.portal = this.physics.add
       .staticImage(W / 2, FLOOR_Y - 8, 'portal')
       .setDepth(3)
@@ -1107,6 +1133,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.pauseText.setVisible(false);
     this.physics.pause();
     this.player.setTint(0xff004d);
+    stopMusic();
+    sfx('gameover');
     text(this, W / 2, H / 2 - 10, 'GUGUR', COLOR.red, 16).setOrigin(0.5);
     this.time.delayedCall(1500, () => {
       this.scene.start('hub', { died: true, round: this.cfg.round, runSouls: this.runSouls } satisfies HubData);
@@ -1117,13 +1145,20 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (this.over) return;
     this.paused = !this.paused;
     this.time.paused = this.paused;
+    sfx('pause');
+    duckMusic(this.paused);
     if (this.paused) this.tweens.pauseAll();
     else this.tweens.resumeAll();
     if (this.paused) this.physics.pause();
     else this.physics.resume();
+    this.showPauseText();
+  }
+
+  private showPauseText(): void {
     const sets = activePairs(this.items).map((p) => p.name);
+    const sound = `${padConnected() ? 'Y' : 'M'} ${soundLabel()}`;
     this.pauseText
-      .setText(['PAUSE', '', ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []), pauseHint()].join('\n'))
+      .setText(['PAUSE', '', ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []), pauseHint(), sound].join('\n'))
       .setVisible(this.paused);
   }
 

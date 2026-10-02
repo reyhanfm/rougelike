@@ -11,7 +11,7 @@ All in-game text is **Indonesian, UPPERCASE**. Code comments are English.
 ```
 npm run dev        # vite dev server (http://localhost:5173)
 npm run typecheck  # tsc --noEmit
-npm run check      # game.check.ts + touch.check.ts + gamepad.check.ts (assert-based balance/data checks)
+npm run check      # game/touch/gamepad/audio .check.ts (assert-based balance/data checks)
 npm run verify     # typecheck + check + build — run before calling work done
 npx prettier --write <files>   # format touched files only (Boss.ts has pre-existing style warnings)
 ```
@@ -35,6 +35,7 @@ Dev URL shortcuts (from ClassScene, dev only): `?round=10`, `?weapon=busur`, `?m
 | `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H` — shrink them when rows no longer fit above y=102)                 |
 | `src/entities/Enemy.ts`, `Boss.ts`, `src/logic/stages.ts` | enemies, bosses, round scaling, special bosses                                                                   |
 | `src/keys.ts`, `src/touch.ts`, `src/gamepad.ts`           | synthetic key presses; touch buttons and controller (per-screen button layout) press the keyboard keys           |
+| `src/audio.ts`                                            | Web Audio chiptune: `SONGS` (hub/run/boss/special), `sfx(name)`, `playMusic(track)`, M toggles sound             |
 | `src/logic/game.check.ts`                                 | data/balance assertions — keep them passing, add one for new non-trivial rules                                   |
 
 ## Adding or reworking a character — the checklist
@@ -46,9 +47,9 @@ A class touches **every** one of these; missing one is a type error or a broken 
    5 face, 6 collar, 7–9 torso with hands `f` at cols 1/8, 10 belt). In head rows the char `c` is replaced by the class
    color (hair color on rows 1–3), so do not use `c` for eyes. `legs.kind`: pants / robe / armor / coat / float.
 2. `loot.ts` — add to `WeaponId`, add `WEAPONS` entry: combo (3–4 moves, finisher with bigger `cd`), `air` move,
-   `skill` (cd seconds), `ult`, optional `fusion`. Baseline combo DPS must stay **20–38** (checked in game.check).
+   `skill` (cd seconds), `ult`, `fusion` (required). Baseline combo DPS must stay **20–38** (checked in game.check).
 3. `sprites.ts` — `w_<weaponId>` held sprite (required, checked) and any projectile/prop textures.
-4. `skills.ts` — `SKILLS[weaponId]` with `skill` and `ult` (and `basic` if `cast: true`, `fusion` if declared).
+4. `skills.ts` — `SKILLS[weaponId]` with `skill`, `ult` and `fusion` (and `basic` if `cast: true`).
 5. `dashes.ts` — `DASHES[classId]`. 6. `styles.ts` — `STYLES[classId]`.
 6. Run `npm run verify`, then **look at it in the browser** (see Testing) — skill, ult, fusion, dash, idle sprite.
 
@@ -73,7 +74,7 @@ The user wants each character to be **keren**, iconic and unmistakably theirs. W
 - **Aim at what is there.** Directional skills should pick their angle when they fire, not when cast (enemies move
   during wind-ups): Breath of Destruction tries the line toward each enemy ahead and takes the one that hits the most;
   Strike Air aims at the nearest enemy ahead within ±0.6 rad.
-- **Signature extras are welcome.** Any weapon can declare a `fusion` (J+L) for a third iconic move (Murasaki, Mokuryu,
+- **Every weapon has a `fusion` (J+L)** — a third iconic move (checked in game.check) (Murasaki, Mokuryu,
   Avalon, Breath of Destruction). A class mechanic can keep state on the player with `p.setData`/`p.getData`
   (Elementalis cycles fire → ice → lightning → earth on each skill cast, and her dash bursts in the current element).
 - **Restraint with the camera.** One flash per beat. Five flashes in a row (one per bolt) turn the screen into a solid
