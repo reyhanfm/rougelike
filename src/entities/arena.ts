@@ -51,6 +51,8 @@ export interface PlayerWorld {
   shot(s: ShotSpec): Phaser.GameObjects.GameObject;
   /** Drag every enemy (not bosses) within `radius` toward (x, y) at `speed` px/s. */
   pull(x: number, y: number, radius: number, speed: number): void;
+  /** Hurl every enemy (not bosses) within `radius` of (x, y) straight down at `speed` px/s. */
+  slam(x: number, y: number, radius: number, speed: number): void;
   /** Hit every enemy within `radius` of (x, y) once. */
   area(x: number, y: number, radius: number, mult: number, knockback: number, source: HitSource, status?: Status): void;
   /** Living enemies and boss, nearest to (x, y) first. */

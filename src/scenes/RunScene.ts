@@ -490,6 +490,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
   }
 
+  slam(x: number, y: number, radius: number, speed: number): void {
+    for (const t of this.hittables()) {
+      if (t instanceof Boss || Phaser.Math.Distance.Between(x, y, t.x, t.y) > radius) continue;
+      // The knockback stun keeps the enemy from walking or flying out of the fall.
+      t.knockback(0, speed);
+      t.setVelocity(0, speed);
+    }
+  }
+
   area(x: number, y: number, radius: number, mult: number, knockback: number, source: HitSource, status?: Status): void {
     if (this.over) return;
     const ring = this.add.circle(x, y, 4).setStrokeStyle(1, 0xfff1e8).setDepth(12);

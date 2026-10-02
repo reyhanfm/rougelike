@@ -25,13 +25,14 @@ export type WeaponId =
   | 'kunai'
   | 'tongkatFrost'
   | 'rasengan'
-  | 'kusanagi';
+  | 'kusanagi'
+  | 'gravitasi';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
   burn?: number;
   freeze?: number;
-  /** ms moving at a crawl (Absolute Zero). */
+  /** ms moving at a crawl (gravity, blizzards). */
   slow?: number;
 }
 
@@ -118,7 +119,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   pedang: {
     id: 'pedang',
     name: 'EXCALIBUR',
-    desc: 'PEDANG SUCI BERSELUBUNG ANGIN, COMBO 4',
+    desc: 'PEDANG SUCI BERSELUBUNG ANGIN, COMBO 4, J+L: AVALON',
     dmg: 1,
     cd: 1,
     crit: 0,
@@ -142,13 +143,14 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hitbox: 'around',
       hover: 90,
     },
-    skill: { name: 'STRIKE AIR', desc: 'SELUBUNG ANGIN DILEPAS: PUSARAN MENEMBUS & MENGHEMPAS', cd: 5 },
-    ult: { name: 'EXCALIBUR', desc: 'PEDANG DIANGKAT, CAHAYA EMAS MEMBELAH ARENA' },
+    skill: { name: 'STRIKE AIR', desc: 'SELUBUNG ANGIN DILEPAS: BOR PUSARAN MEMBIDIK, MENEMBUS & MENGHEMPAS', cd: 5 },
+    fusion: { name: 'AVALON', desc: 'J+L: SARUNG PEDANG JADI KUBAH CAHAYA: KEBAL, PULIH, MUSUH TERPENTAL', cd: 14 },
+    ult: { name: 'EXCALIBUR', desc: 'CAHAYA EMAS RAKSASA MENYAPU DARI LANGIT KE CAKRAWALA' },
   },
   belati: {
     id: 'belati',
     name: 'AZRAEL',
-    desc: 'PEDANG BESAR KEMATIAN, COMBO 3',
+    desc: 'PEDANG BESAR MALAIKAT MAUT, COMBO 3',
     dmg: 1.3,
     cd: 1.3,
     crit: 0.1,
@@ -172,8 +174,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       dive: { vx: 60, vy: 380 },
       slam: 26,
     },
-    skill: { name: 'LONCENG SENJA', desc: 'TANDAI MUSUH, TEBASAN MAUT (EKSEKUSI HP < 30%)', cd: 6 },
-    ult: { name: 'AZRAEL', desc: 'LONCENG BERBUNYI: SEMUA MUSUH DIVONIS MATI' },
+    skill: { name: 'LONCENG SENJA', desc: 'LONCENG MEMANGGIL NAMA MUSUH, AZRAEL JATUH BERAPI BIRU (EKSEKUSI HP < 30%)', cd: 6 },
+    fusion: { name: 'API BIRU KUBUR', desc: 'J+L: TEBASAN BULAN SABIT API BIRU SETINGGI ARENA, MEMBAKAR', cd: 9 },
+    ult: { name: 'AZRAEL', desc: 'LONCENG BERBUNYI 3 KALI, BAYANGAN HASSAN MEMENGGAL SEMUA MUSUH' },
   },
 
   tombak: {
@@ -348,7 +351,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   tongkat: {
     id: 'tongkat',
     name: 'TONGKAT ELEMEN',
-    desc: 'BOLA API MEMBAKAR, ES MEMBEKUKAN',
+    desc: 'API, ES, PETIR, LALU BATU BESAR: EMPAT ELEMEN BERGANTIAN',
     dmg: 0.9,
     cd: 1.1,
     crit: 0,
@@ -356,7 +359,20 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     combo: [
       { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0], status: { burn: 0.15 } },
       { anim: 'shoot', dmg: 0.9, cd: 1, ms: 100, reach: box(0, 0), knockback: 30, angles: [0], shot: 'iceshard', status: { freeze: 350 } },
-      { anim: 'shoot', dmg: 1.4, cd: 1.5, ms: 150, reach: box(0, 0), knockback: 120, angles: [-0.1, 0.1], status: { burn: 0.25 } },
+      // Twin sparks of lightning, fast and stunning.
+      {
+        anim: 'shoot',
+        dmg: 0.8,
+        cd: 1,
+        ms: 100,
+        reach: box(0, 0),
+        knockback: 40,
+        angles: [-0.08, 0.08],
+        shot: 'boltShot',
+        status: { freeze: 200 },
+      },
+      // A boulder wrenched up and flung: the heavy finisher.
+      { anim: 'shoot', dmg: 1.8, cd: 1.5, ms: 160, reach: box(0, 0), knockback: 220, angles: [0], shot: 'boulder', status: { slow: 900 } },
     ],
     air: {
       name: 'HUJAN ES',
@@ -371,8 +387,8 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       status: { freeze: 350 },
       hover: 70,
     },
-    skill: { name: 'NOVA ES', desc: 'LEDAKAN ES, BEKUKAN MUSUH SEKITAR', cd: 6 },
-    ult: { name: 'BADAI ELEMEN', desc: 'HUJAN METEOR MEMBAKAR, LALU BADAI ES' },
+    skill: { name: 'SIKLUS ELEMEN', desc: 'TIAP CAST GANTI ELEMEN: INFERNO, GLACIER, THUNDER, QUAKE', cd: 5 },
+    ult: { name: 'KIAMAT ELEMEN', desc: 'LINGKARAN SIHIR RAKSASA: METEOR, PETIR, ES, BUMI, LALU LEDAKAN PRISMA' },
   },
   katana: {
     id: 'katana',
@@ -496,17 +512,30 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   cakarNaga: {
     id: 'cakarNaga',
     name: 'CAKAR NAGA',
-    desc: 'CAKAR MEMBAKAR, COMBO 3',
+    desc: 'CAKAR API KEHANCURAN, COMBO 4, J+L: NAPAS KEHANCURAN',
     dmg: 1.1,
     cd: 1,
     crit: 0.05,
     arc: 'slashClaw',
-    arcTint: 0xff6a3d,
-    cut: 0xffa300,
+    arcTint: 0xff004d,
+    cut: 0xb3122e,
     combo: [
-      { anim: 'down', dmg: 1, cd: 1, ms: 110, reach: box(22, 20), knockback: 110, status: { burn: 0.15 } },
-      { anim: 'up', dmg: 1, cd: 1, ms: 110, reach: box(22, 22), knockback: 110, status: { burn: 0.15 } },
-      { anim: 'overhead', dmg: 1.6, cd: 1.5, ms: 180, reach: box(28, 28), knockback: 220, lunge: 100, status: { burn: 0.25 } },
+      { anim: 'down', dmg: 1, cd: 0.9, ms: 100, reach: box(22, 20), knockback: 110, status: { burn: 0.15 } },
+      { anim: 'up', dmg: 1, cd: 0.9, ms: 100, reach: box(22, 22), knockback: 110, status: { burn: 0.15 } },
+      { anim: 'cross', dmg: 1, cd: 1, ms: 140, reach: box(26, 24), knockback: 140, status: { burn: 0.2 } },
+      // Claw of Destruction: he tears forward through the enemy, a crimson wake behind him.
+      {
+        anim: 'thrust',
+        dmg: 1.7,
+        cd: 1.6,
+        ms: 170,
+        reach: box(32, 24),
+        knockback: 240,
+        lunge: 260,
+        trail: 0xb3122e,
+        cut: 0xff004d,
+        status: { burn: 0.3 },
+      },
     ],
     air: {
       name: 'TERKAMAN NAGA',
@@ -520,8 +549,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0xff004d,
       status: { burn: 0.2 },
     },
-    skill: { name: 'SEMBURAN API', desc: '7 BOLA API MENYEMBUR, MEMBAKAR', cd: 5 },
-    ult: { name: 'WUJUD NAGA', desc: 'JADI NAGA: TERBANG, NAPAS API, TAHAN BANTING' },
+    skill: { name: "DRAGON'S FEAR", desc: 'MATA NAGA TERBUKA DI LANGIT: TEROR MELUMPUHKAN SEMUA MUSUH DI SEKITAR', cd: 6 },
+    fusion: { name: 'NAPAS KEHANCURAN', desc: 'J+L: KEPALA NAGA MENYEMBURKAN SINAR API KE MUSUH (UDARA JUGA)', cd: 9 },
+    ult: { name: 'MONARCH OF DESTRUCTION', desc: 'PASUKAN NAGA MENGHUJANI API, LALU BERUBAH JADI NAGA KEHANCURAN' },
   },
   gerbangBabilonia: {
     id: 'gerbangBabilonia',
@@ -547,8 +577,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       knockback: 60,
       angles: [0.5, 0.65, 0.8, 1],
     },
-    skill: { name: 'RANTAI ENKIDU', desc: 'RANTAI EMAS MENGIKAT 3 MUSUH 2 DTK', cd: 6 },
-    ult: { name: 'ENUMA ELISH', desc: 'EA BERPUTAR, BADAI MERAH MEMBELAH LANGIT & BUMI' },
+    skill: { name: 'ENKIDU', desc: 'RANTAI LANGIT DARI GERBANG MELILIT & MENGIKAT 3 MUSUH 2 DTK', cd: 6 },
+    fusion: { name: 'GATE OF BABYLON', desc: 'J+L: LANGIT PENUH GERBANG EMAS, HUJAN HARTA KE SEMUA MUSUH', cd: 10 },
+    ult: { name: 'ENUMA ELISH', desc: 'EA BERPUTAR, BADAI RUPTUR MEMBELAH LANGIT & BUMI, SEMUA KENA' },
   },
   shrine: {
     id: 'shrine',
@@ -565,8 +596,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'shoot', dmg: 1.8, cd: 1.5, ms: 150, reach: box(0, 0), knockback: 180, angles: [0], shot: 'hachi' },
     ],
     air: { name: 'KAI UDARA', anim: 'shoot', dmg: 1, cd: 1.1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0.45] },
-    skill: { name: 'MALEVOLENT SHRINE', desc: 'DOMAIN: TEBASAN KE SEGALA ARAH, PASTI KENA DI DALAM', cd: 9 },
-    ult: { name: 'WORLD CUTTING SLASH', desc: 'MANTRA, LALU DUNIA TERBELAH: TIDAK ADA YANG LOLOS' },
+    skill: { name: 'FUGA', desc: 'BUSUR API: PANAH API MELEDAK JADI PILAR API, MEMBAKAR', cd: 7 },
+    fusion: { name: 'WORLD CUTTING SLASH', desc: 'J+L: MANTRA, LALU DUNIA TERBELAH DI GARIS PALING BANYAK MUSUH', cd: 12 },
+    ult: { name: 'MALEVOLENT SHRINE', desc: 'DOMAIN: KUIL MUNCUL, KAI & HACHI PASTI KENA SEMUA MUSUH DI ARENA' },
   },
   mugen: {
     id: 'mugen',
@@ -648,7 +680,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   mokuton: {
     id: 'mokuton',
     name: 'MOKUTON',
-    desc: 'ELEMEN KAYU: TUSUKAN AKAR, LEDAKAN HUTAN',
+    desc: 'ELEMEN KAYU: TUSUKAN AKAR, LEDAKAN HUTAN, J+L: MOKURYU',
     dmg: 1.2,
     cd: 1.2,
     crit: 0,
@@ -671,8 +703,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 60,
       status: { freeze: 400 },
     },
-    skill: { name: 'JUKAI KOTAN', desc: 'POHON RAKSASA TUMBUH, CABANG MENGIKAT (UDARA JUGA)', cd: 6 },
-    ult: { name: 'MOKUTON: SHIN SUSENJU', desc: 'BUDDHA KAYU SERIBU TANGAN MENGHANTAM SEMUA MUSUH' },
+    skill: { name: 'JUKAI KOTAN', desc: 'HUTAN MELEDAK TUMBUH BERUNTUN, CABANG MENJERAT MUSUH (UDARA JUGA)', cd: 6 },
+    fusion: { name: 'MOKURYU', desc: 'J+L: NAGA KAYU MENERJANG ARENA, MENGGIGIT & MENYERAP CHAKRA', cd: 9 },
+    ult: { name: 'MOKUTON: SHIN SUSENJU', desc: 'BUDDHA SERIBU LENGAN MENGHUJANI MUSUH, LALU GASSHO MENGHANCURKAN ARENA' },
   },
   kunai: {
     id: 'kunai',
@@ -721,15 +754,29 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   tongkatFrost: {
     id: 'tongkatFrost',
     name: 'TONGKAT GEMBALA',
-    desc: 'SEMBURAN ES, FINISHER BOLA SALJU',
-    projectile: { texture: 'iceshard', speed: 240 },
+    desc: 'SEMBURAN ES PENGEJAR, PUTARAN TONGKAT BERSALJU, FINISHER BOLA SALJU',
+    projectile: { texture: 'iceshard', speed: 240, homing: true },
     dmg: 0.9,
     cd: 1,
     crit: 0.05,
+    arcTint: 0xc2f0ff,
+    cut: 0xc2f0ff,
     combo: [
-      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 40, angles: [0], status: { freeze: 250 } },
-      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 40, angles: [0], status: { freeze: 250 } },
-      // Snowball: a big hit that knocks back and freezes longer.
+      { anim: 'shoot', dmg: 1, cd: 0.9, ms: 100, reach: box(0, 0), knockback: 40, angles: [0], status: { freeze: 250 } },
+      { anim: 'shoot', dmg: 1, cd: 0.9, ms: 100, reach: box(0, 0), knockback: 40, angles: [-0.12, 0.12], status: { freeze: 250 } },
+      // He twirls the crook overhead; frost sprays off it all around him.
+      {
+        anim: 'spin',
+        dmg: 1.1,
+        cd: 1.1,
+        ms: 200,
+        reach: box(40, 30),
+        knockback: 130,
+        hitbox: 'around',
+        trail: 0xc2f0ff,
+        status: { slow: 900 },
+      },
+      // Snowball of fun: a big hit that knocks back and freezes longer.
       {
         anim: 'shoot',
         dmg: 1.6,
@@ -754,8 +801,12 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       status: { freeze: 250 },
       hover: 120,
     },
-    skill: { name: 'FROST NOVA', desc: 'LEDAKAN DINGIN DI SEKITAR, BEKUKAN MUSUH', cd: 5 },
-    ult: { name: 'ABSOLUTE ZERO', desc: 'ARENA MEMBEKU: MUSUH MELAMBAT, BEKU, HP TERKIKIS' },
+    skill: {
+      name: 'BLIZZARD VORTEX',
+      desc: 'ANGIN MEMUTAR PUTING BELIUNG SALJU SETINGGI LANGIT: MENYEDOT MUSUH DARAT & UDARA, LALU MEMBEKUKAN',
+      cd: 6,
+    },
+    ult: { name: 'ETERNAL WINTER', desc: 'BADAI SALJU & HUJAN ES RAKSASA, MUSUH TERKURUNG KRISTAL LALU PECAH' },
   },
   rasengan: {
     id: 'rasengan',
@@ -833,6 +884,48 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     },
     skill: { name: 'CHIDORI EISO', desc: 'TOMBAK PETIR MEMANJANG, MENEMBUS & MELUMPUHKAN SEMUA DI GARIS', cd: 5 },
     ult: { name: 'INDRA NO YA', desc: 'SUSANOO UNGU MEREGANG BUSUR, PANAH PETIR MEMBELAH ARENA' },
+  },
+  gravitasi: {
+    id: 'gravitasi',
+    name: 'TONGKAT HORIZON',
+    desc: 'BOLA GRAVITASI MEMBERATKAN MUSUH, FINISHER TIGA ORBIT',
+    projectile: { texture: 'gravOrb', speed: 200 },
+    dmg: 1,
+    cd: 0.9,
+    crit: 0.05,
+    combo: [
+      // Small singularities: every hit drags the target down to a crawl.
+      { anim: 'shoot', dmg: 0.9, cd: 0.9, ms: 100, reach: box(0, 0), knockback: 30, angles: [0], status: { slow: 500 } },
+      { anim: 'shoot', dmg: 0.9, cd: 0.9, ms: 100, reach: box(0, 0), knockback: 30, angles: [0], status: { slow: 500 } },
+      // Three orbs fanned out like planets on their orbits.
+      {
+        anim: 'shoot',
+        dmg: 0.7,
+        cd: 1.4,
+        ms: 140,
+        reach: box(0, 0),
+        knockback: 90,
+        angles: [-0.2, 0, 0.2],
+        status: { slow: 900 },
+      },
+    ],
+    air: {
+      // He makes himself a hundred times heavier and drops like a meteor; the landing caves the ground in.
+      name: 'JATUH BINTANG',
+      anim: 'plunge',
+      dmg: 1.4,
+      cd: 1.2,
+      ms: 700,
+      reach: box(18, 18),
+      knockback: 120,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 460 },
+      slam: 40,
+      trail: 0x8a3fd1,
+      status: { slow: 1200 },
+    },
+    skill: { name: 'GRAVITY ORDER', desc: 'GRAVITASI x100: MUSUH DI SEKITAR DIHANTAM KE TANAH & TERTEKAN', cd: 6 },
+    ult: { name: 'BLACK HOLE', desc: 'LUBANG HITAM MENYEDOT SELURUH MUSUH DI ARENA, LALU RUNTUH' },
   },
 };
 

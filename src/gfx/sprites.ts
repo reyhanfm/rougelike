@@ -44,6 +44,10 @@ export const PALETTE: Record<string, number> = {
   v: 0x37479e,
   // Extra: Sasuke's dark violet-grey cape.
   w: 0x3a3450,
+  // Extra: the Gravity Master's void-black robe.
+  x: 0x241a3d,
+  // Extra: King Hassan's azure flame (Azrael's fuller, the glow in his skull's sockets).
+  y: 0x7fe6ff,
 };
 
 export const COLOR = {
@@ -120,8 +124,34 @@ export const SPRITES: Record<string, string[]> = {
   // Excalibur: gold guard and tip, blue grip, white blade.
   // Excalibur: blue grip, gold guard, silver blade with gold runes down the fuller.
   w_pedang: ['...a............', '...a77777777776.', 'ccaaa7a7a7a77777', '...a77777777776.', '...a............'],
-  // Azrael: King Hassan's greatsword.
-  w_belati: ['..07............', '5507777777777776', '5507777777777760', '..07............'],
+  // Azrael: King Hassan's broad greatsword, a cross guard and a fuller burning with azure flame.
+  w_belati: [
+    '....6..............',
+    '...06000000000000..',
+    '...067777777777770.',
+    '655066yyyyyyyyy6670',
+    '...066666666666660.',
+    '...06000000000000..',
+    '....6..............',
+  ],
+  // The First Hassan's horned skull, looming over the field during Azrael (azure flame in the sockets).
+  hassanSkull: sym([
+    '7..........',
+    '67.........',
+    '.67........',
+    '.667...0000',
+    '..667007777',
+    '...66077777',
+    '....0677777',
+    '....0700007',
+    '....070yy07',
+    '....0700007',
+    '....0677770',
+    '.....067700',
+    '.....066666',
+    '......07070',
+    '.......0000',
+  ]),
   // Gae Bolg: the crimson spear.
   w_tombak: ['................88..', '22222222222222228887', '................88..'],
   // Heracles' stone axe-sword.
@@ -153,6 +183,9 @@ export const SPRITES: Record<string, string[]> = {
   // Sasuke: Kusanagi, a straight black-hilted chokuto; Chidori senbon.
   w_kusanagi: ['....6.........', '00006777777776', '....6.........'],
   senbon: ['c777a'],
+  // Gravity Master: a black scepter crowned by a tiny singularity in a violet ring; his gravity orb.
+  w_gravitasi: ['.........g0g.', 'xxxxxxxxg000g', '.........g0g.'],
+  gravOrb: ['.ggg.', 'g000g', 'g070g', 'g000g', '.ggg.'],
   // Chidori cut: a jagged arc of lightning.
   slashBolt: [
     '.7............',
@@ -428,7 +461,11 @@ export const SPRITES: Record<string, string[]> = {
   // Jian: slim straight sword with a red tassel; also the flying projectile.
   w_pedangTerbang: ['..a..........', '55a677777777c', '..a..........', 'e8...........'],
   // Staff with a split fire/ice orb; fire and ice projectiles.
-  w_tongkat: ['..........8c', '4444444448c7', '..........c8'],
+  // Elementalis: a gnarled staff crowned with four element gems (fire, ice, lightning, earth); her lightning spark
+  // and the thrown boulder.
+  w_tongkat: ['.........8.k', '44444444448a', '.........b.7'],
+  boltShot: ['..a..7a', 'a7aa7a.', '.a..a..'],
+  boulder: ['.5445.', '544445', '445544', '544445', '.5445.'],
   fireball: ['...8899.', '.889aa9a', '8899a77a', '.889aa9a', '...8899.'],
   iceshard: ['....cc..', '1cccc777', '....cc..'],
   // Katana: black-and-white wrapped grip, gold tsuba, curved blade (grey spine, white edge) rising to the tip.
@@ -610,19 +647,24 @@ export const SPRITES: Record<string, string[]> = {
     '......8...............',
   ],
   w_gerbangBabilonia: ['..aa.......', '.a..aaaaaaa', '..aa...a.a.'],
-  // Antares: three burning talons; the dragon form (faces right).
-  w_cakarNaga: ['..8..8..8.', '.88.88.88.', '9999999999', '.44444....'],
+  // Antares: black dragon-scale gauntlet with crimson talons; the dragon form (faces right): the black Dragon of
+  // Destruction, crimson wing membranes and belly, bone horns, a red eye and fire at the jaw.
+  w_cakarNaga: ['..8..8..8.', '.h8.h8.h8.', 'jjjjjjjjjj', '.sssss....'],
   dragon: [
-    '.8.........888..',
-    '.88.......88a8..',
-    '.888.....8888888',
-    '..8888..8888....',
-    '..888888888.....',
-    '.98888888888....',
-    '9988888888888...',
-    '..888888..888...',
-    '..88..88...88...',
-    '..8...8.....8...',
+    '..s.................6.',
+    '..ss...............66.',
+    '..shs.............sss.',
+    '..shhs...........ss8ss',
+    '..shhhs.........sssss9',
+    '..shhhhs.......jjss...',
+    '...shhhhs....jjjjs....',
+    '....shhhhsjjjjjjj.....',
+    '.jj..shhjjjjjjjjj.....',
+    'jj.....jjhhhhhjjj.....',
+    'j.....jjhhhhhhjj......',
+    '......jj.jj..jj.......',
+    '.....jj..j...j........',
+    '.....s...s...s........',
   ],
   w_enamLengan: ['.aaaa.', 'a7a7aa', 'a7a7a9', 'aaaaa9', '.aaa9.'],
   w_pedangGelap: ['..2.............', '0002000000000000', '0002222222222220', '..2.............'],
@@ -675,28 +717,33 @@ export const SPRITES: Record<string, string[]> = {
   // Hashirama: a leafy wood stake, and the Buddha's giant wooden hand.
   w_mokuton: ['.....b....', '4444444444', '..b.......'],
   w_telapak: ['.4.4.4.', '.4.4.4.', '4444444', '4444444', '4444444', '.44444.', '..444..'],
-  // Shin Susenju: the wooden Buddha, seated, arms spread (mirrored half).
+  // Shin Susenju: the wooden Buddha seated in meditation (mirrored half): the ushnisha topknot, long ears, closed eyes
+  // and a gold urna, a gold prayer-bead necklace, palms pressed together at the chest, legs crossed on a lotus.
   buddha: sym([
-    '..........44',
-    '.........444',
-    '........4444',
-    '........4544',
-    '........4444',
-    '.........444',
-    '.4..4.....44',
-    '4444.44..444',
-    '.44444444444',
-    '...444444444',
-    '..4..4444444',
-    '.444.4444444',
-    '..44444.4444',
-    '.....4..4444',
-    '....44444444',
-    '...444444444',
-    '..4444444444',
-    '.44444444444',
-    '.44455555555',
-    '..4444444444',
+    '..........rr',
+    '.........r44',
+    '........rr44',
+    '.......r4444',
+    '......r4444a',
+    '......r4l444',
+    '.....rr4rr4l',
+    '.....r444444',
+    '.....rr444l4',
+    '......r444rr',
+    '.......r4444',
+    '........rlll',
+    '....rrrr4444',
+    '..rr4444a444',
+    '.r44l444rr44',
+    'r444rl4r4444',
+    'r44r.rl4r444',
+    'r44r..r4r444',
+    'r444rrrrr444',
+    '.r4444444444',
+    'rr44l4444l44',
+    'r44444444444',
+    '.bb3bb3bb3bb',
+    '..3333333333',
   ]),
   // Itachi: kunai with its ring, and a shuriken.
   w_kunai: ['00.......', '0.5667777', '00.......'],
@@ -845,22 +892,27 @@ export const SPRITES: Record<string, string[]> = {
   ]),
   susanooSword: ['......1.............................', '11111177777777777777777777777777777c', '......1cccccccccccccccccccccccccccc.'],
   // Mahoraga: pale giant, wings over the eyes, the Sword of Extermination on its right arm; the eight-spoke wheel floats above.
-  // Malevolent Shrine: dark horned roof with red trim, red pillars around a mouth full of teeth, skulls at its feet.
+  // Malevolent Shrine: a temple roof whose eaves sweep up into horns, red trim, red pillars framing a huge maw of
+  // teeth with a red tongue, raised on a platform over a heap of skulls and bones.
   shrine: sym([
-    '.8........',
-    '.88.......',
-    '..88888888',
-    '.855555555',
-    '8555555555',
-    '...8....8.',
-    '...8.7.7.7',
-    '...8.00000',
-    '...8.00000',
-    '...8.7.7.7',
-    '...8......',
-    '.7.8.7..7.',
-    '7778777777',
-    '5555555555',
+    '7..............',
+    '87.......000000',
+    '.88000005555555',
+    '..8855555555555',
+    '...888888888888',
+    '....08.00000000',
+    '....08.07070707',
+    '....08.02222222',
+    '....08.02222288',
+    '....08.07070707',
+    '....08.00000000',
+    '....08.........',
+    '....08.........',
+    '..5555555555555',
+    '.777.777.777.77',
+    '.070.070.070.07',
+    '.666.666.666.66',
+    '676767676767676',
   ]),
   mahoraga: [
     '.......000000...........',

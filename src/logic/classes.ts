@@ -25,7 +25,8 @@ export type ClassId =
   | 'itachi'
   | 'jackFrost'
   | 'naruto'
-  | 'sasuke';
+  | 'sasuke'
+  | 'gravityMaster';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -96,19 +97,20 @@ export const CLASSES: Record<ClassId, GameClass> = {
     weapon: 'belati',
     color: 'j',
     legs: { kind: 'coat', pant: 'j', boot: '0' },
-    // Skull mask with curled horns and red-lit sockets, dark steel hood and gauntlets, gold belt.
+    // The First Hassan: a horned skull helm (the horns sweep out and up like a bull's) with azure flame burning in
+    // its sockets, framed by the black mantle; dark steel pauldrons and gauntlets, a bone clasp at the belt.
     head: [
-      '6........6',
-      '.6.0000.6.',
-      '..0jjjj0..',
-      '.0j7777j0.',
-      '.0j8778j0.',
-      '.0j7007j0.',
-      '..0j77j0..',
-      '.0jj55jj0.',
-      '0jj5jj5jj0',
-      '050jjjj050',
-      '..0jaaj0..',
+      '7........7',
+      '67..00..76',
+      '.67077076.',
+      'j06777760j',
+      'j00y77y00j',
+      'j07700770j',
+      'jj070070jj',
+      '05jj66jj50',
+      '06jj55jj60',
+      '060jjjj060',
+      '..0j66j0..',
     ],
     hair: '7',
     trait: 'PAK TUA GUNUNG: EKSEKUSI MUSUH HP < 12%, KRITIS +10%',
@@ -371,21 +373,22 @@ export const CLASSES: Record<ClassId, GameClass> = {
     weapon: 'tongkat',
     color: '2',
     legs: { kind: 'robe', pant: '2', boot: '4' },
-    // Tall pointed purple hat, purple robe with a fire-and-ice gem, gold hem.
+    // A tall wizard's hat with its tip bent back and a gold band set with a fire gem, a purple robe with the four
+    // element gems (fire, ice, lightning, earth) across the chest, a gold hem.
     head: [
+      '.......22.',
       '......22..',
-      '.....222..',
-      '...22222..',
+      '...2a9a22.',
       '2222222222',
       '.0f0ff0f0.',
       '.0ffffff0.',
       '..0a22a0..',
-      '.0229k220.',
+      '.028kab20.',
       '0f222222f0',
       '0f022220f0',
       '..0a99a0..',
     ],
-    trait: 'SKILL +15%, SKILL CD -10%, HP -15%',
+    trait: 'PENYIHIR EMPAT ELEMEN: SKILL +15%, SKILL CD -10%, HP -15%',
     apply: (s) => {
       s.skillPower *= 1.15;
       s.skillCdMult *= 0.9;
@@ -510,22 +513,23 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'ANTARES',
     weapon: 'cakarNaga',
     color: 'h',
-    legs: { kind: 'armor', pant: 'h', boot: '6' },
-    // Dragon horns, crimson hair, golden slit eyes, crimson scale armor.
+    legs: { kind: 'armor', pant: 'j', boot: 'h' },
+    // The Monarch of Destruction in human form: long black hair falling past his shoulders, glowing red eyes, a black
+    // armored coat with a high collar, crimson trim and a crimson gem at the chest.
     head: [
-      '6........6',
-      '.6.hhhh.6.',
-      '..hhhhhh..',
-      '.hhffffhh.',
-      '.hfaffafh.',
-      '.0ffffff0.',
-      '..0hhhh0..',
-      '.0h9hh9h0.',
-      '0fhh99hhf0',
-      '0f0hhhh0f0',
-      '..09aa90..',
+      '...ssss...',
+      '..ssssss..',
+      '.ssssssss.',
+      '.sssffsss.',
+      '.sf8ff8fs.',
+      'ssffffffss',
+      'shsjjjjshs',
+      's0jhjjhj0s',
+      '0fjj88jjf0',
+      '0f0jhhj0f0',
+      '..0h99h0..',
     ],
-    trait: 'RAJA NAGA: KEBAL TERBAKAR, HP +15%, DITERIMA -5%',
+    trait: 'RAJA NAGA KEHANCURAN: KEBAL TERBAKAR, HP +15%, DITERIMA -5%',
     apply: (s) => {
       s.fireImmune = 1;
       s.maxHp *= 1.15;
@@ -580,14 +584,15 @@ export const CLASSES: Record<ClassId, GameClass> = {
     color: 'm',
     legs: { kind: 'robe', pant: 'm', boot: '0' },
     hair: 'e',
-    // Spiky pink hair, red eyes, black face and arm markings, dark sash.
+    // Ryomen Sukuna: spiky pink hair, two pairs of red eyes (the second pair opened under the first), the black
+    // curse markings on brow and cheeks, white kimono with a dark sash.
     head: [
-      '.e.0ee0.e.',
+      'e.e0ee0e.e',
       '..0eeee0..',
       '.0eeeeee0.',
       '.0e0ff0e0.',
       '.0f8ff8f0.',
-      '.00ffff00.',
+      '.008ff800.',
       '..0cccc0..',
       '.0c0cc0c0.',
       '00c0cc0c00',
@@ -725,14 +730,15 @@ export const CLASSES: Record<ClassId, GameClass> = {
     weapon: 'mokuton',
     color: 'q',
     legs: { kind: 'armor', pant: 'q', boot: '0' },
-    // Long brown hair, metal forehead protector, red Senju plate armor.
+    // Sage Mode: long dark hair falling past his shoulders, the forehead protector, the red kumadori lines under his
+    // eyes and on his brow, red Senju plate armor.
     head: [
-      '...rrrr...',
       '..rrrrrr..',
       '.rrrrrrrr.',
-      '.r666666r.',
+      'rrrrrrrrrr',
+      'r56666665r',
       'rrf0ff0frr',
-      'rrffffffrr',
+      'rr8ffff8rr',
       'r.0qqqq0.r',
       'r0q4qq4q0r',
       '0fqq44qqf0',
@@ -797,19 +803,20 @@ export const CLASSES: Record<ClassId, GameClass> = {
     weapon: 'tongkatFrost',
     color: 'u',
     legs: { kind: 'pants', pant: '4', boot: 'f' },
-    // Frosted white hair, icy blue eyes, blue hoodie with frost patterns.
+    // Wild frost-white hair swept to one side with bangs over the brow, icy eyes and a smirk, a blue hoodie rimed with
+    // frost at the collar and chest, its white laces hanging.
     head: [
-      '..7.77.7..',
-      '.07777770.',
-      '0777777770',
-      '.07ffff70.',
-      '.0fcffcf0.',
-      '.0ffffff0.',
-      '.u0uuuu0u.',
+      '..7.7..7..',
+      '.7777777.7',
+      '7777777777',
+      '.07f7ff770',
+      '.0fuffuf0.',
+      '.0ffff0f0.',
+      '.60uuuu06.',
       '.0u7uu7u0.',
-      '0fuuuuuuf0',
+      '0fu6uu6uf0',
       '0f0uuuu0f0',
-      '..0u77u0..',
+      '..0u66u0..',
     ],
     hair: '7',
     trait: 'ANGIN MEMBAWAKU: +2 LOMPAT UDARA, LARI +10%, BEKU/BURN +30%',
@@ -898,6 +905,43 @@ export const CLASSES: Record<ClassId, GameClass> = {
       apply: (s) => {
         s.freezeChance += 0.2;
         s.critMult += 0.3;
+      },
+    },
+  },
+  gravityMaster: {
+    id: 'gravityMaster',
+    name: 'GRAV. MASTER',
+    weapon: 'gravitasi',
+    color: 'x',
+    legs: { kind: 'float', pant: 'x', boot: 'g' },
+    hair: '6',
+    // Silver hair lifted by his own field, violet event-horizon eyes, a high-collared void robe with a singularity core
+    // glowing at the chest and a star-white clasp at the belt. He never touches the ground.
+    head: [
+      '.6..66..6.',
+      '.06666660.',
+      '0666666660',
+      '.06ffff60.',
+      '.0fgffgf0.',
+      '.0ffffff0.',
+      '.x0gggg0x.',
+      '.0xgxxgx0.',
+      '0fxx00xxf0',
+      '0f0xggx0f0',
+      '..0g77g0..',
+    ],
+    trait: 'MASSA SINGULAR: DITERIMA -15%, HP +10%, ULTI +10% CEPAT',
+    apply: (s) => {
+      s.damageTaken *= 0.85;
+      s.maxHp *= 1.1;
+      s.ultGainMult *= 1.1;
+    },
+    synergy: {
+      name: 'CAKRAWALA PERISTIWA',
+      desc: '15% HIT MENGUNCI MUSUH (BEKU), SKILL +20%',
+      apply: (s) => {
+        s.freezeChance += 0.15;
+        s.skillPower *= 1.2;
       },
     },
   },

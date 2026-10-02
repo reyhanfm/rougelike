@@ -32,13 +32,14 @@ export interface MoveStyle {
 export const STYLES: Record<ClassId, MoveStyle> = {
   // Artoria: composed stride, prana sparks at her heels, sword held forward and low.
   ksatria: { stride: 110, lean: 6, jump: 'lift', trail: { shape: 'spark', colors: [0x29adff, 0xc2f0ff] }, hold: { angle: 40 } },
-  // King Hassan: slow, inevitable steps; smoke rises where he walks; the greatsword drags point-down.
+  // King Hassan: slow, inevitable steps; black smoke and azure embers rise where he walks; Azrael stands planted
+  // point-down in front of him, the pommel at his chest, as in his saint graph.
   pembunuh: {
     stride: 160,
     lean: 0,
     jump: 'none',
-    trail: { shape: 'wisp', colors: [0x3b3b4f, 0x5f574f] },
-    hold: { angle: 115, dx: 1 },
+    trail: { shape: 'wisp', colors: [0x1c1c28, 0x3b3b4f, 0x29adff] },
+    hold: { angle: 90, dx: 4, dy: -8 },
     heavy: true,
   },
   // Cu Chulainn: the fastest runner, blue speed lines, somersaults, spear level.
@@ -68,16 +69,22 @@ export const STYLES: Record<ClassId, MoveStyle> = {
   gunners: { stride: 100, lean: 10, jump: 'none', trail: { shape: 'puff', colors: [0xc2c3c7, 0x5f574f] }, hold: { angle: 0 } },
   // Cultivator: flowing steps, qi rising, arches in flight, sword floating raised.
   cultivator: { stride: 135, lean: 2, jump: 'arch', trail: { shape: 'wisp', colors: [0x29adff, 0xfff1e8] }, hold: { angle: -35, dy: -3 } },
-  // Elementalis: fire and ice sparks alternate, staff upright.
-  elementalis: { stride: 125, lean: 3, jump: 'lift', trail: { shape: 'spark', colors: [0xffa300, 0x29adff] }, hold: { angle: -80 } },
+  // Elementalis: sparks of all four elements trail her, staff upright.
+  elementalis: {
+    stride: 125,
+    lean: 3,
+    jump: 'lift',
+    trail: { shape: 'spark', colors: [0xff004d, 0x29adff, 0xffec27, 0x00e436] },
+    hold: { angle: -80 },
+  },
   // Samurai: low fast run, sakura petals, katana held low and forward.
   samurai: { stride: 90, lean: 14, jump: 'flip', trail: { shape: 'leaf', colors: [0xff77a8, 0xfff1e8] }, hold: { angle: 20, dy: 1 } },
   // Dark Avenger: dark mist, dives down on enemies, blade raised.
   darkAvenger: { stride: 110, lean: 8, jump: 'dive', trail: { shape: 'wisp', colors: [0x7e2553, 0x8a3fd1] }, hold: { angle: -45 } },
   // Ashura: golden sparks, spins in the air, fists ready.
   ashura: { stride: 100, lean: 10, jump: 'spin', trail: { shape: 'spark', colors: [0xffec27, 0xffa300] }, hold: { angle: 0 } },
-  // Antares: embers underfoot, leans back on wing-like leaps, claw forward.
-  antares: { stride: 115, lean: 6, jump: 'lift', trail: { shape: 'spark', colors: [0xff004d, 0xffa300] }, hold: { angle: 30 } },
+  // Antares: the unhurried stride of a Monarch, crimson embers underfoot, leans back on wing-like leaps, claw forward.
+  antares: { stride: 125, lean: 4, jump: 'lift', trail: { shape: 'spark', colors: [0xff004d, 0xb3122e] }, hold: { angle: 30 } },
   // Gilgamesh: slow, arrogant, leaning back; gold dust.
   gilgamesh: { stride: 145, lean: -5, jump: 'none', trail: { shape: 'flake', colors: [0xffec27, 0xfff1e8] }, hold: { angle: 0 } },
   // Sukuna: unhurried, cursed energy rolls off him, rolls through the air.
@@ -97,6 +104,15 @@ export const STYLES: Record<ClassId, MoveStyle> = {
   naruto: { stride: 80, lean: 22, jump: 'flip', trail: { shape: 'wisp', colors: [0xffa300, 0xffec27] }, hold: { angle: 0 } },
   // Sasuke: composed, lightning crackling at his feet, arches through the air, Kusanagi held low.
   sasuke: { stride: 105, lean: 12, jump: 'arch', trail: { shape: 'spark', colors: [0x29adff, 0x8a3fd1] }, hold: { angle: 30 } },
+  // Gravity Master: never touches the ground, drifts unhurried, rocking weightless in the air; pebbles fall upward
+  // in his wake; the scepter raised.
+  gravityMaster: {
+    stride: 140,
+    lean: -3,
+    jump: 'sway',
+    trail: { shape: 'wisp', colors: [0xc080ff, 0xfff1e8] },
+    hold: { angle: -45, dx: -1 },
+  },
   jackFrost: { stride: 105, lean: 6, jump: 'spin', trail: { shape: 'flake', colors: [0xc2f0ff, 0xfff1e8] }, hold: { angle: -70, dx: -2 } },
 };
 

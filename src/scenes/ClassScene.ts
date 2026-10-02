@@ -8,8 +8,8 @@ import { loadSave, writeSave } from '../logic/save.ts';
 import { isTouchDevice } from '../touch.ts';
 import type { RunData } from './RunScene.ts';
 
-const ROW_Y = 21;
-const ROW_H = 10;
+const ROW_Y = 20;
+const ROW_H = 9;
 const COLS = 3;
 const CELL_W = 105;
 

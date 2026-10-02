@@ -5,7 +5,7 @@ import { COLOR } from '../gfx/sprites.ts';
 import { cutMark, flash, floatText, W } from '../gfx/ui.ts';
 import type { PlayerWorld } from './arena.ts';
 import type { ClassId } from '../logic/classes.ts';
-import { SKILLS } from './skills.ts';
+import { SKILLS, TREASURES } from './skills.ts';
 import { CLASSES, FURY } from '../logic/classes.ts';
 import { DASHES } from './dashes.ts';
 import { STYLES, airTilt, emitTrail, pirouette } from './styles.ts';
@@ -14,7 +14,6 @@ import { DEBUFFS, DOT_SHARE, DOT_TICK_MS, SLOW_MULT, type Debuff } from '../logi
 const JUMP_VELOCITY = -250;
 const COYOTE_MS = 80;
 /** Weapons the Gate of Babylon fires. */
-const TREASURES = ['w_pedang', 'w_tombak', 'w_kapak', 'w_belati', 'w_katana', 'w_sabit', 'w_pedangTerbang'];
 const JUMP_BUFFER_MS = 100;
 
 type KeyName = 'left' | 'right' | 'a' | 'd' | 'up' | 'w' | 'space' | 'down' | 's' | 'attack' | 'dash' | 'skill' | 'ult';
@@ -315,6 +314,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const running = grounded && b.velocity.x !== 0;
     const frame = !grounded ? 'jump' : running ? (Math.floor(time / style.stride) % 2 ? 'run1' : 'run0') : 'idle';
     this.setTexture(dragon ? 'dragon' : `hero_${frame}_${this.skin}`);
+    // Keep the hitbox centered on the (wider) dragon sprite.
+    this.body.setOffset(dragon ? 8 : 2, dragon ? 0 : 1);
     const sinceJump = time - this.jumpAt;
     this.setFlipX(this.facing < 0 !== (!grounded && !dragon && pirouette(style.jump, sinceJump)));
     // Class body language: lean into the run, flip/roll/dive/float in the air.
@@ -619,7 +620,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (m.slam) {
       const radius = m.slam;
       this.onLand(() => {
-        this.world.area(this.x, this.y, radius, m.dmg * 1.2, m.knockback, 'basic');
+        this.world.area(this.x, this.y, radius, m.dmg * 1.2, m.knockback, 'basic', m.status);
         this.scene.cameras.main.shake(150, 0.015);
         this.swingUntil = 0;
         this.lock(0);
