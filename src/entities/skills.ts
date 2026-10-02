@@ -582,13 +582,13 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
     },
     // Avalon, the Everdistant Utopia: the golden scabbard appears before her and breaks apart into hundreds of plates
     // of light that lock together into a dome around her. Nothing reaches her inside it, her wounds close, and
-    // whatever presses against it is thrown back.
+    // whatever presses against it is thrown back. When it ends the dome comes apart and its plates fly out like
+    // blades of light, each finding an enemy anywhere in the arena (air too).
     fusion: ({ p, world, scene, power }) => {
       const LIFE = 2500;
       p.invuln(LIFE);
       p.lock(500);
       p.setVelocityX(0);
-      floatText(scene, p.x, p.y - 34, 'AVALON', '#ffec27');
       scene.cameras.main.flash(200, 255, 236, 39);
       const sheath = scene.add
         .rectangle(p.x + p.facing * 10, p.y - 4, 4, 18, 0x2a4bd7)
@@ -620,17 +620,45 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           }
         },
         onComplete: () => {
-          for (const { pl } of plates) {
-            const a = Math.random() * Math.PI * 2;
+          // The plates scatter: up to three per enemy streak to it (aimed now) and strike; the rest fade away.
+          const foes = world.targets(p.x, p.y);
+          const struck = new Set<Phaser.GameObjects.GameObject>();
+          plates.forEach(({ pl }, i) => {
+            const t = foes.length && i < foes.length * 3 ? foes[i % foes.length] : undefined;
+            if (!t) {
+              const a = Math.random() * Math.PI * 2;
+              scene.tweens.add({
+                targets: pl,
+                x: pl.x + Math.cos(a) * 30,
+                y: pl.y + Math.sin(a) * 30,
+                alpha: 0,
+                duration: 400,
+                onComplete: () => pl.destroy(),
+              });
+              return;
+            }
+            pl.setSize(6, 2);
             scene.tweens.add({
               targets: pl,
-              x: pl.x + Math.cos(a) * 30,
-              y: pl.y + Math.sin(a) * 30,
-              alpha: 0,
-              duration: 400,
-              onComplete: () => pl.destroy(),
+              x: t.x,
+              y: t.y,
+              rotation: Phaser.Math.Angle.Between(pl.x, pl.y, t.x, t.y),
+              delay: Math.floor(i / foes.length) * 70,
+              duration: 220,
+              ease: 'Quad.In',
+              onComplete: () => {
+                pl.destroy();
+                if (!t.active) return;
+                sparks(scene, t.x, t.y, [0xffec27, 0xfff1e8], 4, 10);
+                // One real hit per enemy; the trailing plates are the glitter of it.
+                if (struck.has(t)) return;
+                struck.add(t);
+                cutMark(scene, t.x, t.y, 0xffec27, 20, Math.random() * Math.PI);
+                world.strike(t, 1.4 * power, 'skill', false);
+              },
             });
-          }
+          });
+          if (foes.length) scene.cameras.main.shake(160, 0.008);
           scene.tweens.add({ targets: dome, alpha: 0, scale: 1.4, duration: 300, onComplete: () => dome.destroy() });
         },
       });
@@ -3451,12 +3479,14 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
       });
     },
     // Breath of Destruction: the head of the Dragon of Destruction rises over his shoulder, draws in a breath of red
-    // and black fire and exhales it as one roaring beam aimed at the nearest enemy (in the air or not), scorching
-    // everything along the line.
+    // and black fire and exhales it as one roaring beam along the line that burns the most enemies, scorching
+    // everything on it. Then the dragon swings its head and drags the beam across the arena onto every enemy it has
+    // not burned yet, one after another.
     fusion: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
       const f = p.facing;
-      p.lock(1000);
-      p.invuln(1000);
+      p.lock(1500);
+      p.invuln(1600);
       p.setVelocity(0, 0);
       const hx = p.x - f * 4;
       const hy = p.y - 22;
@@ -3505,13 +3535,40 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           ] as const
         ).map(([h, c, al]) => scene.add.rectangle(mx, my, len, h, c, al).setOrigin(0, 0.5).setRotation(a).setScale(0, 1).setDepth(12));
         scene.tweens.add({ targets: beam, scaleX: 1, duration: 120 });
-        scene.tweens.add({
-          targets: beam,
-          scaleY: 0,
-          alpha: 0,
-          delay: 600,
-          duration: 250,
-          onComplete: () => beam.forEach((b) => b.destroy()),
+        const burned = new Set<Phaser.GameObjects.GameObject>();
+        // The sweep: after the main burst the beam swings onto each enemy still standing outside it, nearest angle
+        // first, and the fire washes over it when the beam lands; then the breath gutters out.
+        later(scene, 600, () => {
+          const left = world.targets(mx, my).filter((t) => !burned.has(t) && !onBeam(a, t));
+          let rot = a;
+          let at = 0;
+          left
+            .map((t) => ({ t, d: Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(mx, my, t.x, t.y) - a) }))
+            .sort((u, v) => Math.abs(u.d) - Math.abs(v.d))
+            .forEach(({ t }) => {
+              later(scene, at, () => {
+                if (!t.active) return;
+                const to = rot + Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(mx, my, t.x, t.y) - rot);
+                scene.tweens.add({ targets: beam, rotation: to, duration: 90, ease: 'Sine.InOut' });
+                rot = to;
+                later(scene, 90, () => {
+                  if (!t.active) return;
+                  sparks(scene, t.x, t.y, [0xff004d, 0xffa300, 0x1d0f2e], 8, 14);
+                  scene.cameras.main.shake(80, 0.01);
+                  world.strike(t, 1.8 * power, 'skill', true, { burn: 0.4 });
+                });
+              });
+              at += 130;
+            });
+          scene.tweens.add({
+            targets: beam,
+            scaleY: 0,
+            alpha: 0,
+            delay: at + 60,
+            duration: 250,
+            onComplete: () => beam.forEach((b) => b.destroy()),
+          });
+          scene.tweens.add({ targets: head, alpha: 0, delay: at + 60, duration: 300, onComplete: () => head.destroy() });
         });
         scene.cameras.main.shake(600, 0.02);
         // Flames boil off the beam.
@@ -3525,9 +3582,12 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           });
         for (let k = 0; k < 4; k++)
           later(scene, k * 150, () => {
-            for (const t of world.targets(mx, my)) if (onBeam(a, t)) world.strike(t, 1.1 * power, 'skill', k === 3, { burn: 0.4 });
+            for (const t of world.targets(mx, my))
+              if (onBeam(a, t)) {
+                burned.add(t);
+                world.strike(t, 1.1 * power, 'skill', k === 3, { burn: 0.4 });
+              }
           });
-        scene.tweens.add({ targets: head, alpha: 0, delay: 700, duration: 300, onComplete: () => head.destroy() });
       });
     },
     // Monarch of Destruction: the sky turns blood-red and the colossal Dragon of Destruction rises behind the arena,
@@ -4067,7 +4127,9 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
     // World Cutting Slash: Dismantle aimed at space itself, which nothing can block. Sukuna chants the incantation
     // ("Dragon Scales. Recoil. Twin Meteors."), each word a hand sign and a pulse of cursed energy as the field
     // darkens; then he flicks his hand and a single line splits the whole screen, the world gaping open along it.
-    // The line is laid where it crosses the most enemies at that moment; everything on it is cut in two.
+    // The line is laid where it crosses the most enemies at that moment; everything on it is cut in two. Space does
+    // not stay in one piece: the split runs on as hairline fractures from the cut to every enemy off the line, and
+    // each of them is cut where the crack reaches it.
     fusion: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
       const cam = scene.cameras.main;
@@ -4134,9 +4196,32 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           cam.flash(120, 255, 0, 77);
           cam.shake(500, 0.03);
           for (const e of world.targets(x, y)) {
-            if (!across(x, y, a, e)) continue;
-            cutMark(scene, e.x, e.y, 0xff004d, 40, a);
-            world.strike(e, 7 * power, 'skill', true);
+            if (across(x, y, a, e)) {
+              cutMark(scene, e.x, e.y, 0xff004d, 40, a);
+              world.strike(e, 7 * power, 'skill', true);
+              continue;
+            }
+            // The fracture leaves the cut at the point nearest the enemy and zigzags to it.
+            const along = (e.x - x) * Math.cos(a) + (e.y - y) * Math.sin(a);
+            const [fx, fy] = [x + Math.cos(a) * along, y + Math.sin(a) * along];
+            const dist = Phaser.Math.Distance.Between(fx, fy, e.x, e.y);
+            later(scene, 120 + dist * 1.2, () => {
+              if (!e.active) return;
+              const crack = scene.add.graphics().setDepth(15);
+              const n = Math.max(2, Math.round(dist / 18));
+              let [px, py] = [fx, fy];
+              for (let i = 1; i <= n; i++) {
+                const k = i / n;
+                const j = i === n ? 0 : Phaser.Math.Between(-5, 5);
+                const [qx, qy] = [fx + (e.x - fx) * k - Math.sin(a) * j, fy + (e.y - fy) * k + Math.cos(a) * j];
+                crack.lineStyle(3, 0xff004d, 0.5).lineBetween(px, py, qx, qy);
+                crack.lineStyle(1, 0xfff1e8).lineBetween(px, py, qx, qy);
+                [px, py] = [qx, qy];
+              }
+              scene.tweens.add({ targets: crack, alpha: 0, delay: 200, duration: 250, onComplete: () => crack.destroy() });
+              cutMark(scene, e.x, e.y, 0xff004d, 26, Phaser.Math.Angle.Between(fx, fy, e.x, e.y) + Math.PI / 2);
+              world.strike(e, 2.5 * power, 'skill', true);
+            });
           }
           scene.tweens.add({ targets: dark, alpha: 0, delay: 500, duration: 400, onComplete: () => dark.destroy() });
         });
@@ -4891,11 +4976,13 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           }
         });
     },
-    // Mokuryu no Jutsu: a great wooden dragon bursts from the ground behind him and coils forward through the arena,
-    // biting and binding everything along its path and drawing their chakra back into him.
+    // Mokuryu no Jutsu: a great wooden dragon bursts from the ground at the wall behind him and swims the whole width
+    // of the arena, rearing up and diving down at each enemy ahead of it to bite and bind it, and drawing their chakra
+    // back into him. Whatever it slips past (too high, too fast) is whipped by a branch shooting off its body.
     fusion: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
       const f = p.facing;
-      const x0 = p.x - f * 10;
+      const x0 = f > 0 ? 6 : W - 6;
       const y0 = FLOOR_Y - 36;
       p.lock(350);
       p.setVelocityX(0);
@@ -4952,16 +5039,27 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           const t = tw.getValue() ?? 0;
           // Rises out of the ground, then swims forward in waves the width of the arena.
           const rise = Math.min(1, t * 6);
-          const hx = x0 + f * t * (W + 60);
-          const hy = Phaser.Math.Linear(FLOOR_Y + 8, y0 + Math.sin(t * Math.PI * 5) * 26, rise);
+          const hx = x0 + f * t * (W + 50);
+          let hy = Phaser.Math.Linear(FLOOR_Y + 8, y0 + Math.sin(t * Math.PI * 5) * 26, rise);
+          // It hunts: the closest unbitten enemy just ahead pulls the head up or down to it.
+          const prey = world
+            .targets(hx, hy)
+            .filter((e) => !bitten.has(e) && f * (e.x - hx) > -12 && f * (e.x - hx) < 60)
+            .sort((a, b) => f * (a.x - b.x))[0];
+          if (prey && rise === 1) hy = Phaser.Math.Linear(hy, prey.y, 1 - Math.max(0, f * (prey.x - hx)) / 60);
           head.setPosition(hx, hy).setRotation(Math.cos(t * Math.PI * 5) * 0.4 * f);
           path.unshift({ x: hx, y: hy });
           if (path.length > TAIL) path.pop();
           drawBody();
           for (const e of world.targets(hx, hy)) {
-            if (bitten.has(e) || Phaser.Math.Distance.Between(hx, hy, e.x, e.y) > 24) continue;
+            if (bitten.has(e)) continue;
+            const bite = Phaser.Math.Distance.Between(hx, hy, e.x, e.y) <= 24;
+            // Left behind: a branch lashes out of the passing body instead of the jaws.
+            const passed = f * (hx - e.x) > 30;
+            if (!bite && !passed) continue;
             bitten.add(e);
-            world.strike(e, 2.2 * power, 'skill', true, { freeze: 1500 });
+            if (passed) vine(scene, hx - f * 30, Phaser.Math.Clamp(hy, 20, FLOOR_Y - 6), e.x, e.y);
+            world.strike(e, (bite ? 2.2 : 1.6) * power, 'skill', true, { freeze: 1500 });
             leafBurst(scene, e.x, e.y, 8);
             scene.cameras.main.shake(60, 0.008);
             // Mokuton drains chakra: a green mote flies back and heals him.
