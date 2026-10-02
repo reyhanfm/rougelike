@@ -297,6 +297,21 @@ assert.equal(runStats(base, WEAPONS.pedang, ['kantong', 'koin']).coinBonus, 4);
 const { SPRITES: S } = await import('../gfx/sprites.ts');
 for (const id of Object.keys(WEAPONS)) assert.ok(`w_${id}` in S, `missing w_${id}`);
 for (const id of Object.keys(ITEMS)) assert.ok(`i_${id}` in S, `missing i_${id}`);
+// Every hero has a J+L fusion; its implementation lives in SKILLS[id].fusion (skills.ts).
+{
+  const { readFileSync } = await import('node:fs');
+  const skills = readFileSync(new URL('../entities/skills.ts', import.meta.url), 'utf8');
+  const fusionNames = new Set<string>();
+  for (const [id, w] of Object.entries(WEAPONS)) {
+    assert.ok(w.fusion, `${id} has no fusion`);
+    assert.ok(w.fusion.desc.startsWith('J+L: '), `${id} fusion desc starts with J+L:`);
+    assert.ok(w.fusion.cd >= 6 && w.fusion.cd <= 16, `${id} fusion cd ${w.fusion.cd}`);
+    assert.ok(!fusionNames.has(w.fusion.name), `${id} fusion name reused`);
+    fusionNames.add(w.fusion.name);
+  }
+  const fusionFns = skills.match(/^ {4}fusion: /gm)?.length ?? 0;
+  assert.equal(fusionFns, Object.keys(WEAPONS).length, 'one SKILLS fusion per weapon');
+}
 assert.ok(rewardInfo({ type: 'potion' }).icon in S);
 
 // Sprites: rectangular grids using only palette colors.
