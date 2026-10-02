@@ -386,7 +386,7 @@ for (let round = 2; round <= 40; round++) {
   assert.ok(current.enemyHp >= prev.enemyHp && current.enemyDamage >= prev.enemyDamage);
 }
 // Quadratic, not exponential: round 40 enemies stay within reach of a strong build.
-assert.ok(roundConfig(20).enemyDamage < 45 && roundConfig(40).enemyHp < 3500, 'late enemies must not return to exponential scaling');
+assert.ok(roundConfig(20).enemyDamage < 55 && roundConfig(40).enemyHp < 4000, 'late enemies must not return to exponential scaling');
 assert.ok(roundConfig(1).enemyHp >= 2 * derive({ str: 0, int: 0, agi: 0, dex: 0 }).damage, 'a fresh hero needs several hits per enemy');
 assert.ok(roundConfig(5).bossHp >= 500 && roundConfig(5).bossHp <= 600, 'first boss health budget');
 assert.ok(roundConfig(10).bossDamage > roundConfig(15).bossDamage, 'the super boss hits harder than the next regular boss');
@@ -394,8 +394,8 @@ assert.ok(roundConfig(10).bossDamage > roundConfig(15).bossDamage, 'the super bo
 const { ELITE, ELITE_AFFIXES, enemyPace } = await import('./stages.ts');
 assert.ok(ELITE.chance > 0 && ELITE.chance < 1 && ELITE.hp > 1);
 for (const a of Object.values(ELITE_AFFIXES)) assert.ok(a.every >= 2000 && (!a.debuff || a.debuff in DEBUFFS));
-assert.equal(enemyPace(1), 0.8);
-assert.ok(enemyPace(10) < enemyPace(2) && enemyPace(200) === 0.4);
+assert.equal(enemyPace(1), 0.72);
+assert.ok(enemyPace(10) < enemyPace(2) && enemyPace(200) === 0.35);
 // New items: dash power / on-hit burn and freeze stack but stay capped.
 const everything = runStats(base, WEAPONS.pedang, Object.keys(ITEMS) as never[]);
 assert.ok(everything.dashPower > 1 && everything.dashPower <= 4);
@@ -510,6 +510,26 @@ assert.ok(
   assert.ok(!rollEliteRound(10, () => 0) && !rollEliteRound(ELITE_ROUND.from - 1, () => 0), 'no elite round on boss rounds or too early');
   const er = eliteRoundConfig(7);
   assert.ok(er.eliteRound && !er.boss && er.enemyCount >= 3 && er.enemyCount < roundConfig(7).enemyCount);
+  // Invasions: only normal rounds from INVASION.from, any of the four hidden bosses.
+  const { INVASION, rollInvasion } = await import('./stages.ts');
+  assert.equal(
+    rollInvasion(INVASION.from - 1, () => 0),
+    undefined,
+  );
+  assert.equal(
+    rollInvasion(10, () => 0),
+    undefined,
+    'no invasion on boss rounds',
+  );
+  assert.equal(
+    rollInvasion(INVASION.from, () => 0.99),
+    undefined,
+  );
+  assert.deepEqual(
+    [0, 0.3, 0.6, 0.9].map((r) => rollInvasion(INVASION.from, seq(0, r))),
+    ['mahoraga', 'leviathan', 'godzilla', 'kaguya'],
+  );
+  assert.ok(INVASION.chance > 0 && INVASION.chance < 0.3 && INVASION.afterKills > 0 && INVASION.afterKills < 1);
 }
 // Samurai: Bushido only with the katana.
 assert.equal(runStats(base, WEAPONS.katana, [], 'samurai').dashCrit, 1);

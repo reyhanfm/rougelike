@@ -17,7 +17,7 @@ npx prettier --write <files>   # format touched files only (Boss.ts has pre-exis
 ```
 
 Dev URL shortcuts (from ClassScene, dev only): `?round=10`, `?weapon=busur`, `?mahoraga&kaguya` (force specials),
-`?elite`. In the browser console `window.game` is the Phaser game.
+`?elite`, `?invade=godzilla` (hidden boss crashes in mid-round). In the browser console `window.game` is the Phaser game.
 
 ## Layout
 
@@ -35,6 +35,7 @@ Dev URL shortcuts (from ClassScene, dev only): `?round=10`, `?weapon=busur`, `?m
 | `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H` — shrink them when rows no longer fit above y=102)                 |
 | `src/entities/Enemy.ts`, `Boss.ts`, `src/logic/stages.ts` | enemies, bosses, round scaling, special bosses                                                                   |
 | `src/keys.ts`, `src/touch.ts`, `src/gamepad.ts`           | synthetic key presses; touch buttons and controller (per-screen button layout) press the keyboard keys           |
+| `src/entities/invasions.ts`                               | `INTROS[special]`: entrance cinematic of a hidden boss crashing into a normal round (`INVASION` in stages.ts)    |
 | `src/audio.ts`                                            | Web Audio chiptune: `SONGS` (hub/run/boss/special), `sfx(name)`, `playMusic(track)`, M toggles sound             |
 | `src/logic/game.check.ts`                                 | data/balance assertions — keep them passing, add one for new non-trivial rules                                   |
 
@@ -134,5 +135,6 @@ Antares (Dragon's Fear, Breath of Destruction, Monarch of Destruction + dragon f
 Blink, Elemental Cataclysm), Artoria (Strike Air, Avalon, Excalibur sweep), King Hassan (Evening Bell, Azure Flame of
 the Grave crescent, Azrael with horned skull + spectral cuts, planted-sword pose), Sukuna (Fuga fire bow, World Cutting Slash fusion that aims the line through the most
 enemies, Malevolent Shrine domain ult), Gilgamesh (Enkidu chains, Gate of Babylon sky-full fusion, Enuma Elish rupture
-ult). Earlier sessions reworked Samurai, Archer
+ult), Naruto (Senpo: Rasenshuriken aimed at the crowd, Chojo Odama Rasen Tarengan chakra arms, Mode Baryon blitz +
+Bijudama). Earlier sessions reworked Samurai, Archer
 (Kanshou & Bakuya), and added Naruto, Sasuke and the Kaguya bonus boss. Others are older and are the next candidates.

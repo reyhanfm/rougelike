@@ -310,16 +310,16 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   private get idleMs(): number {
-    if (this.kind === 'mahoraga') return Math.max(300, 1000 - 70 * this.turns);
-    if (this.kind === 'leviathan' || this.kind === 'godzilla' || this.kind === 'kaguya') return this.enraged ? 600 : 950;
+    if (this.kind === 'mahoraga') return Math.max(250, 850 - 70 * this.turns);
+    if (this.kind === 'leviathan' || this.kind === 'godzilla' || this.kind === 'kaguya') return this.enraged ? 480 : 800;
     // Later phases barely pause.
-    return Math.max(350, 1300 - 120 * (this.tier - 1)) * (this.phase ? 1 - 0.2 * (this.phase - 1) : 1);
+    return Math.max(300, 1100 - 130 * (this.tier - 1)) * (this.phase ? 1 - 0.2 * (this.phase - 1) : 1);
   }
 
   /** Warning time before a wide attack lands: shorter every phase and every return of the boss. */
   private get warnMs(): number {
-    if (this.kind === 'leviathan' || this.kind === 'godzilla' || this.kind === 'kaguya') return this.enraged ? 650 : 850;
-    return Math.max(550, 900 - 120 * (this.phase - 1) - 40 * this.loop);
+    if (this.kind === 'leviathan' || this.kind === 'godzilla' || this.kind === 'kaguya') return this.enraged ? 600 : 780;
+    return Math.max(500, 850 - 120 * (this.phase - 1) - 40 * this.loop);
   }
 
   /** Raja Iblis enters the next phase: roar, shockwaves, new tint and patterns, short pause. */
