@@ -4187,15 +4187,16 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
     // Kuzuryusen, the Nine-Headed Dragon Flash: the nine strikes of the sword (karatake, kesagiri, migi-kesagiri,
     // migi-nagi, hidari-nagi, hidari-kiriage, migi-kiriage, sakagiri and the tsuki thrust) delivered at the same
     // instant, so there is nothing to block. He picks the enemy at the heart of the most enemies (air or ground) and
-    // shukuchis to it; for a heartbeat eight phantoms of him stand around it, one at the head of each line of attack,
-    // the lines drawn faint in the air with a dragon's fang at each end. Then all nine land at once: eight cuts flash
-    // through the mark, each one long enough to split whatever else stands on its line, and the thrust goes through
-    // the middle. The blade clicks home.
+    // shukuchis to it. For a heartbeat the nine heads of the dragon show: eight faint lines of attack fan out of the
+    // mark, each ending in a dragon's fang on an enemy of its own (the nearest ones first, flyers included; spare heads
+    // fan up into the empty sky, never into the floor), a phantom of him standing on each. Then all nine land at once:
+    // each cut is re-aimed at where its enemy is now and flashes from the mark to it, splitting the mark and anything
+    // else on the way; the thrust goes through the middle. Any enemy no head reached is caught by the backlash of the
+    // cuts. The blade clicks home.
     fusion: ({ p, world, scene, power }) => {
       const foes = world.targets(p.x, p.y);
       if (!foes.length) return false;
       const cam = scene.cameras.main;
-      const LEN = 110;
       p.invuln(1300);
       p.lock(1000);
       p.setVelocity(0, 0);
@@ -4204,51 +4205,49 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
       const mark = foes.reduce((b, e) => (near(e) > near(b) ? e : b));
       later(scene, 160, () => {
         if (!p.active) return;
-        // Shukuchi to the mark (aimed where it is now).
+        // Shukuchi to the mark (aimed where it is now). The star sits on the mark but never below the floor line.
         const [fx, fy] = [p.x, p.y];
         const tx = mark.active ? mark.x : fx;
-        const ty = mark.active ? mark.y : fy;
+        const ty = Math.min(mark.active ? mark.y : fy, FLOOR_Y - 8);
         const side = Math.sign(fx - tx) || -p.facing;
         const nx = Phaser.Math.Clamp(tx + side * 30, 8, W - 8);
-        const ny = Math.min(ty, FLOOR_Y - 8);
+        const ny = ty;
         afterimage(scene, p, fx, fy, 0.5);
         bladeLine(scene, fx, fy, nx, ny, 0xff004d, 120);
         p.body.reset(nx, ny);
         p.facing = -side;
-        // The nine heads: eight lines of attack through the mark, a phantom of him at the head of each.
-        // The star of lines is turned so its lines run through as many other enemies as possible.
+        // The eight heads: one per enemy (nearest first), the spare ones fanned across the upper half of the sky.
         const others = world.targets(tx, ty).filter((e) => e !== mark);
-        const onLine = (e: Phaser.GameObjects.Sprite, a: number) => {
-          const [dx, dy] = [e.x - tx, e.y - ty];
-          return Math.abs(dx * Math.cos(a) + dy * Math.sin(a)) <= LEN && Math.abs(-dx * Math.sin(a) + dy * Math.cos(a)) <= 9;
+        const prey = others.slice(0, 8);
+        const spare = 8 - prey.length;
+        type Head = { t?: Phaser.GameObjects.Sprite; a: number; len: number };
+        const aim = (h: Head) => {
+          if (!h.t?.active) return;
+          // Rays toward the floor are kept level with it, so no cut dives under the ground.
+          const hy = Math.min(h.t.y, FLOOR_Y - 4);
+          h.a = Phaser.Math.Angle.Between(tx, ty, h.t.x, hy);
+          h.len = Phaser.Math.Distance.Between(tx, ty, h.t.x, hy) + 10;
         };
-        const star = (o: number) => Array.from({ length: 8 }, (_, i) => (i * Math.PI) / 8 + o);
-        let turn = 0.2;
-        let best = -1;
-        for (let o = 0; o < Math.PI / 8; o += 0.03) {
-          const n = others.filter((e) => star(o).some((a) => onLine(e, a))).length;
-          if (n > best) [turn, best] = [o, n];
-        }
-        const angles = star(turn);
+        const heads: Head[] = [
+          ...prey.map((t) => ({ t, a: 0, len: 0 })),
+          ...Array.from({ length: spare }, (_, i) => ({ a: -Math.PI + ((i + 0.5) / spare) * Math.PI, len: 70 })),
+        ];
+        heads.forEach(aim);
         const guide = scene.add.graphics().setDepth(12);
-        for (const a of angles) {
-          const [cx, cy] = [Math.cos(a) * LEN, Math.sin(a) * LEN];
-          guide.lineStyle(1, 0xff004d, 0.45).lineBetween(tx - cx, ty - cy, tx + cx, ty + cy);
-          // A fang at each end, pointing in at the mark.
-          for (const s of [-1, 1]) {
-            const [ex, ey] = [tx + s * cx, ty + s * cy];
-            const [px2, py2] = [-Math.sin(a) * 3, Math.cos(a) * 3];
-            const [ix, iy] = [ex - s * Math.cos(a) * 7, ey - s * Math.sin(a) * 7];
-            guide.fillStyle(0x7a2230).fillTriangle(ex + px2, ey + py2, ex - px2, ey - py2, ix, iy);
-            guide.fillStyle(0xfff1e8).fillTriangle(ex + px2 / 2, ey + py2 / 2, ex - px2 / 2, ey - py2 / 2, ix, iy);
-          }
+        for (const { a, len } of heads) {
+          const [ex, ey] = [tx + Math.cos(a) * len, ty + Math.sin(a) * len];
+          guide.lineStyle(1, 0xff004d, 0.45).lineBetween(tx, ty, ex, ey);
+          // The dragon's fang at the head, pointing back at the mark.
+          const [px2, py2] = [-Math.sin(a) * 3, Math.cos(a) * 3];
+          const [ix, iy] = [ex - Math.cos(a) * 7, ey - Math.sin(a) * 7];
+          guide.fillStyle(0x7a2230).fillTriangle(ex + px2, ey + py2, ex - px2, ey - py2, ix, iy);
+          guide.fillStyle(0xfff1e8).fillTriangle(ex + px2 / 2, ey + py2 / 2, ex - px2 / 2, ey - py2 / 2, ix, iy);
         }
         guide.setAlpha(0);
         scene.tweens.add({ targets: guide, alpha: 1, duration: 120 });
-        const ghosts = angles.map((a, i) => {
-          const s = i % 2 ? 1 : -1;
-          const gx = tx + s * Math.cos(a) * 24;
-          const gy = Math.min(ty + s * Math.sin(a) * 24, FLOOR_Y - 6);
+        const ghosts = heads.map(({ a }, i) => {
+          const gx = tx + Math.cos(a) * 24;
+          const gy = Math.min(ty + Math.sin(a) * 24, FLOOR_Y - 8);
           return scene.add
             .image(gx, gy, p.texture.key)
             .setFlipX(gx > tx)
@@ -4269,10 +4268,17 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           });
           cam.flash(90, 255, 241, 232);
           const cut = new Set<Phaser.GameObjects.GameObject>();
-          angles.forEach((a, i) =>
+          const split = (t: Phaser.GameObjects.Sprite, a: number) => {
+            cut.add(t);
+            cutMark(scene, t.x, t.y, 0xff004d, 26, a);
+            world.strike(t, 1.8 * power, 'skill', true);
+          };
+          heads.forEach((h, i) =>
             later(scene, i * 25, () => {
-              const line = [scene.add.rectangle(tx, ty, LEN * 2, 5, 0xff004d, 0.45), scene.add.rectangle(tx, ty, LEN * 2, 1, 0xfff1e8)];
-              line.forEach((l) => l.setRotation(a).setScale(0, 1).setDepth(14));
+              aim(h);
+              const { a, len } = h;
+              const line = [scene.add.rectangle(tx, ty, len, 5, 0xff004d, 0.45), scene.add.rectangle(tx, ty, len, 1, 0xfff1e8)];
+              line.forEach((l) => l.setOrigin(0, 0.5).setRotation(a).setScale(0, 1).setDepth(14));
               scene.tweens.add({ targets: line, scaleX: 1, duration: 50, ease: 'Quad.Out' });
               scene.tweens.add({
                 targets: line,
@@ -4284,13 +4290,13 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               });
               cam.shake(50, 0.006);
               if (mark.active) world.strike(mark, 0.45 * power, 'skill', true);
-              // Whatever else lies on this line is split once.
+              // Its own enemy, and whatever else lies on the way to it, is split once.
+              if (h.t?.active && !cut.has(h.t)) split(h.t, a);
               for (const t of world.targets(tx, ty)) {
                 if (t === mark || cut.has(t)) continue;
-                if (!onLine(t, a)) continue;
-                cut.add(t);
-                cutMark(scene, t.x, t.y, 0xff004d, 26, a);
-                world.strike(t, 1.8 * power, 'skill', true);
+                const [dx, dy] = [t.x - tx, t.y - ty];
+                const along = dx * Math.cos(a) + dy * Math.sin(a);
+                if (along >= 0 && along <= len && Math.abs(-dx * Math.sin(a) + dy * Math.cos(a)) <= 9) split(t, a);
               }
             }),
           );
@@ -4307,6 +4313,12 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
             sparks(scene, tx, ty, [0xff004d, 0xfff1e8, 0xff77a8], 16, 30);
             cam.shake(200, 0.018);
             if (mark.active) world.strike(mark, 1.2 * power, 'skill', true);
+            // The backlash: anyone the nine heads did not reach (more than eight enemies) is cut where it stands.
+            for (const t of world.targets(tx, ty)) {
+              if (t === mark || cut.has(t)) continue;
+              cutMark(scene, t.x, t.y, 0xff004d, 22);
+              world.strike(t, 1.2 * power, 'skill', false);
+            }
           });
           later(scene, 620, () => floatText(scene, Phaser.Math.Clamp(p.x, 20, W - 20), p.y - 20, 'CHIN', '#fff1e8'));
         });
