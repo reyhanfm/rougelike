@@ -2440,24 +2440,41 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           sparks(scene, x, y, [a, b, 0xfff1e8], 18, R);
           floatText(scene, Phaser.Math.Clamp(x, 30, W - 30), Math.max(34, y - R), ['UAP!', 'KRISTAL!', 'PLASMA!', 'MAGMA!'][k], '#fff1e8');
           const inside = (rad: number) => world.targets(x, y).filter((t) => Phaser.Math.Distance.Between(x, y, t.x, t.y) <= rad);
-          // What the reaction throws off: a bolt of either element flies straight at each enemy outside the blast.
+          // What the reaction throws off: a bolt of either element streaks at each enemy outside the blast, chasing
+          // where it is now, and strikes on arrival (so a charging enemy cannot dodge it).
           later(scene, 260, () =>
             world
               .targets(x, y)
               .filter((t) => Phaser.Math.Distance.Between(x, y, t.x, t.y) > R)
-              .slice(0, 6)
+              .slice(0, 8)
               .forEach((t, i) => {
                 const e = pair[i % 2];
-                const an = Phaser.Math.Angle.Between(x, y, t.x, t.y);
-                world.shot({
-                  x,
-                  y,
-                  vx: Math.cos(an) * 260,
-                  vy: Math.sin(an) * 260,
-                  texture: ['fireball', 'iceshard', 'boltShot', 'boulder'][e],
-                  mult: 0.8 * power,
-                  source: 'skill',
-                  status: [{ burn: 0.3 }, { freeze: 600 }, { freeze: 300 }, { slow: 1200 }][e],
+                const glow = scene.add.circle(x, y, 5, ELEM[e], 0.35).setDepth(13);
+                const core = scene.add.circle(x, y, 3, ELEM[e]).setStrokeStyle(1, PALE[e]).setDepth(13);
+                scene.tweens.addCounter({
+                  from: 0,
+                  to: 1,
+                  delay: i * 40,
+                  duration: 220,
+                  ease: 'Quad.In',
+                  onUpdate: (tw) => {
+                    const v = tw.getValue() ?? 0;
+                    const bx = x + (t.x - x) * v;
+                    const by = y + (t.y - y) * v - Math.sin(v * Math.PI) * 18;
+                    glow.setPosition(bx, by);
+                    core.setPosition(bx, by);
+                    if (Math.random() < 0.5) {
+                      const d = scene.add.rectangle(bx, by, 2, 2, PALE[e]).setDepth(12);
+                      scene.tweens.add({ targets: d, alpha: 0, duration: 200, onComplete: () => d.destroy() });
+                    }
+                  },
+                  onComplete: () => {
+                    glow.destroy();
+                    core.destroy();
+                    if (!t.active) return;
+                    sparks(scene, t.x, t.y, [ELEM[e], PALE[e], 0xfff1e8], 7, 14);
+                    world.strike(t, 0.8 * power, 'skill', false, [{ burn: 0.3 }, { freeze: 600 }, { freeze: 300 }, { slow: 1200 }][e]);
+                  },
                 });
               }),
           );
@@ -3100,8 +3117,10 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         scene.tweens.add({ targets: crack, alpha: 0, delay: 900, duration: 300, onComplete: () => crack.destroy() });
         rocks(scene, x0, FLOOR_Y - 2, 8);
         ring(scene, x0, FLOOR_Y - 2, 0xa860f0, 6, 50, 320, 3);
-        for (let i = 0; i < 20; i++)
-          later(scene, i * 22, () => {
+        // Enough 9px steps to reach the far wall from wherever the blade lands.
+        const steps = Math.ceil(W / 9) + 1;
+        for (let i = 0; i < steps; i++)
+          later(scene, i * 13, () => {
             for (const s of [-1, 1]) {
               const x = x0 + s * i * 9;
               if (x < -6 || x > W + 6) continue;
@@ -3117,8 +3136,10 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
                 scene.tweens.add({ targets: spike, scaleY: 1, duration: 80, yoyo: true, hold: 380, onComplete: () => spike.destroy() });
               }
               if (i % 3 === 0) flameTongue(scene, x, FLOOR_Y, Phaser.Math.Between(10, 18), 420, [0x1d0f2e, 0x8a3fd1, 0xff77a8]);
+              // Everything the crack front has already passed on this side (a charging enemy cannot slip between steps).
               for (const t of world.targets(x, FLOOR_Y)) {
-                if (hit.has(t) || Math.abs(t.x - x) > 9 || t.y < FLOOR_Y - 46) continue;
+                const behind = s * (t.x - x0) >= -9 && s * (t.x - x) <= 9;
+                if (hit.has(t) || !behind || t.y < FLOOR_Y - 46) continue;
                 hit.add(t);
                 cutMark(scene, t.x, t.y, 0xa860f0, 28, -Math.PI / 2 + s * 0.3);
                 world.strike(t, 2.4 * power, 'skill', true, { slow: 1500 });
@@ -6767,6 +6788,20 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
                   cam.flash(160, 192, 128, 255);
                   cam.shake(320, 0.028);
                   floatText(scene, Phaser.Math.Clamp(hx, 40, W - 40), Math.max(36, hy - 26), 'SEJAJAR!', '#c080ff');
+                  // The alignment's tide: a gravity wave rolls out over the whole arena and crushes, where it arrives,
+                  // every enemy the planets did not land on.
+                  ring(scene, hx, hy, 0xc080ff, 44, W, 560, 1);
+                  ring(scene, hx, hy, 0x8a3fd1, 40, W * 0.8, 520, 2);
+                  for (const t of world.targets(hx, hy)) {
+                    const d = Phaser.Math.Distance.Between(hx, hy, t.x, t.y);
+                    if (d <= 40) continue;
+                    later(scene, d * 1.7, () => {
+                      if (!t.active) return;
+                      ring(scene, t.x, t.y, 0xc080ff, 14, 2, 220, 2);
+                      sparks(scene, t.x, t.y, [0x8a3fd1, 0xc080ff, 0xfff1e8], 6, 12);
+                      world.strike(t, 0.9 * power, 'skill', false, { slow: 1200 });
+                    });
+                  }
                 },
               });
             });
