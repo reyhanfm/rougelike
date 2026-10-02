@@ -9,6 +9,7 @@ import { SKILLS, TREASURES } from './skills.ts';
 import { CLASSES, FURY } from '../logic/classes.ts';
 import { DASHES } from './dashes.ts';
 import { STYLES, airTilt, emitTrail, pirouette } from './styles.ts';
+import { rumble } from '../gamepad.ts';
 import { DEBUFFS, DOT_SHARE, DOT_TICK_MS, SLOW_MULT, type Debuff } from '../logic/stages.ts';
 
 const JUMP_VELOCITY = -250;
@@ -709,6 +710,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity((this.x < fromX ? -1 : 1) * 140, -150);
     flash(this, 0xff004d);
     this.scene.cameras.main.shake(100, 0.01);
+    rumble(this.hp <= 0 ? 400 : 120, this.hp <= 0 ? 1 : 0.5);
     return this.hp <= 0 ? 'dead' : 'hit';
   }
 
