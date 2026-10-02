@@ -11,7 +11,7 @@ All in-game text is **Indonesian, UPPERCASE**. Code comments are English.
 ```
 npm run dev        # vite dev server (http://localhost:5173)
 npm run typecheck  # tsc --noEmit
-npm run check      # game.check.ts + touch.check.ts (assert-based balance/data checks)
+npm run check      # game.check.ts + touch.check.ts + gamepad.check.ts (assert-based balance/data checks)
 npm run verify     # typecheck + check + build — run before calling work done
 npx prettier --write <files>   # format touched files only (Boss.ts has pre-existing style warnings)
 ```
@@ -34,6 +34,7 @@ Dev URL shortcuts (from ClassScene, dev only): `?round=10`, `?weapon=busur`, `?m
 | `src/scenes/RunScene.ts`                                  | the run: implements both interfaces, status effects (burn/freeze/slow), HUD, rewards                             |
 | `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H` — shrink them when rows no longer fit above y=102)                 |
 | `src/entities/Enemy.ts`, `Boss.ts`, `src/logic/stages.ts` | enemies, bosses, round scaling, special bosses                                                                   |
+| `src/keys.ts`, `src/touch.ts`, `src/gamepad.ts`           | synthetic key presses; touch buttons and controller (per-screen button layout) press the keyboard keys           |
 | `src/logic/game.check.ts`                                 | data/balance assertions — keep them passing, add one for new non-trivial rules                                   |
 
 ## Adding or reworking a character — the checklist

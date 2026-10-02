@@ -3,6 +3,7 @@ import { COLOR } from '../gfx/sprites.ts';
 import { text, W } from '../gfx/ui.ts';
 import { loadSave, writeSave, type SaveData } from '../logic/save.ts';
 import { STAT_INFO, STAT_KEYS, upgradeCost } from '../logic/stats.ts';
+import { onPadChange, padConnected } from '../gamepad.ts';
 
 export interface HubData {
   died?: boolean;
@@ -53,8 +54,13 @@ export class HubScene extends Phaser.Scene {
         }),
     );
     this.descText = text(this, W / 2, ROW_Y + 4 * ROW_H + 4, '', COLOR.blue).setOrigin(0.5, 0);
-    text(this, W / 2, 158, 'W/S PILIH  J BELI  SPASI MULAI', COLOR.gray).setOrigin(0.5, 0);
-    text(this, W / 2, 169, 'J SERANG K DASH L SKILL I ULTI', COLOR.blue).setOrigin(0.5, 0);
+    const menuHint = text(this, W / 2, 158, '', COLOR.gray).setOrigin(0.5, 0);
+    const playHint = text(this, W / 2, 169, '', COLOR.blue).setOrigin(0.5, 0);
+    onPadChange(this, () => {
+      const pad = padConnected();
+      menuHint.setText(pad ? 'D-PAD PILIH  A BELI  START MULAI' : 'W/S PILIH  J BELI  SPASI MULAI');
+      playHint.setText(pad ? 'X SERANG B DASH Y SKILL RB ULTI' : 'J SERANG K DASH L SKILL I ULTI');
+    });
 
     const kb = this.input.keyboard!;
     kb.on('keydown-W', () => this.move(-1));

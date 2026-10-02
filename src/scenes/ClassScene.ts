@@ -6,6 +6,7 @@ import { WEAPONS, type WeaponId } from '../logic/loot.ts';
 import { DASHES } from '../entities/dashes.ts';
 import { loadSave, writeSave } from '../logic/save.ts';
 import { isTouchDevice } from '../touch.ts';
+import { onPadChange, padConnected } from '../gamepad.ts';
 import type { RunData } from './RunScene.ts';
 
 const ROW_Y = 20;
@@ -70,9 +71,15 @@ export class ClassScene extends Phaser.Scene {
     this.dash = text(this, 16, 124, '', '#00e436', 7).setWordWrapWidth(wrap.width);
     this.synergyTitle = text(this, 16, 136, '', COLOR.gold, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
     this.synergyDesc = text(this, 16, 146, '', COLOR.blue, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
-    text(this, W / 2, 173, isTouchDevice() ? 'KETUK KELAS 2X UNTUK MULAI' : 'WASD PILIH  J MULAI  ESC KEMBALI', COLOR.gray, 6).setOrigin(
-      0.5,
-      0,
+    const hint = text(this, W / 2, 173, '', COLOR.gray, 6).setOrigin(0.5, 0);
+    onPadChange(this, () =>
+      hint.setText(
+        padConnected()
+          ? 'D-PAD PILIH  A MULAI  B KEMBALI'
+          : isTouchDevice()
+            ? 'KETUK KELAS 2X UNTUK MULAI'
+            : 'WASD PILIH  J MULAI  ESC KEMBALI',
+      ),
     );
 
     const kb = this.input.keyboard!;
@@ -100,7 +107,7 @@ export class ClassScene extends Phaser.Scene {
     this.markers.forEach((m, i) => m.setVisible(i === this.selected));
     this.names.forEach((n, i) => n.setColor(i === this.selected ? COLOR.gold : COLOR.text));
     this.trait.setText(`SIFAT: ${c.trait}`);
-    this.dash.setText(`DASH (K): ${DASHES[CLASS_IDS[this.selected]].name}`);
+    this.dash.setText(`DASH (${padConnected() ? 'B' : 'K'}): ${DASHES[CLASS_IDS[this.selected]].name}`);
     this.synergyTitle.setText(`SINERGI (${WEAPONS[c.weapon].name}): ${c.synergy.name}`);
     // A long title wraps; the description follows right under it.
     this.synergyDesc.setText(c.synergy.desc).setY(this.synergyTitle.y + this.synergyTitle.height + 1);

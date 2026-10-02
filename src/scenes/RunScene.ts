@@ -3,6 +3,7 @@ import type { Arena, HitSource, PlayerWorld, ShotSpec } from '../entities/arena.
 import { Boss } from '../entities/Boss.ts';
 import { createEnemy, Enemy } from '../entities/Enemy.ts';
 import { Player } from '../entities/Player.ts';
+import { padConnected } from '../gamepad.ts';
 import { COLOR } from '../gfx/sprites.ts';
 import { burst, cutMark, flash, floatText, FLOOR_Y, H, text, TILE, W } from '../gfx/ui.ts';
 import {
@@ -92,6 +93,8 @@ const REWARD_Y = 56;
 const REWARD_H = 24;
 /** Index of the extra "take nothing" row after the three rewards. */
 const SKIP_ROW = 3;
+
+const pauseHint = (): string => (padConnected() ? 'START LANJUT  SELECT MENYERAH' : 'ESC LANJUT  Q MENYERAH');
 
 export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   player!: Player;
@@ -972,7 +975,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.takeReward();
     });
     const cost = rerollCost(this.rerolls);
-    const refresh = text(this, W / 2, skipY + 14, `W/S PILIH  J AMBIL  R REFRESH ${cost}`, this.coins >= cost ? COLOR.blue : COLOR.gray)
+    const refresh = text(
+      this,
+      W / 2,
+      skipY + 14,
+      `${padConnected() ? 'D-PAD PILIH  A AMBIL  Y' : 'W/S PILIH  J AMBIL  R'} REFRESH ${cost}`,
+      this.coins >= cost ? COLOR.blue : COLOR.gray,
+    )
       .setOrigin(0.5, 0)
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.reroll());
@@ -1114,7 +1123,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     else this.physics.resume();
     const sets = activePairs(this.items).map((p) => p.name);
     this.pauseText
-      .setText(['PAUSE', '', ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []), 'ESC LANJUT  Q MENYERAH'].join('\n'))
+      .setText(['PAUSE', '', ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []), pauseHint()].join('\n'))
       .setVisible(this.paused);
   }
 
@@ -1126,7 +1135,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.soulText = text(this, W - 44, 3, '');
     this.add.image(W - 50, 17, 'coin').setDepth(100);
     this.coinText = text(this, W - 44, 13, '', COLOR.gold);
-    this.ultText = text(this, 76, 12, 'I ULTI!', COLOR.gold);
+    this.ultText = text(this, 76, 12, '', COLOR.gold);
     this.debuffText = text(this, 4, 21, '', COLOR.red);
     const label = this.cfg.specials
       ? `ROUND ${this.cfg.round} BONUS`
@@ -1137,7 +1146,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
           : `ROUND ${this.cfg.round}`;
     text(this, W / 2, 3, label, this.cfg.boss ? COLOR.red : this.cfg.eliteRound ? COLOR.gold : COLOR.text).setOrigin(0.5, 0);
     this.bossHud = this.bosses.map((boss, i) => ({ boss, title: text(this, W / 2, 14 + i * 17, boss.title, COLOR.red).setOrigin(0.5, 0) }));
-    this.pauseText = text(this, W / 2, H / 2, 'PAUSE\n\nESC LANJUT  Q MENYERAH', COLOR.text)
+    this.pauseText = text(this, W / 2, H / 2, `PAUSE\n\n${pauseHint()}`, COLOR.text)
       .setOrigin(0.5)
       .setAlign('center')
       .setBackgroundColor('#000000')
@@ -1186,7 +1195,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     g.fillStyle(ultFull && Math.floor(this.time.now / 150) % 2 ? 0xffec27 : 0xff77a8).fillRect(13, 15, Math.round(0.6 * p.ult), 2);
     if (p.weapon.fusion) g.fillStyle(0x8a3fd1).fillRect(13, 18, Math.round(60 * p.fusionReady), 1);
     // Dark Avenger: the meter is the mode's timer, so label it instead of "I ULTI!".
-    this.ultText.setText(p.awakened ? 'AVENGER' : 'I ULTI!').setVisible(ultFull || p.awakened);
+    this.ultText.setText(p.awakened ? 'AVENGER' : padConnected() ? 'RB ULTI!' : 'I ULTI!').setVisible(ultFull || p.awakened);
     this.hpText.setText(`${p.hp}`);
     this.debuffText.setText([p.fury ? `AMARAH ${p.fury}` : '', p.debuffNames].filter(Boolean).join(' '));
     this.soulText.setText(`${this.runSouls}`);
