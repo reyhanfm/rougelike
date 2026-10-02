@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { unlockAudio } from './audio.ts';
 import { sendKey, type KeyName } from './keys.ts';
 
 /**
@@ -10,6 +11,7 @@ import { sendKey, type KeyName } from './keys.ts';
  *           down + A drop through a platform, START pause
  *   paused: START/B resume, SELECT surrender
  *   menus:  stick/D-pad choose, A confirm, B back (class picker), Y reroll, START start/pause
+ *   sound (like M): SELECT, or Y in the pause menu (where SELECT surrenders)
  */
 
 /** Standard-mapping button indices; 12–15 are the D-pad (the left stick is merged into them). */
@@ -33,12 +35,22 @@ const LAYOUTS: Record<PadMode, Layout> = {
     [BTN.RB]: 'I',
     [BTN.RT]: 'I',
     [BTN.START]: 'ESC',
+    [BTN.SELECT]: 'M',
   },
-  paused: { [BTN.START]: 'ESC', [BTN.B]: 'ESC', [BTN.SELECT]: 'Q' },
+  paused: { [BTN.START]: 'ESC', [BTN.B]: 'ESC', [BTN.SELECT]: 'Q', [BTN.Y]: 'M' },
   // Rewards screen (and the brief game-over screen, where these do nothing).
-  menu: { [BTN.UP]: 'W', [BTN.DOWN]: 'S', [BTN.A]: 'J', [BTN.Y]: 'R', [BTN.START]: 'ESC' },
-  hub: { [BTN.UP]: 'W', [BTN.DOWN]: 'S', [BTN.A]: 'J', [BTN.START]: 'SPACE' },
-  class: { [BTN.UP]: 'W', [BTN.DOWN]: 'S', [BTN.LEFT]: 'A', [BTN.RIGHT]: 'D', [BTN.A]: 'J', [BTN.START]: 'J', [BTN.B]: 'ESC' },
+  menu: { [BTN.UP]: 'W', [BTN.DOWN]: 'S', [BTN.A]: 'J', [BTN.Y]: 'R', [BTN.START]: 'ESC', [BTN.SELECT]: 'M' },
+  hub: { [BTN.UP]: 'W', [BTN.DOWN]: 'S', [BTN.A]: 'J', [BTN.START]: 'SPACE', [BTN.SELECT]: 'M' },
+  class: {
+    [BTN.UP]: 'W',
+    [BTN.DOWN]: 'S',
+    [BTN.LEFT]: 'A',
+    [BTN.RIGHT]: 'D',
+    [BTN.A]: 'J',
+    [BTN.START]: 'J',
+    [BTN.B]: 'ESC',
+    [BTN.SELECT]: 'M',
+  },
   none: {},
 };
 
@@ -122,6 +134,8 @@ export function mountGamepad(game: Phaser.Game, getPads: () => readonly (Gamepad
 
   const poll = (time: number) => {
     const raw = readPads(getPads());
+    // A button press is a user gesture for sound (where the browser counts it as one).
+    if (raw.some(Boolean)) unlockAudio();
     const next = currentMode(game);
     if (next !== mode) {
       mode = next;

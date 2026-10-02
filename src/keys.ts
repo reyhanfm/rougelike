@@ -6,9 +6,23 @@ import type Phaser from 'phaser';
  * menus), so the game logic has no separate touch or controller path.
  */
 
-export type KeyName = 'W' | 'A' | 'S' | 'D' | 'SPACE' | 'J' | 'K' | 'L' | 'I' | 'ESC' | 'Q' | 'R';
+export type KeyName = 'W' | 'A' | 'S' | 'D' | 'SPACE' | 'J' | 'K' | 'L' | 'I' | 'ESC' | 'Q' | 'R' | 'M';
 
-const KEY_CODES: Record<KeyName, number> = { W: 87, A: 65, S: 83, D: 68, SPACE: 32, J: 74, K: 75, L: 76, I: 73, ESC: 27, Q: 81, R: 82 };
+const KEY_CODES: Record<KeyName, number> = {
+  W: 87,
+  A: 65,
+  S: 83,
+  D: 68,
+  SPACE: 32,
+  J: 74,
+  K: 75,
+  L: 76,
+  I: 73,
+  ESC: 27,
+  Q: 81,
+  R: 82,
+  M: 77,
+};
 
 function fakeEvent(keyCode: number, type: 'keydown' | 'keyup'): KeyboardEvent {
   const e = {

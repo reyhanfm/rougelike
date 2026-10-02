@@ -6,6 +6,7 @@ import { RunScene } from './scenes/RunScene.ts';
 import { H, W } from './gfx/ui.ts';
 import { isTouchDevice, mountTouchControls } from './touch.ts';
 import { mountGamepad } from './gamepad.ts';
+import { mountAudio } from './audio.ts';
 
 // Text is rasterized once at creation, so wait for the pixel font (offline: monospace fallback).
 await Promise.race([document.fonts.load('8px "Press Start 2P"'), new Promise((r) => setTimeout(r, 2000))]).catch(() => undefined);
@@ -31,6 +32,7 @@ const game = new Phaser.Game({
 
 if (isTouchDevice()) mountTouchControls(game);
 mountGamepad(game);
+mountAudio();
 
 if (import.meta.env.DEV) {
   (window as unknown as { game: Phaser.Game }).game = game;

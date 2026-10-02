@@ -4,6 +4,7 @@ import { text, W } from '../gfx/ui.ts';
 import { loadSave, writeSave, type SaveData } from '../logic/save.ts';
 import { STAT_INFO, STAT_KEYS, upgradeCost } from '../logic/stats.ts';
 import { onPadChange, padConnected } from '../gamepad.ts';
+import { playMusic, sfx, soundLabel, toggleSound } from '../audio.ts';
 
 export interface HubData {
   died?: boolean;
@@ -28,6 +29,7 @@ export class HubScene extends Phaser.Scene {
   create(data: HubData): void {
     this.save = loadSave();
     this.selected = 0;
+    playMusic('hub');
     this.add.image(0, 0, 'bg').setOrigin(0).setAlpha(0.6);
 
     text(this, W / 2, 10, 'PEDANG JIWA', COLOR.gold, 16).setOrigin(0.5, 0);
@@ -56,8 +58,14 @@ export class HubScene extends Phaser.Scene {
     this.descText = text(this, W / 2, ROW_Y + 4 * ROW_H + 4, '', COLOR.blue).setOrigin(0.5, 0);
     const menuHint = text(this, W / 2, 158, '', COLOR.gray).setOrigin(0.5, 0);
     const playHint = text(this, W / 2, 169, '', COLOR.blue).setOrigin(0.5, 0);
+    const soundHint = text(this, 4, 3, '', COLOR.gray, 6)
+      .setLineSpacing(2)
+      .setPadding(2)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => soundHint.setText(`${padConnected() ? 'SELECT' : 'M'}\n${toggleSound()}`));
     onPadChange(this, () => {
       const pad = padConnected();
+      soundHint.setText(`${pad ? 'SELECT' : 'M'}\n${soundLabel()}`);
       menuHint.setText(pad ? 'D-PAD PILIH  A BELI  START MULAI' : 'W/S PILIH  J BELI  SPASI MULAI');
       playHint.setText(pad ? 'X SERANG B DASH Y SKILL RB ULTI' : 'J SERANG K DASH L SKILL I ULTI');
     });
@@ -70,11 +78,13 @@ export class HubScene extends Phaser.Scene {
     kb.on('keydown-J', () => this.buy());
     kb.on('keydown-ENTER', () => this.buy());
     kb.on('keydown-SPACE', () => this.startRun());
+    kb.on('keydown-M', () => soundHint.setText(`${padConnected() ? 'SELECT' : 'M'}\n${toggleSound()}`));
     this.refresh();
   }
 
   private move(d: number): void {
     this.selected = Phaser.Math.Wrap(this.selected + d, 0, STAT_KEYS.length);
+    sfx('move');
     this.refresh();
   }
 
@@ -82,9 +92,11 @@ export class HubScene extends Phaser.Scene {
     const key = STAT_KEYS[this.selected];
     const cost = upgradeCost(this.save.stats[key]);
     if (this.save.souls < cost) {
+      sfx('deny');
       this.cameras.main.shake(80, 0.005);
       return;
     }
+    sfx('buy');
     this.save.souls -= cost;
     this.save.stats[key]++;
     writeSave(this.save);
@@ -92,6 +104,7 @@ export class HubScene extends Phaser.Scene {
   }
 
   private startRun(): void {
+    sfx('confirm');
     this.scene.start('class');
   }
 

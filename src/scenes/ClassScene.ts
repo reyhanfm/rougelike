@@ -7,6 +7,7 @@ import { DASHES } from '../entities/dashes.ts';
 import { loadSave, writeSave } from '../logic/save.ts';
 import { isTouchDevice } from '../touch.ts';
 import { onPadChange, padConnected } from '../gamepad.ts';
+import { playMusic, sfx, toggleSound } from '../audio.ts';
 import type { RunData } from './RunScene.ts';
 
 const ROW_Y = 20;
@@ -30,6 +31,7 @@ export class ClassScene extends Phaser.Scene {
 
   create(): void {
     this.selected = Math.max(0, CLASS_IDS.indexOf(loadSave().cls));
+    playMusic('hub');
     this.add.image(0, 0, 'bg').setOrigin(0).setAlpha(0.6);
     text(this, W / 2, 4, 'PILIH KELAS', COLOR.gold, 16).setOrigin(0.5, 0);
 
@@ -93,12 +95,17 @@ export class ClassScene extends Phaser.Scene {
     kb.on('keydown-RIGHT', () => this.move(1));
     kb.on('keydown-J', () => this.start());
     kb.on('keydown-ENTER', () => this.start());
-    kb.on('keydown-ESC', () => this.scene.start('hub'));
+    kb.on('keydown-ESC', () => {
+      sfx('back');
+      this.scene.start('hub');
+    });
+    kb.on('keydown-M', () => toggleSound());
     this.refresh();
   }
 
   private move(d: number): void {
     this.selected = Phaser.Math.Wrap(this.selected + d, 0, CLASS_IDS.length);
+    sfx('move');
     this.refresh();
   }
 
@@ -114,6 +121,7 @@ export class ClassScene extends Phaser.Scene {
   }
 
   private start(): void {
+    sfx('confirm');
     const cls = CLASS_IDS[this.selected];
     const save = loadSave();
     save.cls = cls;

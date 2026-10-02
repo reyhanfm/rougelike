@@ -10,6 +10,7 @@ import { CLASSES, FURY } from '../logic/classes.ts';
 import { DASHES } from './dashes.ts';
 import { STYLES, airTilt, emitTrail, pirouette } from './styles.ts';
 import { rumble } from '../gamepad.ts';
+import { sfx } from '../audio.ts';
 import { DEBUFFS, DOT_SHARE, DOT_TICK_MS, SLOW_MULT, type Debuff } from '../logic/stages.ts';
 
 const JUMP_VELOCITY = -250;
@@ -341,6 +342,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.dashHits.clear();
     this.body.setAllowGravity(!!d.gravity);
     this.setVelocity(this.facing * d.speed, d.vy ?? 0);
+    sfx('dash');
     d.start?.({ p: this, world: this.world, scene: this.scene, power: this.stats.dashPower });
   }
 
@@ -359,6 +361,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private avoid(time: number, label: string, color: string): 'ignored' {
     this.invulnUntil = time + 400;
+    sfx('block');
     floatText(this.scene, this.x, this.y - 18, label, color);
     return 'ignored';
   }
@@ -565,6 +568,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Dragon form: the attack is a stream of fire (hold to keep breathing).
     if (this.dragon) {
       this.swingReadyAt = time + this.stats.swingCooldown * 800;
+      sfx('shoot');
       for (const a of [-0.15, 0, 0.15]) {
         this.world.shot({
           x: this.x + this.facing * 10,
@@ -582,6 +586,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     // Cast weapons (Gojo): the attack key is a technique, not a swing.
     if (this.weapon.cast) {
+      sfx('shoot');
       this.swingReadyAt = time + this.stats.swingCooldown * 1000 * (1 - FURY.step * this.fury);
       SKILLS[this.weapon.id].basic?.({ p: this, world: this.world, scene: this.scene, power: 1 });
       return;
@@ -601,6 +606,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const k = this.awakened ? this.awakening!.reach : 1;
     this.move = k === 1 ? m : { ...m, reach: { w: m.reach.w * k, h: m.reach.h * k } };
     this.swingUntil = time + m.ms;
+    // Finishers (the slowest move of the combo) and air slams get the heavy sound; ranged weapons a shot.
+    sfx(this.weapon.projectile ? 'shoot' : m.cd >= 1.3 || m.slam || m.dive ? 'heavy' : 'swing');
     this.swingReadyAt = time + this.stats.swingCooldown * m.cd * 1000 * (1 - FURY.step * this.fury);
     this.hitThisSwing.clear();
     this.crossed = false;
@@ -684,6 +691,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     const info = this.weapon[kind]!;
+    sfx(kind);
     if (kind === 'skill') this.skillReadyAt = time + this.weapon.skill.cd * this.stats.skillCdMult * 1000;
     else if (kind === 'fusion') this.fusionReadyAt = time + this.weapon.fusion!.cd * this.stats.skillCdMult * 1000;
     else {
@@ -711,6 +719,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     flash(this, 0xff004d);
     this.scene.cameras.main.shake(100, 0.01);
     rumble(this.hp <= 0 ? 400 : 120, this.hp <= 0 ? 1 : 0.5);
+    sfx('hurt');
     return this.hp <= 0 ? 'dead' : 'hit';
   }
 
@@ -720,6 +729,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private jump(): void {
     this.setVelocityY(JUMP_VELOCITY);
+    sfx('jump');
     this.jumpAt = this.scene.time.now;
     this.jumpCut = true;
     this.jumpBufferUntil = 0;
