@@ -28,7 +28,8 @@ export type ClassId =
   | 'sasuke'
   | 'gravityMaster'
   | 'lightningLord'
-  | 'nephalem';
+  | 'nephalem'
+  | 'lumina';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -1045,6 +1046,44 @@ export const CLASSES: Record<ClassId, GameClass> = {
       desc: '15% HIT MEMBAKAR, SKILL +20%',
       apply: (s) => {
         s.burnChance += 0.15;
+        s.skillPower *= 1.2;
+      },
+    },
+  },
+  lumina: {
+    id: 'lumina',
+    name: 'LUMINA',
+    weapon: 'foton',
+    color: 'L',
+    legs: { kind: 'coat', pant: 'L', boot: 'a' },
+    hair: '7',
+    // Lumina, the one who commands light: glowing white-gold hair, eyes lit cyan, a pearl-white coat traced with lines
+    // of cyan light and trimmed in gold, a white-hot core at the belt.
+    head: [
+      '..7.a7.7..',
+      '.0777a770.',
+      '0777a77770',
+      '.07777770.',
+      '.0fyffyf0.',
+      '.0ffffff0.',
+      '..0aLLa0..',
+      '.0LyLLyL0.',
+      '0fLLaaLLf0',
+      '0f0LyyL0f0',
+      '..0a77a0..',
+    ],
+    passive: { name: 'KRISTAL CAHAYA', desc: 'TIAP 3 HIT / KRITIS MEMUNCULKAN KRISTAL CAHAYA YANG MENEMBAK SINAR; JADI CERMIN SKILL' },
+    trait: 'TUBUH FOTON: GERAK +15%, KRITIS +5%, DASH -10% CD',
+    apply: (s) => {
+      s.speed *= 1.15;
+      s.critChance += 0.05;
+      s.dashCooldown *= 0.9;
+    },
+    synergy: {
+      name: 'SPEKTRUM PENUH',
+      desc: 'KRITIS +8%, SKILL +20%',
+      apply: (s) => {
+        s.critChance += 0.08;
         s.skillPower *= 1.2;
       },
     },

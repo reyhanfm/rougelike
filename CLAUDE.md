@@ -106,7 +106,7 @@ The user wants each character to be **keren**, iconic and unmistakably theirs. W
 - `world.pull` / `world.slam` skip bosses (they are too heavy to move); damage them with `strike`/`area` instead.
 - Depths: background props 2–5, player ~10, effects 11–15, HUD above. Dark overlays at depth 8.
 - Shared VFX helpers in `skills.ts`: `ring`, `sparks`, `thorns`, `rocks`, `explosion`, `glint`, `afterimage`,
-  `bladeLine`, `leafBurst`, `vine`, `tree`, `bolt` (lightning), `stormArc` (layered gold lightning), `twilightWings`, `balanceSigil`, `hurlRock`, `feathers`, `flameTongue`, `azraelBlade`,
+  `bladeLine`, `leafBurst`, `vine`, `tree`, `bolt` (lightning), `stormArc` (layered gold lightning), `twilightWings`, `balanceSigil`, `lightRay`, `hexMirror`, `hurlRock`, `feathers`, `flameTongue`, `azraelBlade`,
   `eveningBell`; `cutMark`, `floatText`, `burst` in `gfx/ui.ts`. Reuse them.
 - Editing a file while the dev server runs triggers an HMR full reload of the page.
 - Never run `prettier --write src` (it reformats `Boss.ts`, which has pre-existing style differences); format only
@@ -152,7 +152,9 @@ enemies, Malevolent Shrine domain ult), Gilgamesh (Enkidu chains, Gate of Babylo
 rupture swept through a full turn over the whole arena, then the sky tears), Naruto (Senpo: Rasenshuriken aimed at the crowd, Chojo Odama Rasen Tarengan chakra arms, Mode Baryon blitz +
 Bijudama), Lightning Lord (new class: STATIK charge via `SKILLS.halilintar.onHit`, Tombak Halilintar chain javelin, Mahkota
 Badai orb crown, Penghakiman Guntur storm web ult, `stormArc` lightning helper), Nephalem (new class, half angel half demon: holy blade + twin hellblade, KESEIMBANGAN
-onHit, Sayap Senja, Gerbang Surga & Neraka, Senjakala; always-on wings via `STYLES[cls].attach`). Earlier sessions reworked Samurai, Archer
+onHit, Sayap Senja, Gerbang Surga & Neraka, Senjakala; always-on wings via `STYLES[cls].attach`). Lumina (new class, light: Pedang Foton, KRISTAL CAHAYA passive crystals that
+also serve as mirrors, Jaring Cermin rainbow mirror lattice, Tirai Aurora curtains, Fajar Semesta lens + dawn;
+`SPECTRUM`, `lightRay`, `onLine`, `hexMirror`). Earlier sessions reworked Samurai, Archer
 (Kanshou & Bakuya), and added Naruto, Sasuke and the Kaguya bonus boss. Generic-skill pass (2026-10): Heracles (Singa Nemea
 lion `nemeanLion`, Nine Lives set piece), Grim Reaper (Gerbang Alam Baka `underworldHand`, Panen Maut `giantReaper`),
 Gunners (sniper, Badai Timah minigun), Cultivator (Formasi Enam Pedang seal, Sungai Seribu Pedang spline river),
