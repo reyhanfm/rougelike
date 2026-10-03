@@ -48,7 +48,9 @@ A class touches **every** one of these; missing one is a type error or a broken 
    class uses** (add a new one to `PALETTE` if needed). `head` = 11 rows × 10 chars (rows 0–2 hair, 3 brow, 4 eyes,
    5 face, 6 collar, 7–9 torso with hands `f` at cols 1/8, 10 belt). In head rows the char `c` is replaced by the class
    color (hair color on rows 1–3), so do not use `c` for eyes. `legs.kind`: pants / robe / armor / coat / float.
-2. `loot.ts` — add to `WeaponId`, add `WEAPONS` entry: combo (3–4 moves, finisher with bigger `cd`), `air` move,
+2. `loot.ts` — add to `WeaponId`, add `WEAPONS` entry: combo (3–4 moves, finisher with bigger `cd`), `air` combo
+   (2–3 moves of its own, each with a `hover` lift so it reaches flyers, never a dive), `dive` (down + attack in the air:
+   a plunge, usually with `slam`),
    `skill` (cd seconds), `ult`, `fusion` (required). Baseline combo DPS must stay **20–38** (checked in game.check).
 3. `sprites.ts` — `w_<weaponId>` held sprite (required, checked) and any projectile/prop textures.
 4. `skills.ts` — `SKILLS[weaponId]` with `skill`, `ult` and `fusion` (and `basic` if `cast: true`).

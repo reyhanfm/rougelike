@@ -1273,6 +1273,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
           'PAUSE',
           '',
           `PASIF: ${CLASSES[this.cls].passive.name}`,
+          `${padConnected() ? 'BAWAH+X' : 'S+J'} DI UDARA: MENUKIK`,
           '',
           ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []),
           pauseHint(),

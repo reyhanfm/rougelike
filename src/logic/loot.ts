@@ -115,8 +115,11 @@ export interface Weapon {
   /** Attack and skill pressed together cast this instead (SKILLS[id].fusion). cd in seconds. */
   fusion?: { name: string; desc: string; cd: number };
   combo: Move[];
-  /** Used instead of the combo when attacking in mid-air. */
-  air: Move & { name: string };
+  /** The mid-air combo (attack in the air): chained like the ground combo, each move a small lift so it can reach
+   * and keep up with flyers. */
+  air: Move[];
+  /** Down + attack in the air: the dive (a plunge, usually a slam on landing). */
+  dive: Move & { name: string };
   /** Cooldown skill (key L). cd in seconds. */
   skill: { name: string; desc: string; cd: number };
   /** Ultimate (key I), spends a full ult meter. */
@@ -142,16 +145,25 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Invisible Air falls away for one heavy downward cut.
       { anim: 'overhead', dmg: 1.9, cd: 1.5, ms: 200, reach: box(30, 32), knockback: 260 },
     ],
-    air: {
-      name: 'TEBASAN ANGIN',
-      anim: 'spin',
-      dmg: 1.1,
+    air: [
+      // Wind-wrapped cuts that keep her aloft: down, up, then the whirling Invisible Air.
+      { anim: 'down', dmg: 0.9, cd: 1, ms: 110, reach: box(24, 22), knockback: 100, hover: 70, cut: 0xc2f0ff },
+      { anim: 'up', dmg: 0.9, cd: 1, ms: 110, reach: box(24, 26), knockback: 100, hover: 70, cut: 0xc2f0ff },
+      { anim: 'spin', dmg: 1.1, cd: 1.3, ms: 220, reach: box(30, 30), knockback: 140, hitbox: 'around', hover: 60 },
+    ],
+    dive: {
+      name: 'MANA BURST JATUH',
+      anim: 'plunge',
+      dmg: 1.3,
       cd: 1.2,
-      ms: 220,
-      reach: box(30, 30),
-      knockback: 140,
-      hitbox: 'around',
-      hover: 90,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 60, vy: 400 },
+      slam: 28,
+      trail: 0x29adff,
+      cut: 0xc2f0ff,
     },
     skill: { name: 'STRIKE AIR', desc: 'SELUBUNG ANGIN DILEPAS: BOR PUSARAN MEMBIDIK, MENEMBUS & MENGHEMPAS', cd: 5 },
     fusion: { name: 'AVALON', desc: 'J+L: SARUNG PEDANG JADI KUBAH CAHAYA: KEBAL, PULIH, MUSUH TERPENTAL', cd: 14 },
@@ -186,7 +198,12 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
         status: { burn: 0.15 },
       },
     ],
-    air: {
+    air: [
+      // Azrael swung in the air: a heavy chop, then a cross cut both ways.
+      { anim: 'overhead', dmg: 1.1, cd: 1.2, ms: 170, reach: box(26, 28), knockback: 160, hover: 60, cut: 0x29adff },
+      { anim: 'cross', dmg: 0.7, cd: 1.2, ms: 200, reach: box(28, 26), knockback: 120, hover: 60, cut: 0x7fe6ff },
+    ],
+    dive: {
       name: 'JATUH AZRAEL',
       anim: 'plunge',
       dmg: 1.3,
@@ -221,15 +238,22 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Gae Bolg driven home on a charge, the curse's barbs bursting out (SKILLS.tombak.onHit).
       { anim: 'thrust', dmg: 1.3, cd: 1.4, ms: 180, reach: box(36, 10), knockback: 240, lunge: 220, trail: 0xff004d },
     ],
-    air: {
+    air: [
+      // A long aerial poke, then the spear twirled around him (two hits).
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 140, reach: box(38, 8), knockback: 150, hover: 60 },
+      { anim: 'spin', dmg: 0.6, cd: 1.2, ms: 240, reach: box(36, 24), knockback: 120, hitbox: 'around', hover: 60, hits: 2 },
+    ],
+    dive: {
+      // Spear point first, straight down; it pogos off whatever it skewers (and he can go again).
       name: 'TUSUKAN BAWAH',
       anim: 'plunge',
       dmg: 1.2,
       cd: 0.8,
-      ms: 220,
+      ms: 700,
       reach: box(8, 24),
       knockback: 60,
       hitbox: 'below',
+      dive: { vx: 30, vy: 380 },
       bounce: 240,
     },
     skill: { name: 'GAE BOLG', desc: 'TUSUKAN YANG PASTI MENGENAI JANTUNG, KRITIS', cd: 5 },
@@ -253,7 +277,12 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Brought down so hard the floor heaves: a wave of rock runs on ahead (SKILLS.kapak.onSwing).
       { anim: 'overhead', dmg: 1.5, cd: 1.6, ms: 260, reach: box(28, 34), knockback: 300, lunge: 60 },
     ],
-    air: {
+    air: [
+      // The stone axe-sword chopped down, then whirled all the way round.
+      { anim: 'down', dmg: 1.1, cd: 1.2, ms: 200, reach: box(26, 30), knockback: 220, hover: 50 },
+      { anim: 'spin', dmg: 1, cd: 1.3, ms: 240, reach: box(40, 30), knockback: 200, hitbox: 'around', hover: 50 },
+    ],
+    dive: {
       name: 'HANTAMAN METEOR',
       anim: 'plunge',
       dmg: 1.4,
@@ -291,16 +320,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Throw the pair; they curve back to him.
       { anim: 'shoot', dmg: 1.1, cd: 1.3, ms: 120, reach: box(0, 0), knockback: 90, angles: [-0.15, 0.15] },
     ],
-    air: {
-      name: 'SAYAP BANGAU',
-      anim: 'cross',
-      dmg: 0.7,
-      cd: 1.1,
-      ms: 180,
-      reach: box(28, 28),
-      knockback: 100,
-      hitbox: 'around',
-      hover: 100,
+    air: [
+      // Crane's Wings: both blades crossing around him, then the pair thrown level and caught again.
+      { anim: 'cross', dmg: 0.7, cd: 1.1, ms: 180, reach: box(28, 28), knockback: 100, hitbox: 'around', hover: 100 },
+      { anim: 'shoot', dmg: 0.9, cd: 1.3, ms: 120, reach: box(0, 0), knockback: 90, angles: [-0.15, 0.15], hover: 60 },
+    ],
+    dive: {
+      name: 'TERJUNAN BANGAU',
+      anim: 'plunge',
+      dmg: 1.2,
+      cd: 1.2,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 80, vy: 400 },
+      slam: 26,
+      cut: 0xfff1e8,
     },
     skill: { name: 'CALADBOLG II', desc: 'PANAH SPIRAL YANG MELEDAK SAAT KENA', cd: 5 },
     fusion: { name: 'KAKUYOKU SANREN', desc: 'J+L: TIGA PASANG KANSHOU & BAKUYA MENGAPIT MUSUH, LALU OVEREDGE', cd: 9 },
@@ -323,16 +359,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // The reap: a full turn of the blade; every soul it cuts feeds him (SKILLS.sabit.onHit).
       { anim: 'spin', dmg: 1.6, cd: 1.5, ms: 260, reach: box(44, 32), knockback: 200, hitbox: 'around' },
     ],
-    air: {
-      name: 'TEBASAN BULAN',
-      anim: 'spin',
-      dmg: 1.2,
+    air: [
+      // A hooking cut that drags the enemy in, then the full moon of the blade around him.
+      { anim: 'down', dmg: 1, cd: 1, ms: 160, reach: box(32, 24), knockback: -90, hover: 70 },
+      { anim: 'spin', dmg: 1.2, cd: 1.2, ms: 220, reach: box(32, 32), knockback: 140, hitbox: 'around', hover: 60 },
+    ],
+    dive: {
+      name: 'SABIT JATUH',
+      anim: 'plunge',
+      dmg: 1.3,
       cd: 1.2,
-      ms: 220,
-      reach: box(32, 32),
-      knockback: 140,
-      hitbox: 'around',
-      hover: 60,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 40, vy: 400 },
+      slam: 30,
+      cut: 0x29adff,
     },
     skill: { name: 'GERBANG ALAM BAKA', desc: 'LANTAI TERBELAH: TANGAN TULANG & RANTAI JIWA MENYERET MUSUH, LALU MENGGIGIT', cd: 6 },
     fusion: { name: 'JAM PASIR AJAL', desc: 'J+L: JAM PASIR DI ATAS TIAP MUSUH, SAAT HABIS SABIT MENEBAS (HP RENDAH X2)', cd: 10 },
@@ -363,7 +406,24 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
         shot: 'pellet',
       },
     ],
-    air: { name: 'TEMBAK MENUKIK', anim: 'shoot', dmg: 1, cd: 1.1, ms: 80, reach: box(0, 0), knockback: 12, angles: [0.35] },
+    air: [
+      // Strafing fire from the air: level, raised, then a spread.
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 70, reach: box(0, 0), knockback: 12, angles: [0], hover: 40 },
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 70, reach: box(0, 0), knockback: 12, angles: [-0.35], hover: 40 },
+      { anim: 'shoot', dmg: 0.6, cd: 1.2, ms: 90, reach: box(0, 0), knockback: 20, angles: [-0.3, 0, 0.3], hover: 40 },
+    ],
+    dive: {
+      name: 'INJAKAN TEMPUR',
+      anim: 'plunge',
+      dmg: 1.1,
+      cd: 1.2,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 80, vy: 420 },
+      slam: 26,
+    },
     skill: { name: 'TEMBAKAN SNIPER', desc: 'BIDIK MUSUH TERKUAT (UDARA JUGA), PELURU ANTI-TANK MENEMBUS SEGARIS', cd: 5 },
     fusion: { name: 'SERANGAN UDARA', desc: 'J+L: SUAR MERAH, PESAWAT MEMBOM DARAT & MEMBERONDONG MUSUH UDARA', cd: 12 },
     ult: { name: 'BADAI TIMAH', desc: 'SENAPAN MESIN 6 LARAS MENYAPU DARAT & LANGIT, DITUTUP ROKET KE KERUMUNAN' },
@@ -381,16 +441,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'shoot', dmg: 1.2, cd: 1, ms: 100, reach: box(0, 0), knockback: 70, angles: [0] },
       { anim: 'shoot', dmg: 1.8, cd: 1.3, ms: 150, reach: box(0, 0), knockback: 140, angles: [0] },
     ],
-    air: {
+    air: [
+      // One flying sword at a time: sent level, then sent up at the sky.
+      { anim: 'shoot', dmg: 1.1, cd: 1, ms: 100, reach: box(0, 0), knockback: 70, angles: [0], hover: 60 },
+      { anim: 'shoot', dmg: 1.1, cd: 1.1, ms: 100, reach: box(0, 0), knockback: 70, angles: [-0.4], hover: 60 },
+    ],
+    dive: {
       name: 'PEDANG JATUH',
-      anim: 'shoot',
-      dmg: 0.9,
+      anim: 'plunge',
+      dmg: 1.3,
       cd: 1.2,
-      ms: 120,
-      reach: box(0, 0),
-      knockback: 60,
-      angles: [0.8],
-      hover: 80,
+      ms: 900,
+      reach: box(16, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 440 },
+      slam: 30,
+      trail: 0x29adff,
     },
     skill: { name: 'FORMASI ENAM PEDANG', desc: 'ENAM PEDANG MENGUNCI KERUMUNAN DALAM SEGEL, MENEBAS SILANG, LALU MENUTUP', cd: 6 },
     fusion: { name: 'PEDANG LANGIT', desc: 'J+L: PEDANG RAKSASA MENGHUNJAM, LALU PECAH JADI PEDANG PEMBURU', cd: 10 },
@@ -422,18 +489,47 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // A boulder wrenched up and flung: the heavy finisher.
       { anim: 'shoot', dmg: 1.8, cd: 1.5, ms: 160, reach: box(0, 0), knockback: 220, angles: [0], shot: 'boulder', status: { slow: 900 } },
     ],
-    air: {
-      name: 'HUJAN ES',
-      anim: 'shoot',
-      dmg: 0.8,
+    air: [
+      // The element cycle in the air: a fireball, twin ice shards, then sparks of lightning arcing up.
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0], status: { burn: 0.15 }, hover: 60 },
+      {
+        anim: 'shoot',
+        dmg: 0.8,
+        cd: 1,
+        ms: 100,
+        reach: box(0, 0),
+        knockback: 30,
+        angles: [-0.25, 0.25],
+        shot: 'iceshard',
+        status: { freeze: 350 },
+        hover: 60,
+      },
+      {
+        anim: 'shoot',
+        dmg: 0.8,
+        cd: 1.2,
+        ms: 100,
+        reach: box(0, 0),
+        knockback: 40,
+        angles: [-0.5, -0.2],
+        shot: 'boltShot',
+        status: { freeze: 200 },
+        hover: 50,
+      },
+    ],
+    dive: {
+      name: 'METEOR KECIL',
+      anim: 'plunge',
+      dmg: 1.3,
       cd: 1.2,
-      ms: 120,
-      reach: box(0, 0),
-      knockback: 30,
-      angles: [0.5, 0.9],
-      shot: 'iceshard',
-      status: { freeze: 350 },
-      hover: 70,
+      ms: 900,
+      reach: box(16, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 420 },
+      slam: 30,
+      trail: 0xffa300,
+      status: { burn: 0.2 },
     },
     skill: { name: 'SIKLUS ELEMEN', desc: 'TIAP CAST GANTI ELEMEN: INFERNO, GLACIER, THUNDER, QUAKE', cd: 5 },
     fusion: { name: 'REAKSI ELEMEN', desc: 'J+L: ELEMEN KINI + BERIKUTNYA BERTABRAKAN: UAP/KRISTAL/PLASMA/MAGMA', cd: 10 },
@@ -455,15 +551,33 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Iai: a flash-draw straight through the enemy.
       { anim: 'thrust', dmg: 2, cd: 1.6, ms: 150, reach: box(32, 12), knockback: 200, lunge: 320, trail: 0xfff1e8, cut: 0xff004d },
     ],
-    air: {
-      name: 'TSUBAME GAESHI',
-      anim: 'cross',
-      dmg: 0.7,
-      cd: 1.1,
-      ms: 200,
-      reach: box(28, 26),
-      knockback: 100,
-      hover: 110,
+    air: [
+      // Tsubame Gaeshi, then an aerial iai that carries him forward through the enemy.
+      { anim: 'cross', dmg: 0.7, cd: 1.1, ms: 200, reach: box(28, 26), knockback: 100, hover: 110, cut: 0xfff1e8 },
+      {
+        anim: 'thrust',
+        dmg: 1.2,
+        cd: 1.3,
+        ms: 140,
+        reach: box(30, 12),
+        knockback: 180,
+        lunge: 260,
+        hover: 40,
+        trail: 0xfff1e8,
+        cut: 0xff004d,
+      },
+    ],
+    dive: {
+      name: 'OTOSHI GIRI',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 60, vy: 420 },
+      slam: 26,
       cut: 0xfff1e8,
     },
     skill: { name: 'IAIDO', desc: 'KUDA-KUDA, MELESAT MENEBAS SEMUA DI JALUR, PASTI KRITIS', cd: 4 },
@@ -484,16 +598,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // A charged star-arrow: one bright shaft that pierces the whole line (SKILLS.busurArkana.onSwing flares it).
       { anim: 'shoot', dmg: 2.2, cd: 1.5, ms: 160, reach: box(0, 0), knockback: 140, angles: [0], pierce: true, shot: 'panahBintang' },
     ],
-    air: {
-      name: 'PANAH BINTANG',
-      anim: 'shoot',
-      dmg: 0.9,
-      cd: 1.3,
-      ms: 120,
-      reach: box(0, 0),
-      knockback: 60,
-      angles: [0.45, 0.8, 1.15],
-      hover: 70,
+    air: [
+      // Arcane arrows from the air: one level, then three fanned up into the sky.
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0], hover: 60 },
+      { anim: 'shoot', dmg: 0.7, cd: 1.3, ms: 120, reach: box(0, 0), knockback: 60, angles: [-0.45, -0.15, 0.15], hover: 50 },
+    ],
+    dive: {
+      name: 'BINTANG JATUH',
+      anim: 'plunge',
+      dmg: 1.2,
+      cd: 1.2,
+      ms: 900,
+      reach: box(16, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 420 },
+      slam: 30,
+      trail: 0xff77a8,
     },
     skill: { name: 'PANAH PRISMA', desc: 'PANAH CAHAYA MENEMBUS, TIAP MUSUH MEMBIASKANNYA JADI 3 SINAR WARNA', cd: 5 },
     fusion: { name: 'RASI PENGIKAT', desc: 'J+L: PANAH JADI BINTANG, RASI MENGIKAT SEMUA MUSUH LALU MELEDAK', cd: 10 },
@@ -516,15 +637,22 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'up', dmg: 1.1, cd: 1.1, ms: 160, reach: box(24, 30), knockback: 60, trail: 0x8a3fd1 },
       { anim: 'overhead', dmg: 1.7, cd: 1.5, ms: 220, reach: box(30, 30), knockback: 260, lunge: 80 },
     ],
-    air: {
-      name: 'BULAN GELAP',
-      anim: 'up',
-      dmg: 1.2,
-      cd: 1.2,
-      ms: 200,
-      reach: box(28, 34),
-      knockback: 220,
-      hover: 170,
+    air: [
+      // A chop, then the Dark Moon: a rising cut that lifts him on its momentum.
+      { anim: 'down', dmg: 1, cd: 1.1, ms: 150, reach: box(26, 26), knockback: 140, hover: 60 },
+      { anim: 'up', dmg: 1.2, cd: 1.2, ms: 200, reach: box(28, 34), knockback: 220, hover: 120, trail: 0x8a3fd1 },
+    ],
+    dive: {
+      name: 'TUSUKAN GERHANA',
+      anim: 'plunge',
+      dmg: 1.4,
+      cd: 1.3,
+      ms: 900,
+      reach: box(16, 18),
+      knockback: 200,
+      hitbox: 'below',
+      dive: { vx: 40, vy: 420 },
+      slam: 32,
       trail: 0x8a3fd1,
     },
     skill: { name: 'PERJANJIAN GELAP', desc: 'BAYAR 8% HP: PEDANG BAYANGAN RAKSASA MEMBELAH SETENGAH LINGKARAN, HP KEMBALI X2', cd: 5 },
@@ -548,17 +676,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'uppercut', dmg: 1.1, cd: 1, ms: 110, reach: box(16, 24), knockback: 80, extra: 1, launch: 220 },
       { anim: 'jab', dmg: 1.5, cd: 1.6, ms: 180, reach: box(30, 24), knockback: 180, lunge: 140, extra: 2 },
     ],
-    air: {
-      name: 'RODA ASURA',
-      anim: 'hook',
-      dmg: 0.8,
+    air: [
+      // Twin jabs, then the Asura Wheel: all six arms spun around him.
+      { anim: 'jab', dmg: 0.5, cd: 1, ms: 100, reach: box(18, 14), knockback: 40, hover: 60, extra: 1, hits: 2 },
+      { anim: 'hook', dmg: 0.8, cd: 1.2, ms: 220, reach: box(30, 26), knockback: 100, hitbox: 'around', hover: 90, extra: 3 },
+    ],
+    dive: {
+      name: 'TINJU METEOR',
+      anim: 'jab',
+      dmg: 1.3,
       cd: 1.2,
-      ms: 220,
-      reach: box(30, 26),
-      knockback: 100,
-      hitbox: 'around',
-      hover: 90,
-      extra: 3,
+      ms: 900,
+      reach: box(16, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 100, vy: 380 },
+      slam: 30,
+      extra: 2,
     },
     skill: { name: 'TINJU SERIBU', desc: 'ENAM LENGAN MENGHUJANI 3 JALUR (DARAT-LANGIT), DITUTUP TINJU RAKSASA', cd: 5 },
     fusion: { name: 'GENGGAMAN ASURA', desc: 'J+L: ENAM LENGAN GAIB MENCENGKERAM 6 MUSUH, MEREMAS & MEMBANTING', cd: 9 },
@@ -593,7 +727,12 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
         status: { burn: 0.3 },
       },
     ],
-    air: {
+    air: [
+      // A three-stroke rake, then a rising claw.
+      { anim: 'hook', dmg: 0.4, cd: 1, ms: 150, reach: box(22, 20), knockback: 60, hover: 70, hits: 3, status: { burn: 0.1 } },
+      { anim: 'uppercut', dmg: 1, cd: 1.2, ms: 120, reach: box(20, 28), knockback: 120, hover: 70, status: { burn: 0.15 } },
+    ],
+    dive: {
       name: 'TERKAMAN NAGA',
       anim: 'thrust',
       dmg: 1.2,
@@ -623,15 +762,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'shoot', dmg: 0.45, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [-0.06, 0, 0.06] },
       { anim: 'shoot', dmg: 0.35, cd: 1.5, ms: 150, reach: box(0, 0), knockback: 80, angles: [-0.15, -0.09, -0.03, 0.03, 0.09, 0.15] },
     ],
-    air: {
-      name: 'HUJAN HARTA',
-      anim: 'shoot',
-      dmg: 0.45,
-      cd: 1.3,
-      ms: 120,
-      reach: box(0, 0),
-      knockback: 60,
-      angles: [0.5, 0.65, 0.8, 1],
+    air: [
+      // Gates open around him in the air too, each turned on an enemy: three, then four.
+      { anim: 'shoot', dmg: 0.45, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [-0.06, 0, 0.06], hover: 50 },
+      { anim: 'shoot', dmg: 0.45, cd: 1.3, ms: 120, reach: box(0, 0), knockback: 60, angles: [-0.1, -0.03, 0.03, 0.1], hover: 50 },
+    ],
+    dive: {
+      name: 'TURUN TAHTA',
+      anim: 'plunge',
+      dmg: 1.2,
+      cd: 1.2,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 420 },
+      slam: 28,
+      trail: 0xffec27,
     },
     skill: { name: 'ENKIDU', desc: 'RANTAI LANGIT DARI GERBANG MELILIT & MENGIKAT 3 MUSUH 2 DTK', cd: 6 },
     fusion: { name: 'GATE OF BABYLON', desc: 'J+L: LANGIT PENUH GERBANG EMAS, HUJAN HARTA KE SEMUA MUSUH', cd: 10 },
@@ -651,7 +798,25 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Hachi (Cleave): a crossed cut that hits harder.
       { anim: 'shoot', dmg: 1.8, cd: 1.5, ms: 150, reach: box(0, 0), knockback: 180, angles: [0], shot: 'hachi' },
     ],
-    air: { name: 'KAI UDARA', anim: 'shoot', dmg: 1, cd: 1.1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0.45] },
+    air: [
+      // Kai level, Kai up into the air, then Hachi.
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 90, reach: box(0, 0), knockback: 60, angles: [0], hover: 40 },
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 90, reach: box(0, 0), knockback: 60, angles: [-0.4], hover: 40 },
+      { anim: 'shoot', dmg: 1.5, cd: 1.4, ms: 140, reach: box(0, 0), knockback: 160, angles: [0], shot: 'hachi', hover: 40 },
+    ],
+    dive: {
+      name: 'DISMANTLE JATUH',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 40, vy: 420 },
+      slam: 28,
+      cut: 0xff004d,
+    },
     skill: { name: 'FUGA', desc: 'BUSUR API: PANAH API MELEDAK JADI PILAR API, MEMBAKAR', cd: 7 },
     fusion: { name: 'WORLD CUTTING SLASH', desc: 'J+L: MANTRA, LALU DUNIA TERBELAH DI GARIS PALING BANYAK MUSUH', cd: 12 },
     ult: { name: 'MALEVOLENT SHRINE', desc: 'DOMAIN: KUIL MUNCUL, KAI & HACHI PASTI KENA SEMUA MUSUH DI ARENA' },
@@ -666,7 +831,24 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     crit: 0.05,
     // One Blue cast: four crushing ticks of 0.5.
     combo: [{ anim: 'thrust', dmg: 2, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 }],
-    air: { name: 'AO', anim: 'thrust', dmg: 2, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 },
+    air: [
+      // (Cast weapon: the attack key always casts Ao; these describe the cast for balance.)
+      { anim: 'thrust', dmg: 2, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 },
+    ],
+    dive: {
+      name: 'AO JATUH',
+      anim: 'plunge',
+      dmg: 1.4,
+      cd: 1.2,
+      ms: 900,
+      reach: box(18, 18),
+      knockback: 120,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 440 },
+      slam: 36,
+      trail: 0x29adff,
+      status: { slow: 900 },
+    },
     skill: { name: 'AKA', desc: 'MERAH: TOLAKAN MENGHEMPAS SEMUA DI DEPAN', cd: 3 },
     fusion: { name: 'MURASAKI', desc: 'J+L: UNGU HAMPA MENGHAPUS SEMUA DI JALURNYA', cd: 8 },
     ult: { name: 'MURYOKUSHO', desc: 'DOMAIN HAMPA: SEMUA MUSUH BEKU TENGGELAM INFORMASI, DIPUKUL SATU-SATU, LALU PECAH' },
@@ -688,15 +870,20 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       { anim: 'down', dmg: 1, cd: 1, ms: 110, reach: box(24, 22), knockback: 120 },
       { anim: 'thrust', dmg: 1.8, cd: 1.5, ms: 160, reach: box(32, 12), knockback: 240, lunge: 340, trail: 0xfff1e8 },
     ],
-    air: {
+    air: [
+      // Two stabs in the time of one, then a cut down.
+      { anim: 'thrust', dmg: 0.5, cd: 1, ms: 120, reach: box(28, 10), knockback: 40, hover: 60, hits: 2 },
+      { anim: 'down', dmg: 1, cd: 1.1, ms: 110, reach: box(24, 24), knockback: 120, hover: 60 },
+    ],
+    dive: {
       name: 'TIKAMAN KILAT',
       anim: 'thrust',
       dmg: 1.2,
       cd: 1.1,
-      ms: 200,
-      reach: box(30, 12),
+      ms: 280,
+      reach: box(30, 14),
       knockback: 200,
-      dive: { vx: 340, vy: 30 },
+      dive: { vx: 220, vy: 360 },
       trail: 0xfff1e8,
     },
     skill: { name: 'PLAYFUL CLOUD', desc: 'TONGKAT 3 RUAS DICAMBUKKAN: SAPU KE ATAS, LECUT LURUS, HANTAM TANAH', cd: 5 },
@@ -723,15 +910,22 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Gunbai gust: a great sweep blows everything around away.
       { anim: 'spin', dmg: 1.6, cd: 1.5, ms: 220, reach: box(44, 32), knockback: 280, hitbox: 'around' },
     ],
-    air: {
-      name: 'KIPASAN BADAI',
-      anim: 'overhead',
-      dmg: 1.2,
-      cd: 1.2,
-      ms: 220,
-      reach: box(34, 34),
+    air: [
+      // The storm fan swept down, then the kama thrown level.
+      { anim: 'overhead', dmg: 1.2, cd: 1.2, ms: 220, reach: box(34, 34), knockback: 280, hover: 90 },
+      { anim: 'shoot', dmg: 1.1, cd: 1.1, ms: 120, reach: box(0, 0), knockback: 90, angles: [-0.1], hover: 50 },
+    ],
+    dive: {
+      name: 'GUNBAI JATUH',
+      anim: 'plunge',
+      dmg: 1.4,
+      cd: 1.3,
+      ms: 900,
+      reach: box(18, 18),
       knockback: 280,
-      hover: 90,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 420 },
+      slam: 36,
     },
     skill: { name: 'KATON: GOKAKYU', desc: 'BOLA API RAKSASA MENEMBUS & MEMBAKAR', cd: 6 },
     fusion: { name: 'TENGAI SHINSEI', desc: 'J+L: DUA METEOR RAKSASA JATUH KE KERUMUNAN MUSUH, TANAH HANCUR', cd: 12 },
@@ -753,15 +947,22 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Wood bursts out all around and snags whatever it hits.
       { anim: 'spin', dmg: 1.5, cd: 1.5, ms: 220, reach: box(44, 32), knockback: 220, hitbox: 'around', status: { freeze: 300 } },
     ],
-    air: {
-      name: 'CAMBUK AKAR',
-      anim: 'down',
-      dmg: 1.1,
-      cd: 1.1,
-      ms: 200,
-      reach: box(32, 28),
-      knockback: 120,
-      hover: 60,
+    air: [
+      // The root whip, then a long root spear stabbed out level.
+      { anim: 'down', dmg: 1.1, cd: 1.1, ms: 200, reach: box(32, 28), knockback: 120, hover: 60, status: { freeze: 400 } },
+      { anim: 'thrust', dmg: 1, cd: 1.2, ms: 140, reach: box(40, 10), knockback: 150, hover: 50 },
+    ],
+    dive: {
+      name: 'HUTAN JATUH',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 900,
+      reach: box(16, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 420 },
+      slam: 32,
       status: { freeze: 400 },
     },
     skill: { name: 'JUKAI KOTAN', desc: 'HUTAN MELEDAK TUMBUH BERUNTUN, CABANG MENJERAT MUSUH (UDARA JUGA)', cd: 6 },
@@ -797,16 +998,34 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
         status: { burn: 0.15 },
       },
     ],
-    air: {
-      name: 'HUJAN SHURIKEN',
-      anim: 'shoot',
-      dmg: 0.8,
+    air: [
+      // Shuriken fanned level, then a fireball.
+      { anim: 'shoot', dmg: 0.7, cd: 1.1, ms: 110, reach: box(0, 0), knockback: 50, angles: [-0.12, 0, 0.12], hover: 60 },
+      {
+        anim: 'shoot',
+        dmg: 1.1,
+        cd: 1.2,
+        ms: 120,
+        reach: box(0, 0),
+        knockback: 60,
+        angles: [-0.1],
+        shot: 'fireball',
+        status: { burn: 0.15 },
+        hover: 50,
+      },
+    ],
+    dive: {
+      name: 'KUNAI JATUH',
+      anim: 'plunge',
+      dmg: 1.2,
       cd: 1.2,
-      ms: 110,
-      reach: box(0, 0),
-      knockback: 50,
-      angles: [0.5, 0.8, 1.1],
-      hover: 70,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 60, vy: 420 },
+      slam: 24,
+      cut: 0xff004d,
     },
     skill: { name: 'AMATERASU', desc: 'API HITAM ABADI MEMBAKAR MUSUH & MENJALAR', cd: 7 },
     fusion: { name: 'TOTSUKA NO TSURUGI', desc: 'J+L: SUSANOO MERAH, PEDANG TOTSUKA MENUSUK TIAP MUSUH LALU MENYEGELNYA', cd: 11 },
@@ -850,17 +1069,34 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
         status: { freeze: 600 },
       },
     ],
-    air: {
-      name: 'ANGIN MALAM',
-      anim: 'shoot',
-      dmg: 0.9,
+    air: [
+      // The Night Wind carries him: an ice shard level, then two fanned up.
+      { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 40, angles: [0], status: { freeze: 250 }, hover: 80 },
+      {
+        anim: 'shoot',
+        dmg: 0.9,
+        cd: 1.2,
+        ms: 120,
+        reach: box(0, 0),
+        knockback: 40,
+        angles: [-0.45, -0.1],
+        status: { freeze: 250 },
+        hover: 80,
+      },
+    ],
+    dive: {
+      name: 'SALJU JATUH',
+      anim: 'plunge',
+      dmg: 1.2,
       cd: 1.2,
-      ms: 120,
-      reach: box(0, 0),
-      knockback: 40,
-      angles: [0.4, 0.8],
-      status: { freeze: 250 },
-      hover: 120,
+      ms: 900,
+      reach: box(16, 18),
+      knockback: 140,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 420 },
+      slam: 32,
+      trail: 0xc2f0ff,
+      status: { freeze: 400 },
     },
     skill: {
       name: 'BLIZZARD VORTEX',
@@ -889,7 +1125,13 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // A Rasengan hurled forward, grinding through everything.
       { anim: 'shoot', dmg: 1.6, cd: 1.4, ms: 140, reach: box(0, 0), knockback: 200, angles: [0] },
     ],
-    air: {
+    air: [
+      // Sage-mode jab and hook in the air, then a Rasengan thrown level.
+      { anim: 'jab', dmg: 0.9, cd: 0.9, ms: 80, reach: box(20, 14), knockback: 70, hover: 60 },
+      { anim: 'hook', dmg: 0.9, cd: 0.9, ms: 90, reach: box(20, 16), knockback: 80, hover: 60 },
+      { anim: 'shoot', dmg: 1.4, cd: 1.4, ms: 140, reach: box(0, 0), knockback: 200, angles: [0], hover: 40 },
+    ],
+    dive: {
       name: 'ODAMA RASENGAN',
       anim: 'jab',
       dmg: 1.3,
@@ -937,17 +1179,34 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
         status: { freeze: 250 },
       },
     ],
-    air: {
-      name: 'CHIDORI SENBON',
-      anim: 'shoot',
-      dmg: 0.6,
-      cd: 1.1,
-      ms: 110,
-      reach: box(0, 0),
-      knockback: 30,
-      angles: [0.35, 0.65, 0.95],
-      hover: 80,
-      status: { freeze: 150 },
+    air: [
+      // A Chidori stab, then senbon of lightning fanned level.
+      { anim: 'thrust', dmg: 0.9, cd: 0.9, ms: 90, reach: box(28, 10), knockback: 80, hover: 60 },
+      {
+        anim: 'shoot',
+        dmg: 0.6,
+        cd: 1.1,
+        ms: 110,
+        reach: box(0, 0),
+        knockback: 30,
+        angles: [-0.2, 0, 0.2],
+        status: { freeze: 150 },
+        hover: 60,
+      },
+    ],
+    dive: {
+      name: 'CHIDORI JATUH',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 60, vy: 420 },
+      slam: 30,
+      trail: 0x29adff,
+      status: { freeze: 250 },
     },
     skill: { name: 'CHIDORI EISO', desc: 'TOMBAK PETIR MEMANJANG, MENEMBUS & MELUMPUHKAN SEMUA DI GARIS', cd: 5 },
     fusion: { name: 'KIRIN', desc: 'J+L: AWAN BADAI, PETIR BERWUJUD KIRIN MENUKIK KE KERUMUNAN & MENYAMBAR SEMUA', cd: 12 },
@@ -977,7 +1236,22 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
         status: { slow: 900 },
       },
     ],
-    air: {
+    air: [
+      // Singularities from the air: one level, then three fanned.
+      { anim: 'shoot', dmg: 0.9, cd: 1, ms: 100, reach: box(0, 0), knockback: 30, angles: [0], status: { slow: 500 }, hover: 60 },
+      {
+        anim: 'shoot',
+        dmg: 0.7,
+        cd: 1.3,
+        ms: 140,
+        reach: box(0, 0),
+        knockback: 90,
+        angles: [-0.35, -0.1, 0.15],
+        status: { slow: 900 },
+        hover: 50,
+      },
+    ],
+    dive: {
       // He makes himself a hundred times heavier and drops like a meteor; the landing caves the ground in.
       name: 'JATUH BINTANG',
       anim: 'plunge',
@@ -1013,7 +1287,12 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // The judgement: an overhead slam that cracks a bolt down onto whatever it hits (see SKILLS.halilintar.onHit).
       { anim: 'overhead', dmg: 1.5, cd: 1.5, ms: 220, reach: box(30, 30), knockback: 240, status: { freeze: 250 } },
     ],
-    air: {
+    air: [
+      // A royal thrust, then the rising sweep trailing sparks.
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 120, reach: box(32, 10), knockback: 120, hover: 60 },
+      { anim: 'up', dmg: 1.1, cd: 1.2, ms: 150, reach: box(28, 28), knockback: 150, hover: 60, trail: 0x7fe6ff },
+    ],
+    dive: {
       // He falls like a lightning strike, the halberd point-first; the landing discharges into the ground.
       name: 'SAMBARAN JATUH',
       anim: 'plunge',
@@ -1050,17 +1329,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       // Both blades at once in a cross: the twilight cut that feeds both halves.
       { anim: 'cross', dmg: 1.2, cd: 1.5, ms: 240, reach: box(28, 28), knockback: 220, cut: 0xc080ff },
     ],
-    air: {
-      // A spin on his wings, both blades out.
-      name: 'TARIAN SAYAP',
-      anim: 'spin',
-      dmg: 1.1,
-      cd: 1,
-      ms: 260,
-      reach: box(22, 22),
-      knockback: 140,
-      hitbox: 'around',
-      hover: 120,
+    air: [
+      // The holy blade, the hellblade, then the wing dance with both.
+      { anim: 'down', dmg: 0.9, cd: 1, ms: 120, reach: box(24, 22), knockback: 110, hover: 60, cut: 0xffec27 },
+      { anim: 'up', dmg: 0.9, cd: 1, ms: 120, reach: box(24, 24), knockback: 110, hover: 60, cut: 0xff004d, status: { burn: 0.1 } },
+      { anim: 'spin', dmg: 1.1, cd: 1.2, ms: 260, reach: box(22, 22), knockback: 140, hitbox: 'around', hover: 80, cut: 0xc080ff },
+    ],
+    dive: {
+      name: 'PENGHAKIMAN SENJA',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 40, vy: 420 },
+      slam: 30,
       cut: 0xc080ff,
     },
     skill: { name: 'SAYAP SENJA', desc: 'SAYAP MENGEPAK: TOMBAK CAHAYA KE SISI MALAIKAT, API NERAKA KE SISI IBLIS', cd: 6 },

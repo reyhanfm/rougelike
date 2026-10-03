@@ -42,8 +42,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private nextDot = 0;
   /** Bushido window: a basic hit before this time is a guaranteed crit. */
   private dashCritUntil = 0;
-  /** An air move already gave its upward lift since the last landing. */
-  private hoverUsed = false;
+  /** Air-combo lifts used since the last landing (at most one per move of the air combo). */
+  private airLifts = 0;
+  /** Current step of the mid-air combo (index into weapon.air). */
+  private airIndex = -1;
   /** Stats without the awakening boost. */
   private baseStats!: Derived;
   /** Dark Avenger mode is on (ult meter draining). */
@@ -278,7 +280,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (grounded) {
       this.coyoteUntil = time + COYOTE_MS;
       this.airJumps = this.stats.extraJumps;
-      this.hoverUsed = false;
+      this.airLifts = 0;
+      this.airIndex = -1;
       if (this.landFn && time >= this.landArmAt) {
         const fn = this.landFn;
         this.landFn = undefined;
@@ -631,23 +634,30 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
       return;
     }
+    const grounded = this.body.blocked.down || this.body.touching.down;
+    // Down + attack in the air is the dive, for every class (even Gojo, whose attack key otherwise casts).
+    const diving = !grounded && (this.keys.down.isDown || this.keys.s.isDown);
     // Cast weapons (Gojo): the attack key is a technique, not a swing.
-    if (this.weapon.cast) {
+    if (this.weapon.cast && !diving) {
       sfx('shoot');
       this.swingReadyAt = time + this.stats.swingCooldown * 1000 * (1 - FURY.step * this.fury);
       SKILLS[this.weapon.id].basic?.({ p: this, world: this.world, scene: this.scene, power: 1 });
       PASSIVES[this.skin].onAttack?.(this.passiveCtx, this.move);
       return;
     }
-    const grounded = this.body.blocked.down || this.body.touching.down;
     let m: Move;
     if (grounded) {
       const combo = this.weapon.combo;
       this.comboIndex = nextCombo(this.comboIndex, time - this.swingReadyAt, combo.length);
       m = combo[this.comboIndex];
+    } else if (diving) {
+      m = this.weapon.dive;
+      this.comboIndex = this.airIndex = -1;
     } else {
-      // Mid-air: the weapon's aerial move; the ground combo restarts after it.
-      m = this.weapon.air;
+      // Mid-air: the weapon's own air combo; the ground combo restarts after it.
+      const air = this.weapon.air;
+      this.airIndex = nextCombo(this.airIndex, time - this.swingReadyAt, air.length);
+      m = air[this.airIndex];
       this.comboIndex = -1;
     }
     // Awakened: every melee move reaches further.
@@ -665,10 +675,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.lock(m.ms);
       if (m.cut) this.streak(this.x, m.ms, m.cut);
     }
-    // Air lift only once per airtime; spamming air attacks must not keep the player flying.
-    if (m.hover && !this.hoverUsed) {
+    // Each air-combo move may lift once per airtime (so a full air combo can chase a flyer), but spamming air
+    // attacks must not keep the player flying.
+    if (m.hover && this.airLifts < this.weapon.air.length) {
       this.setVelocityY(Math.min(this.body.velocity.y, -m.hover));
-      this.hoverUsed = true;
+      this.airLifts++;
     }
     if (m.dive) {
       this.setVelocity(this.facing * m.dive.vx, m.dive.vy);
