@@ -5595,13 +5595,14 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
     // firing, a rain of Noble Phantasms on every enemy in the arena (flyers too), each gate taking its own mark.
     fusion: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
-      p.lock(1300);
+      p.lock(1700);
       p.setVelocityX(0);
       floatText(scene, Phaser.Math.Clamp(p.x, 40, W - 40), p.y - 30, 'TAHU DIRI!', '#ffec27');
-      const gates = Array.from({ length: 18 }, (_, i) => {
-        const row = Math.floor(i / 6);
-        const x = 24 + (i % 6) * 54 + (row % 2) * 27 + Phaser.Math.Between(-6, 6);
-        const y = 38 + row * 20 + Phaser.Math.Between(-4, 4);
+      // Four staggered rows of nine gates: the whole sky.
+      const gates = Array.from({ length: 36 }, (_, i) => {
+        const row = Math.floor(i / 9);
+        const x = 16 + (i % 9) * 36 + (row % 2) * 18 + Phaser.Math.Between(-4, 4);
+        const y = 30 + row * 17 + Phaser.Math.Between(-3, 3);
         const key = Phaser.Math.RND.pick(TREASURES);
         const tip = scene.add.image(0, 0, key).setScale(0.7).setTint(0xfff0a0).setAlpha(0.9);
         const gate = scene.add
@@ -5613,15 +5614,15 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           ])
           .setScale(0)
           .setDepth(9);
-        scene.tweens.add({ targets: gate, scale: 1, delay: i * 25, duration: 160, ease: 'Back.Out' });
+        scene.tweens.add({ targets: gate, scale: 1, delay: i * 14, duration: 160, ease: 'Back.Out' });
         return { gate, tip, key };
       });
       // Each shot leaves a gate already aimed: the treasure in it turns to its target, then flies.
-      for (let i = 0; i < 24; i++)
-        later(scene, 500 + i * 35, () => {
+      for (let i = 0; i < 48; i++)
+        later(scene, 520 + i * 22, () => {
           const ts = world.targets(p.x, p.y);
           if (!ts.length) return;
-          const g = gates[(i * 7) % gates.length];
+          const g = gates[(i * 13) % gates.length];
           const t = ts[i % ts.length];
           // The treasure flies at its own mark and follows it, so the rain lands where the enemies are.
           const [x0, y0] = [g.gate.x, g.gate.y];
@@ -5641,26 +5642,27 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               shot.destroy();
               if (!t.active) return;
               sparks(scene, t.x, t.y, [0xffec27, 0xfff1e8], 5, 12);
-              world.strike(t, 0.3 * power, 'skill', false);
+              world.strike(t, 0.22 * power, 'skill', false);
             },
           });
           ring(scene, g.gate.x, g.gate.y, 0xffec27, 6, 16, 200);
           g.key = Phaser.Math.RND.pick(TREASURES);
           g.tip.setTexture(g.key).setRotation(a);
-          if (i % 4 === 0) scene.cameras.main.shake(50, 0.003);
+          if (i % 6 === 0) scene.cameras.main.shake(50, 0.003);
         });
-      later(scene, 1450, () =>
+      later(scene, 1700, () =>
         gates.forEach(({ gate }, i) =>
-          scene.tweens.add({ targets: gate, scaleY: 0, alpha: 0, delay: i * 15, duration: 160, onComplete: () => gate.destroy() }),
+          scene.tweens.add({ targets: gate, scaleY: 0, alpha: 0, delay: i * 8, duration: 160, onComplete: () => gate.destroy() }),
         ),
       );
     },
     // Enuma Elish, the Star of Creation that Split Heaven and Earth: "Wake up, Ea." Night falls and a great gate opens
     // at his side; he draws Ea, the Sword of Rupture, and holds it high as its three cylinders turn against each
     // other, dragging the air of the whole arena into a red-black vortex at its tip while the ground trembles. Then
-    // he brings it down on the thickest press of enemies and space itself is torn: a spiraling storm of rupture tears
-    // across the field, striking what lies in its path one after another, and cracks race out of it across sky and
-    // ground. At the end the world splits along those cracks (KOYAK!) and everything on the field is struck at once.
+    // he swings it through one full turn at arm's length: the storm of rupture pours from its tip as a beam across the
+    // whole arena and sweeps over every enemy wherever it stands, striking each as it passes, while cracks race out of
+    // it across sky and ground. At the end the sky itself tears open along those cracks (KOYAK!) and everything on the
+    // field is struck at once.
     ult: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
       const cam = scene.cameras.main;
@@ -5738,100 +5740,119 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         });
       later(scene, 300, () => cam.shake(1000, 0.005));
       const cracks: Phaser.GameObjects.Graphics[] = [];
-      later(scene, 1350, () => {
-        // Aim along the line through the most enemies ahead of the blade's swing (either side).
-        const ts = world.targets(ex, ey);
-        const onRay = (a: number, o: Phaser.GameObjects.Sprite) => {
-          const [dx, dy] = [o.x - ex, o.y - ey];
-          return dx * Math.cos(a) + dy * Math.sin(a) > 0 && Math.abs(-dx * Math.sin(a) + dy * Math.cos(a)) < 24;
-        };
-        let aim = f > 0 ? 0 : Math.PI;
-        let most = -1;
-        for (const e of ts) {
-          const a = Phaser.Math.Angle.Between(ex, ey, e.x, e.y);
-          const n = ts.filter((o) => onRay(a, o)).length;
-          if (n > most) [aim, most] = [a, n];
+      // A crack of rupture racing out from (cx, cy) along `dir`: a jagged red line with a black core.
+      const crack = (cx: number, cy: number, dir: number) => {
+        const pts: [number, number][] = [[cx, cy]];
+        for (let s = 1; s <= 6; s++) {
+          const [lx, ly] = pts[s - 1];
+          const st = Phaser.Math.Between(10, 22);
+          const a = dir + Phaser.Math.FloatBetween(-0.6, 0.6);
+          pts.push([lx + Math.cos(a) * st, ly + Math.sin(a) * st]);
         }
+        const g = scene.add.graphics().setDepth(12);
+        for (const [w, c] of [
+          [3, 0xff004d],
+          [1, 0x000000],
+        ] as const) {
+          g.lineStyle(w, c).beginPath().moveTo(pts[0][0], pts[0][1]);
+          for (const [x, y] of pts) g.lineTo(x, y);
+          g.strokePath();
+        }
+        cracks.push(g);
+      };
+      // The sweep: Ea, held at arm's length, is swung through one full turn, starting straight up and going over his
+      // facing side first. The storm of rupture pours from its tip as a beam that crosses the whole arena, so it
+      // passes over every enemy wherever it stands, striking each as it comes; cracks race out of it as it turns.
+      const SWEEP = 1000;
+      const LEN = 420;
+      const a0 = -Math.PI / 2;
+      const turn = f * Math.PI * 2;
+      later(scene, 1350, () => {
         spin.remove();
         wind.stop();
         vortex.destroy();
-        // The swing: Ea drops from overhead onto the aim, then the storm is let loose from its tip.
-        const sf = Math.cos(aim) >= 0 ? 1 : -1;
-        ea.setFlipX(sf < 0).setOrigin(sf > 0 ? 0.1 : 0.9, 0.5);
-        const rot = sf > 0 ? aim : aim - Math.PI;
-        scene.tweens.add({ targets: ea, rotation: rot, duration: 90, ease: 'Quad.In' });
-        const [ox, oy] = [ex + Math.cos(aim) * REACH, ey + Math.sin(aim) * REACH];
-        const LEN = 420;
+        cam.shake(SWEEP, 0.012);
+        ea.setFlipX(false).setOrigin(0.1, 0.5).setRotation(a0);
         const beam = (
           [
-            [64, 0xff004d, 0.4],
-            [40, 0x000000, 0.9],
-            [14, 0x7e2553, 0.9],
-            [4, 0xfff1e8, 1],
+            [52, 0xff004d, 0.35],
+            [32, 0x000000, 0.9],
+            [12, 0x7e2553, 0.9],
+            [3, 0xfff1e8, 1],
           ] as const
-        ).map(([h, c, al]) => scene.add.rectangle(ox, oy, LEN, h, c, al).setOrigin(0, 0.5).setRotation(aim).setScale(0, 1).setDepth(13));
-        scene.tweens.add({ targets: beam, scaleX: 1, duration: 160, ease: 'Quad.Out' });
-        scene.tweens.add({
-          targets: beam,
-          scaleY: 0,
-          alpha: 0,
-          delay: 900,
-          duration: 350,
-          onComplete: () => beam.forEach((b) => b.destroy()),
+        ).map(([h, c, al]) => scene.add.rectangle(ex, ey, LEN, h, c, al).setOrigin(0, 0.5).setDepth(13).setScale(0, 1));
+        scene.tweens.add({ targets: beam, scaleX: 1, duration: 120, ease: 'Quad.Out' });
+        // Spiral bands racing down the storm, redrawn along the current angle.
+        const bands = scene.add.graphics().setDepth(14);
+        // Each enemy's bearing from the blade, measured along the turn; it is struck once the beam has swept past it.
+        const swept = new Set<Phaser.GameObjects.GameObject>();
+        const along = (t: Phaser.GameObjects.Sprite) => {
+          const d = Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(ex, ey, t.x, t.y) - a0) * f;
+          return d < 0 ? d + Math.PI * 2 : d;
+        };
+        let lastCrack = 0;
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          duration: SWEEP,
+          ease: 'Sine.InOut',
+          onUpdate: (tw) => {
+            const v = tw.getValue() ?? 0;
+            const a = a0 + turn * v;
+            const reach = REACH;
+            const [ox, oy] = [ex + Math.cos(a) * reach, ey + Math.sin(a) * reach];
+            ea.setRotation(a);
+            beam.forEach((b) => b.setPosition(ox, oy).setRotation(a));
+            bands.clear();
+            for (let k = 0; k < 8; k++) {
+              const d = ((scene.time.now / 2 + k * 52) % LEN) + 10;
+              const [bx, by] = [ox + Math.cos(a) * d, oy + Math.sin(a) * d];
+              const [px, py] = [Math.cos(a + Math.PI / 2 + 0.5) * 22, Math.sin(a + Math.PI / 2 + 0.5) * 22];
+              bands.lineStyle(3, k % 2 ? 0xff004d : 0x7e2553).lineBetween(bx - px, by - py, bx + px, by + py);
+            }
+            for (const t of world.targets(ex, ey)) {
+              if (swept.has(t) || along(t) > v * Math.PI * 2) continue;
+              swept.add(t);
+              sparks(scene, t.x, t.y, [0xff004d, 0x000000, 0xfff1e8], 10, 22);
+              cutMark(scene, t.x, t.y, 0xff004d, 30, a + Math.PI / 2);
+              world.strike(t, 2.5 * power, 'ult', true);
+            }
+            // Cracks spring out of the storm as it turns, wherever it crosses the arena.
+            if (scene.time.now - lastCrack > 45) {
+              lastCrack = scene.time.now;
+              const d = Phaser.Math.Between(30, 300);
+              const [cx, cy] = [ox + Math.cos(a) * d, oy + Math.sin(a) * d];
+              if (cx > 0 && cx < W && cy > 0 && cy < FLOOR_Y + 6)
+                crack(cx, cy, a + (Math.random() < 0.5 ? 1 : -1) * Phaser.Math.FloatBetween(0.9, 2.2));
+            }
+          },
+          onComplete: () => {
+            bands.destroy();
+            scene.tweens.add({ targets: beam, scaleY: 0, alpha: 0, duration: 250, onComplete: () => beam.forEach((b) => b.destroy()) });
+          },
         });
-        // Spiral bands race down the storm.
-        for (let k = 0; k < 14; k++) {
-          const band = scene.add
-            .rectangle(ox, oy, 3, 50, k % 2 ? 0xff004d : 0x7e2553)
-            .setRotation(aim + 0.5)
-            .setDepth(14);
-          scene.tweens.add({
-            targets: band,
-            x: ox + Math.cos(aim) * LEN,
-            y: oy + Math.sin(aim) * LEN,
-            delay: k * 60,
-            duration: 420,
-            onComplete: () => band.destroy(),
-          });
-        }
-        cam.shake(700, 0.02);
-        // Cracks race out of the storm across sky and ground: jagged red lines with black cores.
-        for (let i = 0; i < 16; i++) {
-          const d = Phaser.Math.Between(20, 300);
-          const [cx, cy] = [ox + Math.cos(aim) * d, oy + Math.sin(aim) * d];
-          if (cx < 0 || cx > W || cy < 0 || cy > FLOOR_Y + 10) continue;
-          const dir = aim + (i % 2 ? 1 : -1) * Phaser.Math.FloatBetween(0.9, 2.2);
-          const pts: [number, number][] = [[cx, cy]];
-          for (let s = 1; s <= 6; s++) {
-            const [lx, ly] = pts[s - 1];
-            const st = Phaser.Math.Between(10, 22);
-            const jag = dir + Phaser.Math.FloatBetween(-0.6, 0.6);
-            pts.push([lx + Math.cos(jag) * st, ly + Math.sin(jag) * st]);
-          }
-          const g = scene.add.graphics().setDepth(12).setAlpha(0);
-          for (const [w, c] of [
-            [3, 0xff004d],
-            [1, 0x000000],
-          ] as const) {
-            g.lineStyle(w, c).beginPath().moveTo(pts[0][0], pts[0][1]);
-            for (const [x, y] of pts) g.lineTo(x, y);
-            g.strokePath();
-          }
-          scene.tweens.add({ targets: g, alpha: 1, delay: 100 + i * 25, duration: 80 });
-          cracks.push(g);
-        }
-        // Everything in the storm's path is struck in turn, nearest first.
-        ts.filter((o) => onRay(aim, o)).forEach((t, i) =>
-          later(scene, 120 + i * 80, () => {
-            if (!t.active) return;
-            sparks(scene, t.x, t.y, [0xff004d, 0x000000, 0xfff1e8], 10, 22);
-            world.strike(t, 5 * power, 'ult', true);
-            cam.shake(80, 0.012);
-          }),
-        );
       });
-      // Heaven and earth split along the cracks: one flash, and the whole field is struck at once.
-      later(scene, 2600, () => {
+      // Heaven and earth split: a rift tears open across the whole sky along the cracks, one flash, and everything
+      // on the field is struck at once. Then the rift seals.
+      later(scene, 2550, () => {
+        const ry = 64;
+        const rg = scene.add.graphics();
+        const top: Phaser.Math.Vector2[] = [];
+        const bottom: Phaser.Math.Vector2[] = [];
+        for (let x = -10; x <= W + 10; x += 16) {
+          top.push(new Phaser.Math.Vector2(x, -Phaser.Math.Between(6, 18)));
+          bottom.push(new Phaser.Math.Vector2(x, Phaser.Math.Between(6, 18)));
+        }
+        const shape = [...top, ...bottom.reverse()];
+        rg.fillStyle(0xff004d, 0.6).fillPoints(
+          shape.map((v) => new Phaser.Math.Vector2(v.x, v.y * 1.4)),
+          true,
+        );
+        rg.fillStyle(0x000000).fillPoints(shape, true);
+        rg.lineStyle(1, 0xffec27).strokePoints(shape, true);
+        const rift = scene.add.container(0, ry, [rg]).setDepth(12).setScale(1, 0);
+        scene.tweens.add({ targets: rift, scaleY: 1, duration: 140, ease: 'Quad.Out' });
+        scene.tweens.add({ targets: rift, scaleY: 0, alpha: 0, delay: 600, duration: 300, onComplete: () => rift.destroy() });
         cracks.forEach((g) =>
           scene.tweens.add({ targets: g, alpha: 0, scaleX: 1.02, delay: 150, duration: 400, onComplete: () => g.destroy() }),
         );
@@ -5844,11 +5865,11 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           world.strike(t, 3 * power, 'ult', true);
         }
         // Shards of the broken sky fall.
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 24; i++) {
           const s = scene.add
-            .triangle(Phaser.Math.Between(0, W), Phaser.Math.Between(0, FLOOR_Y - 40), 0, 0, 5, 1, 2, 6, i % 2 ? 0xff004d : 0x7e2553)
+            .triangle(Phaser.Math.Between(0, W), Phaser.Math.Between(ry - 20, ry + 20), 0, 0, 5, 1, 2, 6, i % 2 ? 0xff004d : 0x7e2553)
             .setDepth(12);
-          scene.tweens.add({ targets: s, y: s.y + 60, angle: 360, alpha: 0, duration: 700, onComplete: () => s.destroy() });
+          scene.tweens.add({ targets: s, y: s.y + 80, angle: 360, alpha: 0, duration: 800, onComplete: () => s.destroy() });
         }
         scene.tweens.add({
           targets: [ea, ...bigGate],

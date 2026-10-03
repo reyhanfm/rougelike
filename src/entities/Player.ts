@@ -436,8 +436,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   /** One Gate of Babylon shot: a gate behind and above the player turns toward `foe` (or ahead) and fires a treasure straight out. */
   private openGate(i: number, spread: number, m: Move, foe?: Phaser.GameObjects.Sprite): void {
-    const x = this.x - this.facing * Phaser.Math.Between(0, 26);
-    const y = this.y - Phaser.Math.Between(4, 40);
+    // Spread over a wide fan behind and above him so a big volley reads as many separate gates.
+    const x = Phaser.Math.Clamp(this.x - this.facing * Phaser.Math.Between(-6, 44), 4, W - 4);
+    const y = Math.max(8, this.y - Phaser.Math.Between(4, 56));
     const dir = foe ? Phaser.Math.Angle.Between(x, y, foe.x, foe.y) + spread * 0.5 : this.facing > 0 ? spread : Math.PI - spread;
     this.gatePortal(x, y, dir);
     const speed = this.weapon.projectile!.speed;

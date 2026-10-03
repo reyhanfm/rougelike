@@ -148,8 +148,8 @@ Hashirama (Jukai Kotan, Mokuryu, Shin Susenju), Jack Frost (Blizzard Vortex, Ete
 Antares (Dragon's Fear, Breath of Destruction, Monarch of Destruction + dragon form), Elementalis (element cycle,
 Blink, Elemental Cataclysm), Artoria (Strike Air, Avalon, Excalibur sweep), King Hassan (Evening Bell, Azure Flame of
 the Grave crescent, Azrael with horned skull + spectral cuts, planted-sword pose), Sukuna (Fuga fire bow, World Cutting Slash fusion that aims the line through the most
-enemies, Malevolent Shrine domain ult), Gilgamesh (Enkidu chains, Gate of Babylon sky-full fusion, Enuma Elish rupture
-ult), Naruto (Senpo: Rasenshuriken aimed at the crowd, Chojo Odama Rasen Tarengan chakra arms, Mode Baryon blitz +
+enemies, Malevolent Shrine domain ult), Gilgamesh (Enkidu chains, Gate of Babylon sky-full fusion of 36 gates, 5/5/9-gate basic volleys, Enuma Elish
+rupture swept through a full turn over the whole arena, then the sky tears), Naruto (Senpo: Rasenshuriken aimed at the crowd, Chojo Odama Rasen Tarengan chakra arms, Mode Baryon blitz +
 Bijudama), Lightning Lord (new class: STATIK charge via `SKILLS.halilintar.onHit`, Tombak Halilintar chain javelin, Mahkota
 Badai orb crown, Penghakiman Guntur storm web ult, `stormArc` lightning helper), Nephalem (new class, half angel half demon: holy blade + twin hellblade, KESEIMBANGAN
 onHit, Sayap Senja, Gerbang Surga & Neraka, Senjakala; always-on wings via `STYLES[cls].attach`). Earlier sessions reworked Samurai, Archer
