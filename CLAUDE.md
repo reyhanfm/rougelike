@@ -163,4 +163,6 @@ layers, `perfectSusanoo` + `susanooBlade`), Itachi (Tsukuyomi crosses, clone sta
 Seribu: six arms, three lanes of fists, giant fist). Skill pass: Samurai Mikiri (counter stance, replaced an Iaido
 that duplicated his passive), Sasuke Chidori (chained dash), Madara Katon: Goka Mekkyaku (rolling wall of fire). Dash pass: Magic Archer star mines,
 Dark Avenger shadow-pool slide + eruption, Antares half-dragon fire charge, Naruto Rasengan charge (his old clone dash
-duplicated his passive), Nephalem split light/hellfire paths closing in a cross.
+duplicated his passive), Nephalem split light/hellfire paths closing in a cross. Buffs: Cultivator (swords no longer return
+and block the next attack: 1/2/3-sword volleys, 4 guard swords that also cut projectiles), Gravity Master (Gravity Order
+is map-wide x10/x100/x1000 crush, six-planet Orbit Planet, Black Hole with jets, torn floor, black beat and white hole).

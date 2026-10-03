@@ -3463,7 +3463,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           const to = corner((i + 3) % 6);
           scene.tweens.add({ targets: sw, x: to.x, y: to.y, duration: 90, yoyo: true, ease: 'Quad.In' });
           bladeLine(scene, from.x, from.y, to.x, to.y, 0x29adff, 40);
-          world.area(cx, cy, R, 0.45 * power, 30, 'skill');
+          world.area(cx, cy, R, 0.55 * power, 30, 'skill');
         });
       // All six close in.
       later(scene, 560 + 6 * 130 + 120, () => {
@@ -3475,7 +3475,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           sparks(scene, cx, cy, [0x29adff, 0xc2f0ff, 0xfff1e8], 18, R + 10);
           scene.cameras.main.shake(160, 0.012);
           for (const t of world.targets(cx, cy))
-            if (Phaser.Math.Distance.Between(cx, cy, t.x, t.y) <= R + 8) world.strike(t, 1.6 * power, 'skill', true);
+            if (Phaser.Math.Distance.Between(cx, cy, t.x, t.y) <= R + 8) world.strike(t, 2.2 * power, 'skill', true);
         });
       });
     },
@@ -9939,69 +9939,123 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
       world.pull(x, gy - 6, 64, 140);
       world.area(x, gy - 6, 40, 0.5 * power, 0, 'proc', { slow: 1200 });
     },
-    // Gravity Order: he raises the scepter and commands gravity a hundredfold. A violet field drops over everything
-    // around him, pressure columns slam each enemy into the floor, the ground cracks under them and they are crushed
-    // again and again, left crawling under the weight.
+    // Gravity Order: he raises the scepter and turns up the gravity of the whole world. The air over the entire arena
+    // goes violet and heavy, pressure rains down in streaks from one wall to the other, and every enemy on the map
+    // (flyers are dragged out of the sky) is pinned under a column of force. The order climbs, x10, x100, x1000, each
+    // step crushing harder: the floor sags and cracks under them, they are flattened into it, until at the last
+    // step they are crushed outright. REMUK!
     skill: ({ p, world, scene, power }) => {
-      const R = 110;
-      const { x, y } = p;
-      const foes = world.targets(x, y).filter((t) => Phaser.Math.Distance.Between(x, y, t.x, t.y) <= R);
-      p.lock(450);
+      const foes = world.targets(p.x, p.y);
+      if (!foes.length) return false;
+      const cam = scene.cameras.main;
+      p.lock(600);
       p.setVelocityX(0);
-      const field = scene.add.circle(x, y, R, 0x8a3fd1, 0).setStrokeStyle(1, 0xc080ff, 0.8).setDepth(7);
-      scene.tweens.add({ targets: field, fillAlpha: 0.18, duration: 120, yoyo: true, hold: 700, onComplete: () => field.destroy() });
-      ring(scene, x, y, 0xc080ff, R, 8, 260, 2);
-      ring(scene, x, y, 0xfff1e8, R * 0.7, 4, 220);
-      // The weight of the order: falling streaks rain down across the whole field.
-      for (let i = 0; i < 28; i++)
-        later(scene, i * 25, () => {
-          const s = scene.add.rectangle(x + Phaser.Math.Between(-R, R), y - R * 0.8, 1, 8, i % 3 ? 0x8a3fd1 : 0xfff1e8).setDepth(12);
-          scene.tweens.add({ targets: s, y: FLOOR_Y, scaleY: 2, alpha: 0, duration: 220, ease: 'Quad.In', onComplete: () => s.destroy() });
-        });
-      world.slam(x, y, R, 520);
-      scene.cameras.main.shake(180, 0.012);
-      for (const t of foes) {
-        // A pressure column drops onto each enemy from the sky.
-        const col = scene.add.rectangle(t.x, 0, 14, t.y, 0x8a3fd1, 0.35).setOrigin(0.5, 0).setScale(1, 0).setDepth(11);
-        const core = scene.add.rectangle(t.x, 0, 2, t.y, 0xfff1e8, 0.9).setOrigin(0.5, 0).setScale(1, 0).setDepth(11);
-        scene.tweens.add({ targets: [col, core], scaleY: 1, duration: 90, ease: 'Quad.In' });
-        scene.tweens.add({
-          targets: [col, core],
-          scaleX: 0,
-          alpha: 0,
-          delay: 650,
-          duration: 200,
-          onComplete: () => (col.destroy(), core.destroy()),
-        });
-      }
-      // Crushing ticks; the last one cracks the ground under each enemy.
-      for (let k = 0; k < 4; k++)
-        later(scene, 120 + k * 160, () => {
-          const last = k === 3;
-          for (const t of foes) {
-            if (!t.active) continue;
-            ring(scene, t.x, t.y, 0xc080ff, 14, 3, 140);
-            world.strike(t, (last ? 1.4 : 0.6) * power, 'skill', last, { slow: 2500 });
-            if (!last) continue;
-            rocks(scene, t.x, FLOOR_Y, 4);
-            const crack = scene.add.rectangle(t.x, FLOOR_Y, 2, 1, 0x1d0f2e).setDepth(9);
-            scene.tweens.add({ targets: crack, scaleX: 14, duration: 90 });
-            scene.tweens.add({ targets: crack, alpha: 0, delay: 600, duration: 300, onComplete: () => crack.destroy() });
+      const STEPS = [
+        { at: 200, mult: 0.3, label: 'x10' },
+        { at: 520, mult: 0.4, label: 'x100' },
+        { at: 840, mult: 0.5, label: 'x1000' },
+      ];
+      const END = 1200;
+      // The whole sky turns heavy.
+      const heavy = scene.add
+        .rectangle(0, 0, W, FLOOR_Y + 20, 0x241a3d, 0)
+        .setOrigin(0)
+        .setDepth(7);
+      scene.tweens.add({ targets: heavy, fillAlpha: 0.45, duration: 200 });
+      ring(scene, p.x, p.y, 0xc080ff, 6, W, 500, 2);
+      // Pressure raining from wall to wall, harder at every step.
+      const rain = scene.time.addEvent({
+        delay: 20,
+        loop: true,
+        callback: () => {
+          for (let i = 0; i < 2; i++) {
+            const s = scene.add
+              .rectangle(Phaser.Math.Between(0, W), Phaser.Math.Between(0, 40), 1, 10, Math.random() < 0.3 ? 0xfff1e8 : 0x8a3fd1)
+              .setDepth(12);
+            scene.tweens.add({
+              targets: s,
+              y: FLOOR_Y,
+              scaleY: 2.5,
+              alpha: 0,
+              duration: 200,
+              ease: 'Quad.In',
+              onComplete: () => s.destroy(),
+            });
           }
-          if (last) scene.cameras.main.shake(220, 0.02);
+        },
+      });
+      // A column of force on every enemy on the map; flyers are hurled down to the floor.
+      world.slam(W / 2, FLOOR_Y / 2, 9999, 560);
+      const cols = foes.map((t) => {
+        const col = scene.add.rectangle(t.x, 0, 14, t.y, 0x8a3fd1, 0.3).setOrigin(0.5, 0).setDepth(11);
+        const core = scene.add.rectangle(t.x, 0, 2, t.y, 0xfff1e8, 0.8).setOrigin(0.5, 0).setDepth(11);
+        col.setScale(1, 0);
+        core.setScale(1, 0);
+        scene.tweens.add({ targets: [col, core], scaleY: 1, duration: 120, ease: 'Quad.In' });
+        const follow = scene.time.addEvent({
+          delay: 16,
+          loop: true,
+          callback: () => {
+            if (!t.active) return;
+            col.setPosition(t.x, 0).setSize(14, t.y);
+            core.setPosition(t.x, 0).setSize(2, t.y);
+          },
         });
+        return { col, core, follow };
+      });
+      STEPS.forEach((st, k) =>
+        later(scene, st.at, () => {
+          floatText(scene, W / 2, 44 + k * 2, `GRAVITASI ${st.label}`, '#c080ff');
+          cam.shake(160, 0.006 + k * 0.005);
+          for (const c of cols) c.col.setFillStyle(0x8a3fd1, 0.3 + k * 0.15);
+          for (const t of world.targets(p.x, p.y)) {
+            // The floor sags under each of them: a dark dent that widens with the order.
+            const dent = scene.add.ellipse(t.x, FLOOR_Y + 1, 10 + k * 8, 3 + k, 0x1d0f2e, 0.9).setDepth(5);
+            scene.tweens.add({ targets: dent, alpha: 0, delay: 300, duration: 300, onComplete: () => dent.destroy() });
+            ring(scene, t.x, t.y, 0xc080ff, 18 - k * 3, 2, 160);
+            world.strike(t, st.mult * power, 'skill', false, { slow: 2500 }, 0);
+          }
+        }),
+      );
+      // REMUK: the last step crushes them into the floor.
+      later(scene, END, () => {
+        rain.remove();
+        cols.forEach((c) => (c.follow.remove(), c.col.destroy(), c.core.destroy()));
+        cam.flash(140, 138, 63, 209);
+        cam.shake(380, 0.03);
+        floatText(scene, W / 2, 60, 'REMUK!', '#fff1e8');
+        for (const t of world.targets(p.x, p.y)) {
+          rocks(scene, t.x, FLOOR_Y - 2, 6);
+          const crack = scene.add.graphics().setDepth(5);
+          for (const [w, c] of [
+            [3, 0x1d0f2e],
+            [1, 0xc080ff],
+          ] as const) {
+            crack
+              .lineStyle(w, c)
+              .beginPath()
+              .moveTo(t.x - 16, FLOOR_Y);
+            for (let i = 1; i <= 6; i++) crack.lineTo(t.x - 16 + i * 5.3, FLOOR_Y + (i % 2 ? 2 : 0));
+            crack.strokePath();
+          }
+          scene.tweens.add({ targets: crack, alpha: 0, delay: 500, duration: 400, onComplete: () => crack.destroy() });
+          sparks(scene, t.x, t.y, [0x8a3fd1, 0xc080ff, 0xfff1e8], 8, 14);
+          world.strike(t, 1.4 * power, 'skill', true, { slow: 2500 }, 0);
+        }
+        scene.tweens.add({ targets: heavy, fillAlpha: 0, duration: 400, onComplete: () => heavy.destroy() });
+      });
     },
-    // Planetary Orbit: he lifts the scepter and the floor tears up around him; three chunks of ground rise, are crushed
-    // by his gravity into three small worlds (a grey moon, a ringed violet planet and a molten one) and fall into
-    // orbit around him. Their orbits are tilted against each other and widen with every turn, the centre of the
+    // Planetary Orbit: he lifts the scepter and the floor tears up around him; six chunks of ground rise, are crushed
+    // by his gravity into six small worlds (a grey moon, a ringed violet planet, a molten one, an ice world, a jade
+    // one and a striped gas giant) and fall into orbit around him. Their orbits are tilted against each other and widen with every turn, the centre of the
     // system drifting to the middle of the arena, until the three planets are sweeping the whole field from the floor
     // to the sky, striking whatever they pass (gravity bends their paths toward anything that strays near an orbit).
-    // Then he closes his hand: the orbits stop, the planets line up (syzygy)
-    // pointing at the heaviest knot of enemies and crash into it one after another.
+    // Then he closes his hand: the orbits stop, all six planets line up (syzygy)
+    // pointing at the heaviest knot of enemies and crash into it one after another, the gas giant last.
     fusion: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
       const cam = scene.cameras.main;
-      const ORBIT = 1500;
+      const ORBIT = 1900;
       p.invuln(ORBIT + 600);
       p.lock(ORBIT + 300);
       p.setVelocity(0, 0);
@@ -10014,7 +10068,11 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         { rim: 0x3b3b4f, body: 0x83769c, lit: 0xc2c3c7, mark: 0x5f574f },
         { rim: 0x2b2f6b, body: 0x8a3fd1, lit: 0xc080ff, mark: 0xffec27 },
         { rim: 0x7a2230, body: 0xff004d, lit: 0xffa300, mark: 0xffec27 },
+        { rim: 0x1d2b53, body: 0x29adff, lit: 0xc2f0ff, mark: 0xfff1e8 },
+        { rim: 0x003b1f, body: 0x008751, lit: 0x00e436, mark: 0x003b1f },
+        { rim: 0x4a2a1a, body: 0xd08a50, lit: 0xffccaa, mark: 0xab5236 },
       ];
+      const N = looks.length;
       const planets = looks.map((c, i) => {
         const pg = scene.add.graphics();
         pg.fillStyle(c.rim).fillCircle(0, 0, 7);
@@ -10023,18 +10081,24 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         if (i === 0) pg.fillStyle(c.mark).fillCircle(2, 2, 1.5).fillCircle(-2, 3, 1);
         if (i === 1) pg.lineStyle(1, c.mark).strokeEllipse(0, 0, 22, 5);
         if (i === 2) pg.fillStyle(c.mark).fillRect(-3, 1, 5, 1).fillRect(0, -4, 3, 1);
-        const sx = ox + (i - 1) * 22;
+        // Ice caps; jade craters; the gas giant's bands.
+        if (i === 3) pg.fillStyle(c.mark).fillRect(-3, -6, 6, 2).fillRect(-3, 4, 6, 2);
+        if (i === 4) pg.fillStyle(c.mark).fillCircle(2, 1, 1.5).fillCircle(-1, 3, 1).fillCircle(3, -2, 1);
+        if (i === 5) pg.fillStyle(c.mark).fillRect(-6, -2, 12, 1).fillRect(-5, 1, 10, 1).fillRect(-4, 4, 8, 1);
+        const sx = ox + (i - (N - 1) / 2) * 16;
+        const size = i === 5 ? 2.4 : 1.6;
         const body = scene.add
           .container(sx, FLOOR_Y - 4, [pg])
-          .setScale(1.6)
+          .setScale(size)
           .setDepth(13);
         rocks(scene, sx, FLOOR_Y - 2, 5);
         return {
           body,
           i,
           color: c.body,
-          phase: (i * Math.PI * 2) / 3,
-          tilt: (i - 1) * 0.22,
+          size,
+          phase: (i * Math.PI * 2) / N,
+          tilt: (i - (N - 1) / 2) * 0.12,
           dx: 0,
           dy: 0,
           last: new Map<Phaser.GameObjects.GameObject, number>(),
@@ -10049,7 +10113,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         const cx = Phaser.Math.Linear(ox, MX, grow);
         const cy = Phaser.Math.Linear(oy, MY, grow);
         const rx = 18 + grow * 136;
-        const ry = 10 + grow * (52 + pl.i * 5);
+        const ry = 10 + grow * (44 + pl.i * 4);
         const a = pl.phase + t * Math.PI * 4.2;
         const [ex, ey] = [Math.cos(a) * rx, Math.sin(a) * ry];
         return {
@@ -10093,7 +10157,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
             pl.dx = Phaser.Math.Linear(pl.dx, bend ? prey.x - o.x : 0, 0.25);
             pl.dy = Phaser.Math.Linear(pl.dy, bend ? prey.y - o.y : 0, 0.25);
             const [qx, qy] = [o.x + pl.dx, o.y + pl.dy];
-            pl.body.setPosition(qx, qy).setScale(Phaser.Math.Linear(pl.body.scaleX, 1, 0.1));
+            pl.body.setPosition(qx, qy).setScale(Phaser.Math.Linear(pl.body.scaleX, pl.size * 0.62, 0.1));
             const d = scene.add.rectangle(qx, qy, 2, 2, pl.color).setDepth(12);
             scene.tweens.add({ targets: d, alpha: 0, scale: 0.3, duration: 260, onComplete: () => d.destroy() });
             for (const e of world.targets(qx, qy)) {
@@ -10102,7 +10166,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               pl.last.set(e, now);
               sparks(scene, e.x, e.y, [pl.color, 0xfff1e8], 6, 14);
               ring(scene, e.x, e.y, 0xc080ff, 4, 14, 160);
-              world.strike(e, 0.9 * power, 'skill', false, { slow: 900 });
+              world.strike(e, 0.7 * power, 'skill', false, { slow: 900 });
               cam.shake(40, 0.004);
             }
           }
@@ -10119,21 +10183,21 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           scene.tweens.add({ targets: line, alpha: 0, delay: 250, duration: 200, onComplete: () => line.destroy() });
           planets.forEach((pl, i) => {
             // Line up behind each other on the way in, then fall on the mark one by one.
-            const lx = tx - Math.cos(a) * (60 + i * 18);
-            const ly = ty - Math.sin(a) * (60 + i * 18);
+            const lx = tx - Math.cos(a) * (50 + i * 14);
+            const ly = ty - Math.sin(a) * (50 + i * 14);
             scene.tweens.add({ targets: pl.body, x: lx, y: ly, duration: 180, ease: 'Sine.Out' });
-            later(scene, 260 + i * 90, () => {
+            later(scene, 260 + i * 80, () => {
               const [hx, hy] = mark?.active ? [mark.x, mark.y] : [tx, ty];
               scene.tweens.add({
                 targets: pl.body,
                 x: hx,
                 y: hy,
-                scale: 1.6,
+                scale: pl.size,
                 duration: 110,
                 ease: 'Quad.In',
                 onComplete: () => {
                   pl.body.destroy();
-                  const last = i === 2;
+                  const last = i === N - 1;
                   ring(scene, hx, hy, pl.color, 4, last ? 50 : 28, 300, last ? 3 : 2);
                   sparks(scene, hx, hy, [pl.color, 0xfff1e8, 0xc080ff], last ? 22 : 10, last ? 44 : 24);
                   if (hy > FLOOR_Y - 30) rocks(scene, hx, FLOOR_Y - 2, 5);
@@ -10164,107 +10228,169 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         },
       });
     },
-    // Black Hole: the sky goes dark and a singularity tears open in front of him. Its accretion disk spins up, light
-    // bends around it and every enemy in the arena is dragged into the horizon and ground down; then it collapses
-    // and bursts in a flash that hits everything.
+    // Black Hole: the world goes dark and every star in the sky starts to smear toward one point in front of him,
+    // where light itself is swallowed: a singularity opens, the camera is drawn in toward it. Its accretion disk
+    // blazes, jets of plasma shoot out of its poles, light bends in rings around it, and the arena comes apart: chunks
+    // of the floor tear loose and spiral in, every enemy on the map is dragged toward the horizon, stretched into
+    // streaks (spaghettified) and ground by the tides. Then it collapses to a single point and the world goes black
+    // for a heartbeat, until it bursts back out as a white hole: a blinding sphere that fills the screen, and waves of
+    // gravity rolling across the whole arena one after another. SINGULARITAS!
     ult: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
-      const bx = Phaser.Math.Clamp(p.x + p.facing * 80, 50, W - 50);
-      const by = FLOOR_Y - 46;
-      const LIFE = 2600;
-      p.invuln(LIFE + 900);
-      p.lock(LIFE + 300);
-      p.setVelocity(0, 0);
+      const bx = Phaser.Math.Clamp(p.x + p.facing * 80, 60, W - 60);
+      const by = FLOOR_Y - 56;
+      const LIFE = 2700;
       const cam = scene.cameras.main;
-      cam.flash(150, 138, 63, 209);
+      p.invuln(LIFE + 1400);
+      p.lock(LIFE + 700);
+      p.setVelocity(0, 0);
       const dark = scene.add
-        .rectangle(0, 0, W, FLOOR_Y + 40, 0x05030a, 0.7)
+        .rectangle(0, 0, W, FLOOR_Y + 40, 0x05030a, 0.85)
         .setOrigin(0)
         .setDepth(8)
         .setAlpha(0);
-      scene.tweens.add({ targets: dark, alpha: 1, duration: 400 });
-      // His own aura answering the hole.
+      scene.tweens.add({ targets: dark, alpha: 1, duration: 500 });
+      cam.zoomTo(1.05, LIFE);
+      // The stars smear toward the point.
+      for (let i = 0; i < 40; i++) {
+        const sx = Phaser.Math.Between(0, W);
+        const sy = Phaser.Math.Between(0, FLOOR_Y - 20);
+        const star = scene.add.rectangle(sx, sy, 1, 1, i % 4 ? 0xfff1e8 : 0xc080ff).setDepth(9);
+        const a = Phaser.Math.Angle.Between(sx, sy, bx, by);
+        scene.tweens.add({ targets: star, scaleX: 8, rotation: a, delay: 200 + i * 10, duration: 500 });
+        scene.tweens.add({
+          targets: star,
+          x: bx,
+          y: by,
+          alpha: 0,
+          delay: 700 + i * 30,
+          duration: 700,
+          ease: 'Quad.In',
+          onComplete: () => star.destroy(),
+        });
+      }
+      // His aura answering it.
       const aura = scene.add.circle(p.x, p.y, 12, 0x8a3fd1, 0.25).setStrokeStyle(1, 0xc080ff).setDepth(9);
-      scene.tweens.add({ targets: aura, scale: 1.3, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });
-      // Glow, event horizon and photon ring.
+      scene.tweens.add({ targets: aura, scale: 1.4, alpha: 0.5, duration: 280, yoyo: true, repeat: -1 });
+      // The singularity: glow, horizon, photon ring.
       const glow = scene.add.circle(bx, by, 1, 0x8a3fd1, 0.35).setDepth(12);
       const hole = scene.add.circle(bx, by, 1, 0x000000).setStrokeStyle(2, 0xfff1e8).setDepth(14);
-      scene.tweens.add({ targets: glow, radius: 34, duration: 600, ease: 'Back.Out' });
-      scene.tweens.add({ targets: hole, radius: 16, duration: 600, ease: 'Back.Out' });
-      // The accretion disk: hot matter streaming around the horizon, its back half passing behind it.
+      scene.tweens.add({ targets: glow, radius: 46, delay: 400, duration: 700, ease: 'Back.Out' });
+      scene.tweens.add({ targets: hole, radius: 22, delay: 400, duration: 700, ease: 'Back.Out' });
+      // Accretion disk (its back half behind the horizon) and the polar jets.
       const disk = scene.add.graphics().setDepth(15);
       const behind = scene.add.graphics().setDepth(11);
+      const jets = scene.add.graphics().setDepth(13);
       const spin = scene.tweens.addCounter({
         from: 0,
         to: 1,
-        duration: LIFE,
+        delay: 400,
+        duration: LIFE - 400,
         onUpdate: (tw) => {
           const t = tw.getValue() ?? 0;
-          const grow = Math.min(1, t * 4);
+          const grow = Math.min(1, t * 3);
           disk.clear();
           behind.clear();
-          for (let i = 0; i < 48; i++) {
-            const a = (i / 48) * Math.PI * 2 + t * 40;
-            const r = (30 + (i % 3) * 6) * grow;
+          for (let i = 0; i < 72; i++) {
+            const a = (i / 72) * Math.PI * 2 + t * 50;
+            const r = (36 + (i % 4) * 6) * grow;
             const g = Math.sin(a) > 0 ? disk : behind;
-            g.fillStyle([0xffa300, 0xffec27, 0xc080ff, 0xfff1e8][i % 4], 0.9).fillRect(
+            g.fillStyle([0xffa300, 0xffec27, 0xc080ff, 0xfff1e8, 0xff004d][i % 5], 0.95).fillRect(
               bx + Math.cos(a) * r,
-              by + Math.sin(a) * r * 0.22,
+              by + Math.sin(a) * r * 0.24,
               2,
               1,
             );
           }
+          jets.clear();
+          if (t > 0.15) {
+            const len = 90 * Math.min(1, (t - 0.15) * 4);
+            const w = 3 + Math.sin(t * 90) * 1.5;
+            for (const dir of [-1, 1]) {
+              jets.fillStyle(0xc080ff, 0.35).fillRect(bx - w * 1.6, dir < 0 ? by - len : by, w * 3.2, len);
+              jets.fillStyle(0xfff1e8, 0.9).fillRect(bx - w / 2, dir < 0 ? by - len : by, w, len);
+            }
+          }
         },
       });
-      // Light bending: rings close in on the horizon over and over.
-      for (let k = 0; k < 8; k++) later(scene, 300 + k * 280, () => ring(scene, bx, by, k % 2 ? 0xc080ff : 0x8a3fd1, 150, 16, 500, 2));
-      // Stars and debris from the whole sky spiral in.
-      for (let i = 0; i < 70; i++)
-        later(scene, 300 + i * 30, () => {
-          const a0 = Math.random() * Math.PI * 2;
-          const r0 = Phaser.Math.Between(90, 200);
-          const m = scene.add.rectangle(0, 0, 2, 1, [0xfff1e8, 0xc080ff, 0xffa300][i % 3]).setDepth(12);
+      // Light bending in rings around it.
+      for (let k = 0; k < 10; k++) later(scene, 500 + k * 220, () => ring(scene, bx, by, k % 2 ? 0xc080ff : 0xffa300, 180, 22, 520, 2));
+      // The arena comes apart: chunks of floor tear loose all along it and spiral in.
+      for (let i = 0; i < 36; i++)
+        later(scene, 600 + i * 50, () => {
+          const x0 = Phaser.Math.Between(0, W);
+          rocks(scene, x0, FLOOR_Y - 2, 1);
+          const chunk = scene.add.rectangle(x0, FLOOR_Y - 2, 3, 3, i % 2 ? 0xab5236 : 0x5f574f).setDepth(12);
+          const a0 = Phaser.Math.Angle.Between(bx, by, x0, FLOOR_Y);
+          const r0 = Phaser.Math.Distance.Between(bx, by, x0, FLOOR_Y);
           scene.tweens.addCounter({
             from: 0,
             to: 1,
-            duration: 700,
+            duration: 900,
             ease: 'Quad.In',
             onUpdate: (tw) => {
               const t = tw.getValue() ?? 0;
-              const a = a0 + t * 5;
-              m.setPosition(bx + Math.cos(a) * r0 * (1 - t), by + Math.sin(a) * r0 * (1 - t) * 0.6).setRotation(a + Math.PI / 2);
+              const a = a0 + t * 4;
+              chunk.setPosition(bx + Math.cos(a) * r0 * (1 - t), by + Math.sin(a) * r0 * (1 - t) * 0.7).setAngle(t * 720);
             },
-            onComplete: () => m.destroy(),
+            onComplete: () => chunk.destroy(),
           });
         });
-      // The pull: every enemy on the map (bosses are too massive to move) is dragged in and ground at the horizon.
-      for (let k = 0; k < 20; k++)
-        later(scene, 400 + k * 100, () => {
-          world.pull(bx, by, 9999, 300);
-          if (k % 2) cam.shake(100, 0.006);
-          if (k % 3 === 0) world.area(bx, by, 34, 0.5 * power, 0, 'ult', { slow: 800 });
+      // The pull and the tides: everyone on the map (bosses too massive to move, but not to tear) is dragged in and
+      // stretched toward the horizon; whatever reaches it is ground hardest.
+      const streaks = scene.add.graphics().setDepth(10);
+      for (let k = 0; k < 22; k++)
+        later(scene, 700 + k * 90, () => {
+          world.pull(bx, by, 9999, 320);
+          streaks.clear();
+          for (const t of world.targets(bx, by)) {
+            streaks.lineStyle(1, 0xc080ff, 0.5).lineBetween(t.x, t.y, Phaser.Math.Linear(t.x, bx, 0.6), Phaser.Math.Linear(t.y, by, 0.6));
+            if (k % 3) continue;
+            const d = Phaser.Math.Distance.Between(t.x, t.y, bx, by);
+            world.strike(t, (d < 56 ? 0.55 : 0.25) * power, 'ult', false, { slow: 900 }, 0);
+          }
+          if (k % 2) cam.shake(90, 0.008);
         });
-      // Collapse and burst.
+      // Collapse to a point; a heartbeat of black.
       later(scene, LIFE, () => {
         spin.stop();
+        streaks.destroy();
         disk.destroy();
         behind.destroy();
-        scene.tweens.add({ targets: [hole, glow], radius: 1, duration: 160, ease: 'Quad.In' });
+        jets.destroy();
+        scene.tweens.add({ targets: [hole, glow], radius: 1, duration: 200, ease: 'Quad.In' });
       });
-      later(scene, LIFE + 180, () => {
+      const black = scene.add.rectangle(0, 0, W, H, 0x000000, 1).setOrigin(0).setDepth(95).setAlpha(0);
+      const point = scene.add.circle(bx, by, 1.5, 0xfff1e8).setDepth(96).setAlpha(0);
+      later(scene, LIFE + 200, () => {
+        black.setAlpha(1);
+        point.setAlpha(1);
         hole.destroy();
         glow.destroy();
+      });
+      // The white hole.
+      later(scene, LIFE + 480, () => {
+        black.destroy();
+        point.destroy();
         scene.tweens.killTweensOf(aura);
         aura.destroy();
-        floatText(scene, W / 2, 48, 'COLLAPSE!', '#fff1e8');
-        cam.flash(300, 255, 241, 232);
-        cam.shake(500, 0.035);
-        ring(scene, bx, by, 0xfff1e8, 4, 220, 600, 3);
-        ring(scene, bx, by, 0x8a3fd1, 4, 160, 500, 4);
-        sparks(scene, bx, by, [0xfff1e8, 0xc080ff, 0xffa300], 30, 90);
-        for (const t of world.targets(bx, by)) world.strike(t, 4 * power, 'ult', true);
-        world.area(bx, by, 60, 1 * power, 260, 'ult');
-        scene.tweens.add({ targets: dark, alpha: 0, duration: 500, onComplete: () => dark.destroy() });
+        cam.flash(350, 255, 241, 232);
+        cam.shake(700, 0.04);
+        cam.zoomTo(1.12, 120);
+        later(scene, 140, () => cam.zoomTo(1, 500));
+        floatText(scene, W / 2, 50, 'SINGULARITAS!', '#fff1e8');
+        const white = scene.add.circle(bx, by, 4, 0xfff1e8, 0.9).setDepth(16);
+        scene.tweens.add({ targets: white, radius: 260, alpha: 0, duration: 700, ease: 'Quad.Out', onComplete: () => white.destroy() });
+        sparks(scene, bx, by, [0xfff1e8, 0xc080ff, 0xffa300], 40, 140);
+        for (const t of world.targets(bx, by)) world.strike(t, 4 * power, 'ult', true, undefined, 300);
+        // Gravity waves rolling across the whole arena, one after another.
+        for (let k = 0; k < 3; k++)
+          later(scene, 250 + k * 260, () => {
+            ring(scene, bx, by, k % 2 ? 0x8a3fd1 : 0xc080ff, 10, 340, 600, 3);
+            cam.shake(150, 0.012);
+            for (const t of world.targets(bx, by)) world.strike(t, 0.6 * power, 'ult', false, { slow: 1200 }, 120);
+          });
+        scene.tweens.add({ targets: dark, alpha: 0, delay: 600, duration: 600, onComplete: () => dark.destroy() });
       });
     },
   },

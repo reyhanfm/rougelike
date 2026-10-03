@@ -364,12 +364,12 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '7f077770f7',
       '..0kkkk0..',
     ],
-    passive: { name: 'PEDANG PENJAGA', desc: 'TIGA PEDANG QI TERUS MENGORBIT TUBUH, MENEBAS MUSUH YANG MENDEKAT' },
-    trait: 'QI: SKILL +20%, PULIH 0.5 HP/DTK, HP -10%',
+    passive: { name: 'PEDANG PENJAGA', desc: 'EMPAT PEDANG QI MENGORBIT TUBUH, MENEBAS MUSUH YANG MENDEKAT & MENANGKIS PROYEKTIL' },
+    trait: 'QI: SKILL +20%, PULIH 1 HP/DTK, SKILL CD -10%',
     apply: (s) => {
       s.skillPower *= 1.2;
-      s.regen += 0.5;
-      s.maxHp *= 0.9;
+      s.regen += 1;
+      s.skillCdMult *= 0.9;
     },
     synergy: {
       name: 'JIWA PEDANG',
