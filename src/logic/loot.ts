@@ -26,7 +26,8 @@ export type WeaponId =
   | 'tongkatFrost'
   | 'rasengan'
   | 'kusanagi'
-  | 'gravitasi';
+  | 'gravitasi'
+  | 'halilintar';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
@@ -948,6 +949,42 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     skill: { name: 'GRAVITY ORDER', desc: 'GRAVITASI x100: MUSUH DI SEKITAR DIHANTAM KE TANAH & TERTEKAN', cd: 6 },
     fusion: { name: 'ORBIT PLANET', desc: 'J+L: TIGA PLANET MENGORBIT KE SELURUH ARENA, LALU SEJAJAR MENGHANTAM', cd: 11 },
     ult: { name: 'BLACK HOLE', desc: 'LUBANG HITAM MENYEDOT SELURUH MUSUH DI ARENA, LALU RUNTUH' },
+  },
+  halilintar: {
+    id: 'halilintar',
+    name: 'VAJRA BADAI',
+    desc: 'HALBERD PETIR EMAS: TIAP HIT MENGISI STATIK, KE-6 MEMANGGIL PETIR',
+    dmg: 1.1,
+    cd: 1.05,
+    crit: 0.05,
+    arc: 'slashStorm',
+    arcTint: 0xffec27,
+    cut: 0xffec27,
+    combo: [
+      // A royal thrust, then a rising sweep that trails sparks.
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 120, reach: box(32, 10), knockback: 120, lunge: 90 },
+      { anim: 'up', dmg: 1.1, cd: 1, ms: 150, reach: box(28, 26), knockback: 150, trail: 0x7fe6ff },
+      // The judgement: an overhead slam that cracks a bolt down onto whatever it hits (see SKILLS.halilintar.onHit).
+      { anim: 'overhead', dmg: 1.5, cd: 1.5, ms: 220, reach: box(30, 30), knockback: 240, status: { freeze: 250 } },
+    ],
+    air: {
+      // He falls like a lightning strike, the halberd point-first; the landing discharges into the ground.
+      name: 'SAMBARAN JATUH',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.1,
+      ms: 600,
+      reach: box(14, 18),
+      knockback: 120,
+      hitbox: 'below',
+      dive: { vx: 60, vy: 420 },
+      slam: 36,
+      trail: 0xffec27,
+      status: { freeze: 300 },
+    },
+    skill: { name: 'TOMBAK HALILINTAR', desc: 'TOMBAK PETIR DIBIDIK KE KERUMUNAN, MENANCAP & MELOMPAT KE MUSUH LAIN', cd: 6 },
+    fusion: { name: 'MAHKOTA BADAI', desc: 'J+L: MAHKOTA BOLA PETIR MENGORBIT, LALU MENYAMBAR TIAP MUSUH DARI LANGIT', cd: 11 },
+    ult: { name: 'PENGHAKIMAN GUNTUR', desc: 'LANGIT BADAI, JARING PETIR MENGIKAT SEMUA MUSUH, LALU SAMBARAN RAKSASA' },
   },
 };
 

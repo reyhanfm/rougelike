@@ -25,7 +25,7 @@ Dev URL shortcuts (from ClassScene, dev only): `?round=10`, `?weapon=busur`, `?m
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `src/logic/classes.ts`                                    | `ClassId`, `CLASSES`: name, weapon, color, head sprite rows, legs, trait, synergy, optional awaken               |
 | `src/logic/loot.ts`                                       | `WeaponId`, `WEAPONS`: combo moves, air move, projectile, skill/ult/fusion names + desc; items, rewards          |
-| `src/entities/skills.ts`                                  | `SKILLS[weaponId]`: `skill`, `ult`, optional `basic` (cast weapons) and `fusion` (J+L) — all VFX + damage        |
+| `src/entities/skills.ts`                                  | `SKILLS[weaponId]`: `skill`, `ult`, `fusion` (J+L), optional `basic` (cast) and `onHit` (per melee hit)          |
 | `src/entities/dashes.ts`                                  | `DASHES[classId]`: each class's own dash (K) movement, hit and VFX                                               |
 | `src/entities/styles.ts`                                  | `STYLES[classId]`: run stride, lean, jump style, trail particles, weapon hold pose                               |
 | `src/gfx/sprites.ts`                                      | `PALETTE` (one char per color), `SPRITES` text grids (`w_<weaponId>` held weapon, projectiles, props), `LEGS`    |
@@ -92,7 +92,7 @@ The user wants each character to be **keren**, iconic and unmistakably theirs. W
 - `world.pull` / `world.slam` skip bosses (they are too heavy to move); damage them with `strike`/`area` instead.
 - Depths: background props 2–5, player ~10, effects 11–15, HUD above. Dark overlays at depth 8.
 - Shared VFX helpers in `skills.ts`: `ring`, `sparks`, `thorns`, `rocks`, `explosion`, `glint`, `afterimage`,
-  `bladeLine`, `leafBurst`, `vine`, `tree`, `bolt` (lightning), `hurlRock`, `feathers`, `flameTongue`, `azraelBlade`,
+  `bladeLine`, `leafBurst`, `vine`, `tree`, `bolt` (lightning), `stormArc` (layered gold lightning), `hurlRock`, `feathers`, `flameTongue`, `azraelBlade`,
   `eveningBell`; `cutMark`, `floatText`, `burst` in `gfx/ui.ts`. Reuse them.
 - Editing a file while the dev server runs triggers an HMR full reload of the page.
 - Never run `prettier --write src` (it reformats `Boss.ts`, which has pre-existing style differences); format only
@@ -136,5 +136,6 @@ Blink, Elemental Cataclysm), Artoria (Strike Air, Avalon, Excalibur sweep), King
 the Grave crescent, Azrael with horned skull + spectral cuts, planted-sword pose), Sukuna (Fuga fire bow, World Cutting Slash fusion that aims the line through the most
 enemies, Malevolent Shrine domain ult), Gilgamesh (Enkidu chains, Gate of Babylon sky-full fusion, Enuma Elish rupture
 ult), Naruto (Senpo: Rasenshuriken aimed at the crowd, Chojo Odama Rasen Tarengan chakra arms, Mode Baryon blitz +
-Bijudama). Earlier sessions reworked Samurai, Archer
+Bijudama), Lightning Lord (new class: STATIK charge via `SKILLS.halilintar.onHit`, Tombak Halilintar chain javelin, Mahkota
+Badai orb crown, Penghakiman Guntur storm web ult, `stormArc` lightning helper). Earlier sessions reworked Samurai, Archer
 (Kanshou & Bakuya), and added Naruto, Sasuke and the Kaguya bonus boss. Others are older and are the next candidates.

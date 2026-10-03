@@ -26,7 +26,8 @@ export type ClassId =
   | 'jackFrost'
   | 'naruto'
   | 'sasuke'
-  | 'gravityMaster';
+  | 'gravityMaster'
+  | 'lightningLord';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -941,6 +942,43 @@ export const CLASSES: Record<ClassId, GameClass> = {
       desc: '15% HIT MENGUNCI MUSUH (BEKU), SKILL +20%',
       apply: (s) => {
         s.freezeChance += 0.15;
+        s.skillPower *= 1.2;
+      },
+    },
+  },
+  lightningLord: {
+    id: 'lightningLord',
+    name: 'LIGHTN. LORD',
+    weapon: 'halilintar',
+    color: 'z',
+    legs: { kind: 'coat', pant: 'z', boot: '0' },
+    hair: '7',
+    // The Lightning Lord: a jagged gold crown of lightning on storm-white hair streaked electric cyan, burning gold eyes,
+    // a storm-blue royal coat with gold trim and a charged core glowing at the belt.
+    head: [
+      '.a.a..a.a.',
+      '.aa7777aa.',
+      '7777y77777',
+      '.07y77y70.',
+      '.0faffaf0.',
+      '.0ffffff0.',
+      '.z0aaaa0z.',
+      '.0zazzaz0.',
+      '0fzz00zzf0',
+      '0f0zaaz0f0',
+      '..0ayya0..',
+    ],
+    trait: 'TUBUH PETIR: GERAK +10%, KRITIS +5%, DASH -15% CD',
+    apply: (s) => {
+      s.speed *= 1.1;
+      s.critChance += 0.05;
+      s.dashCooldown *= 0.85;
+    },
+    synergy: {
+      name: 'TAHTA BADAI',
+      desc: 'TIAP KILL MENYAMBARKAN PETIR, SKILL +20%',
+      apply: (s) => {
+        s.killBolt += 1;
         s.skillPower *= 1.2;
       },
     },

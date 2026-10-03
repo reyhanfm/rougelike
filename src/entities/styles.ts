@@ -113,6 +113,15 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     trail: { shape: 'wisp', colors: [0xc080ff, 0xfff1e8] },
     hold: { angle: -45, dx: -1 },
   },
+  // Lightning Lord: a king's quick, upright stride, gold sparks and cyan crackle at his heels, rising regally into his
+  // jumps; Vajra Badai held raised across his body.
+  lightningLord: {
+    stride: 90,
+    lean: 8,
+    jump: 'lift',
+    trail: { shape: 'spark', colors: [0xffec27, 0x7fe6ff] },
+    hold: { angle: -30, dx: 1 },
+  },
   jackFrost: { stride: 105, lean: 6, jump: 'spin', trail: { shape: 'flake', colors: [0xc2f0ff, 0xfff1e8] }, hold: { angle: -70, dx: -2 } },
 };
 
