@@ -151,4 +151,6 @@ lion `nemeanLion`, Nine Lives set piece), Grim Reaper (Gerbang Alam Baka `underw
 Gunners (sniper, Badai Timah minigun), Cultivator (Formasi Enam Pedang seal, Sungai Seribu Pedang spline river),
 Magic Archer (Panah Prisma, Supernova), Dark Avenger (Perjanjian Gelap `shadowBlade`, costs HP), Ashura (Cakra Asura
 wheel around the arena), Toji (Playful Cloud flail), Gojo (Muryokusho void). Every class has a PASIF (passives.ts).
-Still plainer: Cu Chulainn's ult, Madara's Susanoo ult, Itachi's Tsukuyomi, Ashura's Tinju Seribu.
+Then: Cu Chulainn (Gae Bolg run-up, leap and spear storm, `crimsonSpear`), Madara (winged Perfect Susanoo built in
+layers, `perfectSusanoo` + `susanooBlade`), Itachi (Tsukuyomi crosses, clone stabs, 72-hour clock), Ashura (Tinju
+Seribu: six arms, three lanes of fists, giant fist).

@@ -209,7 +209,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     },
     skill: { name: 'GAE BOLG', desc: 'TUSUKAN YANG PASTI MENGENAI JANTUNG, KRITIS', cd: 5 },
     fusion: { name: 'ANSUZ', desc: 'J+L: RUNE API DIUKIR DI UDARA, MENCAP & MEMBAKAR SEMUA MUSUH', cd: 10 },
-    ult: { name: 'TOMBAK TERBANG PEMBUNUH', desc: 'LOMPAT TINGGI, LEMPAR TOMBAK YANG MEMBELAH' },
+    ult: { name: 'TOMBAK TERBANG PEMBUNUH', desc: 'ANCANG-ANCANG, LOMPAT, TOMBAK PECAH JADI BADAI TOMBAK KE TIAP MUSUH' },
   },
   kapak: {
     id: 'kapak',
@@ -518,7 +518,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 90,
       extra: 3,
     },
-    skill: { name: 'TINJU SERIBU', desc: 'RENTETAN PUKULAN KE DEPAN', cd: 5 },
+    skill: { name: 'TINJU SERIBU', desc: 'ENAM LENGAN MENGHUJANI 3 JALUR (DARAT-LANGIT), DITUTUP TINJU RAKSASA', cd: 5 },
     fusion: { name: 'GENGGAMAN ASURA', desc: 'J+L: ENAM LENGAN GAIB MENCENGKERAM 6 MUSUH, MEREMAS & MEMBANTING', cd: 9 },
     ult: { name: 'CAKRA ASURA', desc: 'AMARAH PENUH: RODA ENAM LENGAN MENGGILAS KELILING ARENA, LALU ENAM TINJU MENGHANTAM' },
   },
@@ -690,7 +690,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     },
     skill: { name: 'KATON: GOKAKYU', desc: 'BOLA API RAKSASA MENEMBUS & MEMBAKAR', cd: 6 },
     fusion: { name: 'TENGAI SHINSEI', desc: 'J+L: DUA METEOR RAKSASA JATUH KE KERUMUNAN MUSUH, TANAH HANCUR', cd: 12 },
-    ult: { name: 'SUSANOO SEMPURNA', desc: 'SUSANOO BIRU BANGKIT, PEDANGNYA MEMBELAH MUSUH' },
+    ult: { name: 'SUSANOO SEMPURNA', desc: 'SUSANOO BERSAYAP BANGKIT: SABET DARAT, SABET LANGIT, LALU SILANG MEMBELAH ARENA' },
   },
   mokuton: {
     id: 'mokuton',
@@ -765,7 +765,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     },
     skill: { name: 'AMATERASU', desc: 'API HITAM ABADI MEMBAKAR MUSUH & MENJALAR', cd: 7 },
     fusion: { name: 'TOTSUKA NO TSURUGI', desc: 'J+L: SUSANOO MERAH, PEDANG TOTSUKA MENUSUK TIAP MUSUH LALU MENYEGELNYA', cd: 11 },
-    ult: { name: 'TSUKUYOMI', desc: 'DUNIA MERAH: SEMUA MUSUH TERJEBAK 72 JAM DALAM SEDETIK' },
+    ult: { name: 'TSUKUYOMI', desc: 'DUNIA MERAH: TIAP MUSUH DISALIB & DITUSUK 72 JAM DALAM SEDETIK, LALU AMBRUK' },
   },
   tongkatFrost: {
     id: 'tongkatFrost',
