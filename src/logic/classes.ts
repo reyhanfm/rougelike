@@ -340,7 +340,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     },
     synergy: {
       name: 'DISIPLIN TEMPUR',
-      desc: 'JEDA TEMBAK -15%, SKILL GRANAT',
+      desc: 'JEDA TEMBAK -15%, SKILL SNIPER',
       apply: (s) => void (s.swingCooldown *= 0.85),
     },
   },
