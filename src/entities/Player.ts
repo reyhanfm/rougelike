@@ -195,6 +195,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   // --- used by skills and passives ---
 
+  /** Step of the ground combo the current move is (0-based); -1 for an air move. */
+  get comboStep(): number {
+    return this.comboIndex;
+  }
+
   get grounded(): boolean {
     return this.body.blocked.down || this.body.touching.down;
   }
@@ -692,14 +697,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         status: m.status,
         mult: m.dmg,
         source: 'basic',
-        pierce: !!projectile!.pierce || ((this.weapon.id === 'busur' || this.weapon.id === 'pedangTerbang') && this.stats.pierceArrows > 0),
+        pierce:
+          !!projectile!.pierce ||
+          !!m.pierce ||
+          ((this.weapon.id === 'busur' || this.weapon.id === 'pedangTerbang') && this.stats.pierceArrows > 0),
         knockback: m.knockback,
         homing: projectile!.homing || (this.stats.homingArrows > 0 && i === lead),
         returning: projectile!.returning,
         spin: projectile!.spin,
       });
+      // Short-range moves (shotgun pellets) die out after `range` px.
+      if (m.range) {
+        const shot = this.thrown;
+        this.scene.time.delayedCall((m.range / projectile!.speed) * 1000, () => shot?.active && shot.destroy());
+      }
       if (!projectile!.returning) this.thrown = undefined;
     }
+    // The weapon's own move effects (Heracles' rock wave, the Avenger's dark crescent...).
+    SKILLS[this.weapon.id].onSwing?.({ p: this, world: this.world, scene: this.scene, power: this.stats.skillPower }, m, this.comboIndex);
     // Ksatria synergy: the last hit of the ground combo throws a golden wave of light.
     if (grounded && this.stats.finisherWave && this.comboIndex === this.weapon.combo.length - 1) {
       this.world.shot({

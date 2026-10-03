@@ -1008,6 +1008,10 @@ export const SPRITES: Record<string, string[]> = {
   ],
   w_busurArkana: ['de...', 'd.e..', 'd..e.', 'd..e.', 'd...e', 'd...e', 'd...a', 'd...e', 'd...e', 'd..e.', 'd..e.', 'd.e..', 'de...'],
   panahArkana: ['d.....e.', 'deeeee77', 'd.....e.'],
+  // Magic Archer's charged finisher: a longer shaft of white light with a star at its head.
+  panahBintang: ['e.......a.', 'deeee7777a', 'e.......a.'],
+  // Gunners' shotgun pellet.
+  pellet: ['9a', 'a9'],
 
   i_sandal: ['........', '........', '.4444...', '.4aa44..', '.444444.', '44444444', '0.....0.', '........'],
   i_syal: ['..8888..', '.888888.', '.88..88.', '..8..8..', '..8..8..', '..88.8..', '...8.88.', '...8....'],

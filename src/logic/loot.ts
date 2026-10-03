@@ -73,6 +73,10 @@ export interface Move {
   cut?: number;
   /** Projectile texture for this move instead of the weapon's. */
   shot?: string;
+  /** This move's projectiles pass through enemies (even if the weapon's do not). */
+  pierce?: boolean;
+  /** This move's projectiles vanish after this many px (shotgun pellets). */
+  range?: number;
   status?: Status;
 }
 
@@ -160,9 +164,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0x9aa0c8,
     cut: 0x29adff,
     combo: [
-      { anim: 'down', dmg: 1, cd: 1, ms: 130, reach: box(24, 22), knockback: 130 },
-      { anim: 'up', dmg: 1, cd: 1, ms: 130, reach: box(24, 24), knockback: 130 },
-      { anim: 'overhead', dmg: 1.7, cd: 1.5, ms: 200, reach: box(30, 30), knockback: 240, lunge: 60 },
+      // An executioner's rhythm: one heavy chop straight down, then a cross cut both ways.
+      { anim: 'overhead', dmg: 1.2, cd: 1.2, ms: 170, reach: box(26, 30), knockback: 160 },
+      { anim: 'cross', dmg: 0.8, cd: 1.1, ms: 200, reach: box(28, 26), knockback: 120 },
+      // PENGGAL (the beheading): he glides through in one azure stroke; a life nearly spent is taken outright
+      // (SKILLS.belati.onHit).
+      {
+        anim: 'down',
+        dmg: 1.6,
+        cd: 1.6,
+        ms: 200,
+        reach: box(34, 22),
+        knockback: 220,
+        lunge: 220,
+        trail: 0x29adff,
+        cut: 0x7fe6ff,
+        status: { burn: 0.15 },
+      },
     ],
     air: {
       name: 'JATUH AZRAEL',
@@ -222,9 +240,11 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0xd08a50,
     cut: 0xffa300,
     combo: [
-      { anim: 'down', dmg: 1, cd: 1, ms: 180, reach: box(24, 30), knockback: 220 },
-      { anim: 'up', dmg: 0.9, cd: 1, ms: 180, reach: box(24, 30), knockback: 180 },
-      { anim: 'overhead', dmg: 1.5, cd: 1.5, ms: 260, reach: box(28, 34), knockback: 300, lunge: 60 },
+      { anim: 'down', dmg: 1.1, cd: 1.1, ms: 200, reach: box(26, 30), knockback: 240 },
+      // The stone axe-sword whirled all the way around him.
+      { anim: 'spin', dmg: 1, cd: 1.2, ms: 260, reach: box(44, 30), knockback: 200, hitbox: 'around' },
+      // Brought down so hard the floor heaves: a wave of rock runs on ahead (SKILLS.kapak.onSwing).
+      { anim: 'overhead', dmg: 1.5, cd: 1.6, ms: 260, reach: box(28, 34), knockback: 300, lunge: 60 },
     ],
     air: {
       name: 'HANTAMAN METEOR',
@@ -290,9 +310,11 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0xc2c3c7,
     cut: 0x29adff,
     combo: [
-      { anim: 'down', dmg: 1, cd: 1, ms: 150, reach: box(30, 22), knockback: 120 },
-      { anim: 'up', dmg: 1, cd: 1, ms: 150, reach: box(30, 22), knockback: 120 },
-      { anim: 'spin', dmg: 1.6, cd: 1.5, ms: 240, reach: box(40, 30), knockback: 180, hitbox: 'around' },
+      // The scythe's hooked blade drags its victims in (negative knockback) for the reap.
+      { anim: 'down', dmg: 1, cd: 1, ms: 160, reach: box(32, 22), knockback: -110 },
+      { anim: 'up', dmg: 1, cd: 1, ms: 160, reach: box(32, 24), knockback: -90 },
+      // The reap: a full turn of the blade; every soul it cuts feeds him (SKILLS.sabit.onHit).
+      { anim: 'spin', dmg: 1.6, cd: 1.5, ms: 260, reach: box(44, 32), knockback: 200, hitbox: 'around' },
     ],
     air: {
       name: 'TEBASAN BULAN',
@@ -321,7 +343,18 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     combo: [
       { anim: 'shoot', dmg: 1, cd: 1, ms: 65, reach: box(0, 0), knockback: 12, angles: [0] },
       { anim: 'shoot', dmg: 1, cd: 1, ms: 65, reach: box(0, 0), knockback: 12, angles: [0] },
-      { anim: 'shoot', dmg: 1.25, cd: 1.25, ms: 90, reach: box(0, 0), knockback: 18, angles: [0] },
+      // Every third pull is the underbarrel shotgun: five pellets that spread and die out at short range.
+      {
+        anim: 'shoot',
+        dmg: 0.45,
+        cd: 1.4,
+        ms: 120,
+        reach: box(0, 0),
+        knockback: 40,
+        angles: [-0.2, -0.1, 0, 0.1, 0.2],
+        range: 80,
+        shot: 'pellet',
+      },
     ],
     air: { name: 'TEMBAK MENUKIK', anim: 'shoot', dmg: 1, cd: 1.1, ms: 80, reach: box(0, 0), knockback: 12, angles: [0.35] },
     skill: { name: 'TEMBAKAN SNIPER', desc: 'BIDIK MUSUH TERKUAT (UDARA JUGA), PELURU ANTI-TANK MENEMBUS SEGARIS', cd: 5 },
@@ -443,7 +476,8 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     combo: [
       { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0] },
       { anim: 'shoot', dmg: 1, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [0] },
-      { anim: 'shoot', dmg: 0.9, cd: 1.5, ms: 140, reach: box(0, 0), knockback: 80, angles: [-0.12, 0, 0.12] },
+      // A charged star-arrow: one bright shaft that pierces the whole line (SKILLS.busurArkana.onSwing flares it).
+      { anim: 'shoot', dmg: 2.2, cd: 1.5, ms: 160, reach: box(0, 0), knockback: 140, angles: [0], pierce: true, shot: 'panahBintang' },
     ],
     air: {
       name: 'PANAH BINTANG',
@@ -471,8 +505,10 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0xa860f0,
     cut: 0x7e2553,
     combo: [
-      { anim: 'down', dmg: 1, cd: 1, ms: 140, reach: box(24, 22), knockback: 140 },
-      { anim: 'up', dmg: 1, cd: 1, ms: 140, reach: box(24, 24), knockback: 140 },
+      // A lunging stab, then a rising cut that throws the enemy into the air (SKILLS.pedangGelap.onHit), then the
+      // greatsword comes down and a crescent of darkness flies on from it (onSwing).
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 140, reach: box(30, 10), knockback: 120, lunge: 140 },
+      { anim: 'up', dmg: 1.1, cd: 1.1, ms: 160, reach: box(24, 30), knockback: 60, trail: 0x8a3fd1 },
       { anim: 'overhead', dmg: 1.7, cd: 1.5, ms: 220, reach: box(30, 30), knockback: 260, lunge: 80 },
     ],
     air: {
@@ -877,8 +913,8 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     combo: [
       // A quick Chidori-charged stab.
       { anim: 'thrust', dmg: 0.9, cd: 0.8, ms: 90, reach: box(28, 10), knockback: 80 },
-      { anim: 'down', dmg: 0.9, cd: 0.8, ms: 90, reach: box(24, 20), knockback: 90 },
-      { anim: 'up', dmg: 1, cd: 0.9, ms: 90, reach: box(24, 22), knockback: 100 },
+      // Kusanagi flicks both ways in a flash, the current locking up what it touches.
+      { anim: 'cross', dmg: 0.8, cd: 1, ms: 160, reach: box(26, 24), knockback: 100, cut: 0x29adff, status: { freeze: 120 } },
       // Chidori Katana: a lunge with the lightning-sheathed blade that paralyzes.
       {
         anim: 'thrust',
