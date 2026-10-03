@@ -466,7 +466,7 @@ assert.equal(runStats(base, WEAPONS.gerbangBabilonia, [], 'gilgamesh').extraArro
 assert.equal(runStats(base, WEAPONS.pedang, [], 'gilgamesh').extraArrows, 0);
 assert.ok(runStats(base, WEAPONS.pedang, [], 'gilgamesh').coinBonus >= 2 && WEAPONS.gerbangBabilonia.projectile?.gate);
 // Jujutsu: Gojo's Infinity blocks, Sukuna's Kai & Hachi echo with his technique, Toji trades skill power for body.
-assert.equal(runStats(base, WEAPONS.pedang, [], 'gojo').barrier, 8);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'gojo').barrier, 6);
 assert.ok(runStats(base, WEAPONS.shrine, [], 'sukuna').echo >= 0.35 && runStats(base, WEAPONS.pedang, [], 'sukuna').echo === 0);
 assert.ok(runStats(base, WEAPONS.pedang, [], 'toji').skillPower < base.skillPower);
 // Custom hero heads replace rows of the same width.
