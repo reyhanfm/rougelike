@@ -490,19 +490,20 @@ export const PASSIVES: Record<ClassId, Passive> = {
     },
   },
 
-  // PEDANG PENJAGA: three swords of qi wheel around the cultivator all the time, in front of and behind him like a
-  // tilted halo, and cut whatever comes close.
+  // PEDANG PENJAGA: four swords of qi wheel around the cultivator all the time, in front of and behind him like a
+  // tilted halo, cutting whatever comes close and cutting enemy projectiles out of the air.
   cultivator: {
     tick: ({ p, world, scene }, time) => {
       const s = state(p, () => ({ swords: [] as Phaser.GameObjects.Image[], last: new Map<object, number>(), trail: 0 }));
       if (!s.swords.length)
-        s.swords = Array.from({ length: 3 }, () => scene.add.image(p.x, p.y, 'w_pedangTerbang').setTint(0x9fe8ff).setScale(0.8));
+        s.swords = Array.from({ length: 4 }, () => scene.add.image(p.x, p.y, 'w_pedangTerbang').setTint(0x9fe8ff).setScale(0.8));
       const trail = time >= s.trail;
       if (trail) s.trail = time + 50;
-      const foes = world.targets(p.x, p.y).filter((t) => dist(t, p) < 40);
+      const foes = world.targets(p.x, p.y).filter((t) => dist(t, p) < 44);
+      const shots = world.hostiles().filter((h) => dist(h, p) < 30);
       s.swords.forEach((sw, i) => {
-        const a = time / 240 + (i * Math.PI * 2) / 3;
-        sw.setPosition(p.x + Math.cos(a) * 16, p.y + Math.sin(a) * 8)
+        const a = time / 220 + (i * Math.PI * 2) / s.swords.length;
+        sw.setPosition(p.x + Math.cos(a) * 18, p.y + Math.sin(a) * 9)
           .setRotation(a + Math.PI / 2)
           .setDepth(Math.sin(a) > 0 ? 11 : 9);
         if (trail) {
@@ -513,7 +514,14 @@ export const PASSIVES: Record<ClassId, Passive> = {
           if (dist(t, sw) > 8 + t.displayWidth / 2 || time - (s.last.get(t) ?? 0) < 450) continue;
           s.last.set(t, time);
           cutMark(scene, t.x, t.y, 0x29adff, 14);
-          world.strike(t, 0.35, 'proc', false, undefined, 40);
+          world.strike(t, 0.5, 'proc', false, undefined, 40);
+        }
+        // A sword that crosses an enemy projectile cuts it out of the air.
+        for (const h of shots) {
+          if (!h.active || dist(h, sw) > 7) continue;
+          cutMark(scene, h.x, h.y, 0xc2f0ff, 10);
+          sparks(scene, h.x, h.y, [0x29adff, 0xfff1e8], 4, 8);
+          h.destroy();
         }
       });
     },

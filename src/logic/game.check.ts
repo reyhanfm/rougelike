@@ -357,12 +357,16 @@ assert.equal(gunner.maxHp, 110);
 assert.ok(gunner.swingCooldown < runStats(base, WEAPONS.senapan, []).swingCooldown);
 assert.ok(WEAPONS.senapan.automatic && WEAPONS.senapan.projectile?.texture === 'bullet');
 // Cultivator: flying swords home in; the synergy makes them pierce.
-assert.ok(WEAPONS.pedangTerbang.projectile?.homing && WEAPONS.pedangTerbang.projectile.returning);
-for (const m of [...WEAPONS.pedangTerbang.combo, ...WEAPONS.pedangTerbang.air])
-  assert.equal(m.angles?.length, 1, 'one sword in flight at a time');
+// They hunt on their own and need no catching (no returning: the attack never waits on a sword in flight), and the
+// formation grows over the combo.
+assert.ok(WEAPONS.pedangTerbang.projectile?.homing && !WEAPONS.pedangTerbang.projectile.returning);
+assert.deepEqual(
+  WEAPONS.pedangTerbang.combo.map((m) => m.angles?.length),
+  [1, 2, 3],
+);
 assert.equal(runStats(base, WEAPONS.pedangTerbang, [], 'cultivator').pierceArrows, 1);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'cultivator').pierceArrows, 0);
-assert.equal(runStats(base, WEAPONS.pedang, [], 'cultivator').regen, 0.5);
+assert.equal(runStats(base, WEAPONS.pedang, [], 'cultivator').regen, 1);
 // Elementalis: fire moves burn, ice moves freeze; the synergy strengthens both.
 assert.ok(WEAPONS.tongkat.combo.some((m) => m.status?.burn) && WEAPONS.tongkat.combo.some((m) => m.status?.freeze));
 assert.equal(runStats(base, WEAPONS.tongkat, [], 'elementalis').elemental, 1.5);

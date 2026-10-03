@@ -25,6 +25,8 @@ type WeaponSkills = {
   fusion?: SkillFn;
   onHit?: (c: SkillCtx, t: Phaser.GameObjects.Sprite) => void;
   onSwing?: (c: SkillCtx, m: Move, step: number) => void;
+  /** The dive (down + attack in the air) hit the ground at (x, groundY): the class's own landing. */
+  onDiveLand?: (c: SkillCtx, x: number, groundY: number) => void;
 };
 
 const later = (scene: Phaser.Scene, ms: number, fn: () => void) => scene.time.delayedCall(ms, fn);
@@ -983,6 +985,25 @@ function nemeanLion(scene: Phaser.Scene, x: number, y: number, f: number): Phase
 
 export const SKILLS: Record<WeaponId, WeaponSkills> = {
   pedang: {
+    // Mana Burst Jatuh lands in a flare of prana: two blades of Invisible Air skim out along the floor both ways.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      ring(scene, x, gy - 4, 0xc2f0ff, 4, 30, 260, 2);
+      for (const f of [-1, 1]) {
+        const w = world.shot({
+          x: x + f * 8,
+          y: gy - 6,
+          vx: f * 260,
+          vy: 0,
+          texture: 'angin',
+          mult: 0.6 * power,
+          source: 'proc',
+          pierce: true,
+          knockback: 160,
+        }) as Phaser.GameObjects.Image;
+        w.setFlipX(f < 0);
+        later(scene, 320, () => w.active && w.destroy());
+      }
+    },
     // Strike Air: the barrier of wind hiding Excalibur unravels in a spiral off the blade and is hurled as a drilling
     // tornado at the nearest enemy ahead (in the air or not), piercing everything in its path and hurling it away.
     skill: ({ p, world, scene, power }) => {
@@ -1253,6 +1274,12 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   belati: {
+    // Jatuh Azrael: where he lands, a row of azure grave-fire bursts out of the ground and black feathers fall.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      for (let i = -2; i <= 2; i++) later(scene, Math.abs(i) * 50, () => flameTongue(scene, x + i * 12, gy, 26 - Math.abs(i) * 4, 420));
+      feathers(scene, x, gy - 30, 5, 20, 24);
+      world.area(x, gy - 8, 34, 0.6 * power, 120, 'proc', { burn: 0.15 });
+    },
     // PENGGAL, the finisher: an azure crescent of grave-fire trails the stroke and black feathers fall where it passed.
     onSwing: ({ p, scene }, _m, step) => {
       if (step !== 2) return;
@@ -1539,7 +1566,8 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   tombak: {
     // The charging finisher (step 2): the curse's barbs burst out of whatever the spear goes into.
     onHit: ({ p, scene }, t) => {
-      if (p.comboStep !== 2) return;
+      // ...and from whatever the diving spear (Tusukan Bawah) skewers.
+      if (p.comboStep !== 2 && p.move !== p.weapon.dive) return;
       thorns(scene, t.x, t.y, 0xff004d, 7, 14);
     },
     // Gae Bolg: causality reversed. The heart is pierced first (red barbs burst out of the target), then the spear
@@ -1870,6 +1898,28 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   kapak: {
+    // Hantaman Meteor: the landing throws up walls of rock that race out along the floor both ways.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      const hit = new Set<Phaser.GameObjects.GameObject>();
+      for (const dir of [-1, 1])
+        for (let k = 0; k < 4; k++)
+          later(scene, k * 45, () => {
+            const sx = x + dir * (14 + k * 16);
+            const g = scene.add.graphics().setDepth(11);
+            const h = 14 - k * 2;
+            g.fillStyle(0x4a2a1a).fillTriangle(-6, 0, 6, 0, 0, -h - 2);
+            g.fillStyle(0xab5236).fillTriangle(-4, 0, 4, 0, 0, -h);
+            g.fillStyle(0xd08a50).fillTriangle(-1, -h * 0.4, 1, -h * 0.4, 0, -h);
+            g.setPosition(sx, gy + 1).setScale(1, 0);
+            scene.tweens.add({ targets: g, scaleY: 1, duration: 70, yoyo: true, hold: 100, onComplete: () => g.destroy() });
+            rocks(scene, sx, gy - 2, 2);
+            for (const t of world.targets(sx, gy)) {
+              if (hit.has(t) || Math.abs(t.x - sx) > 9 || t.y < gy - 30) continue;
+              hit.add(t);
+              world.strike(t, 0.7 * power, 'proc', false, undefined, 200);
+            }
+          });
+    },
     // The finisher hits the floor so hard that a wave of rock heaves up and runs on ahead along the ground.
     onSwing: ({ p, world, scene }, m, step) => {
       if (step !== 2 || !p.grounded) return;
@@ -2280,6 +2330,25 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   busur: {
+    // Terjunan Bangau: on landing he throws Kanshou and Bakuya out along the floor, one each way.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      for (const f of [-1, 1]) {
+        const b = world.shot({
+          x: x + f * 6,
+          y: gy - 6,
+          vx: f * 240,
+          vy: 0,
+          texture: f > 0 ? 'w_busur' : 'w_bakuya',
+          mult: 0.6 * power,
+          source: 'proc',
+          pierce: true,
+          spin: true,
+          knockback: 100,
+        });
+        later(scene, 360, () => b.active && b.destroy());
+      }
+      sparks(scene, x, gy - 4, [0xfff1e8, 0xff004d], 8, 14);
+    },
     // Caladbolg II: he traces his black bow, blue light spirals into it, then the twisted sword flies as an arrow, drilling the air with a
     // double helix behind it; it detonates on the first thing it hits.
     skill: ({ p, world, scene, power }) => {
@@ -2511,6 +2580,16 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   sabit: {
+    // Sabit Jatuh: the scythe bites into the floor and three bony hands claw up around him, seizing whatever is near.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      for (const dx of [-24, 0, 24]) {
+        const hand = underworldHand(scene, x + dx, gy);
+        scene.tweens.add({ targets: hand, scaleY: 1.5, delay: 60, duration: 110, ease: 'Back.Out' });
+        scene.tweens.add({ targets: hand, scaleY: 0, alpha: 0, delay: 480, duration: 160, onComplete: () => hand.destroy() });
+      }
+      for (const t of world.targets(x, gy))
+        if (Math.abs(t.x - x) < 34 && t.y > gy - 30) world.strike(t, 0.5 * power, 'proc', false, { freeze: 700 }, 0);
+    },
     // The hook cuts drag a thread of soul-light back to the blade; every soul the reap (step 2) cuts flies into him.
     onHit: ({ p, scene }, t) => {
       if (p.comboStep === 2) {
@@ -2900,6 +2979,23 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   senapan: {
+    // Injakan Tempur: the boot comes down on a grenade he dropped: a blast at his feet, spent shells everywhere.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      explosion(scene, x, gy - 4, 20);
+      for (let i = 0; i < 4; i++) {
+        const sh = scene.add.rectangle(x, gy - 4, 1, 2, 0xffa300).setDepth(13);
+        scene.tweens.add({
+          targets: sh,
+          x: x + Phaser.Math.Between(-20, 20),
+          y: gy - Phaser.Math.Between(6, 16),
+          angle: 360,
+          alpha: 0,
+          duration: 400,
+          onComplete: () => sh.destroy(),
+        });
+      }
+      world.area(x, gy - 6, 28, 0.7 * power, 200, 'proc');
+    },
     // The shotgun pull (step 2): a fat muzzle blast and a shell ejected behind.
     onSwing: ({ p, scene }, _m, step) => {
       if (step !== 2) return;
@@ -3271,6 +3367,27 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   pedangTerbang: {
+    // Pedang Jatuh: he lands riding his sword; four more plant themselves around him and then spring up into the sky
+    // to hunt whatever flies.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      [-1.2, -1.45, -1.7, -1.95].forEach((a, i) =>
+        later(scene, 80 + i * 60, () => {
+          const s = world.shot({
+            x: x + (i - 1.5) * 10,
+            y: gy - 4,
+            vx: Math.cos(a) * 220,
+            vy: Math.sin(a) * 220,
+            texture: 'w_pedangTerbang',
+            tint: 0x9fe8ff,
+            mult: 0.5 * power,
+            source: 'proc',
+            homing: true,
+          });
+          sparks(scene, (s as Phaser.GameObjects.Image).x, gy - 2, [0x29adff, 0xc2f0ff], 3, 8);
+        }),
+      );
+      ring(scene, x, gy - 4, 0x29adff, 4, 24, 260, 2);
+    },
     // Formasi Enam Pedang (Six-Sword Array): he flicks the sword seal and six swords leave his back, flying out to the
     // six corners of a ring around the thickest knot of enemies (in the air too). They hang there point-inward and
     // lines of qi join them into a six-pointed seal: everything inside is weighed down and drawn to its heart. One
@@ -3346,7 +3463,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           const to = corner((i + 3) % 6);
           scene.tweens.add({ targets: sw, x: to.x, y: to.y, duration: 90, yoyo: true, ease: 'Quad.In' });
           bladeLine(scene, from.x, from.y, to.x, to.y, 0x29adff, 40);
-          world.area(cx, cy, R, 0.45 * power, 30, 'skill');
+          world.area(cx, cy, R, 0.55 * power, 30, 'skill');
         });
       // All six close in.
       later(scene, 560 + 6 * 130 + 120, () => {
@@ -3358,7 +3475,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           sparks(scene, cx, cy, [0x29adff, 0xc2f0ff, 0xfff1e8], 18, R + 10);
           scene.cameras.main.shake(160, 0.012);
           for (const t of world.targets(cx, cy))
-            if (Phaser.Math.Distance.Between(cx, cy, t.x, t.y) <= R + 8) world.strike(t, 1.6 * power, 'skill', true);
+            if (Phaser.Math.Distance.Between(cx, cy, t.x, t.y) <= R + 8) world.strike(t, 2.2 * power, 'skill', true);
         });
       });
     },
@@ -3599,6 +3716,19 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   tongkat: {
+    // Meteor Kecil: the landing bursts in the element she holds now (fire, ice, lightning or stone).
+    onDiveLand: ({ p, world, scene, power }, x, gy) => {
+      const k = (p.getData('element') as number | undefined) ?? 0;
+      const fx = [
+        () => (explosion(scene, x, gy - 4, 22), { burn: 0.25 }),
+        () => (sparks(scene, x, gy - 4, [0xc2f0ff, 0x29adff, 0xfff1e8], 18, 26), { freeze: 700 }),
+        () => (stormArc(scene, x, 0, x, gy - 4, 220, 2, 2), { freeze: 300 }),
+        () => (rocks(scene, x, gy - 2, 12), { slow: 1000 }),
+      ][k % 4];
+      const status = fx();
+      ring(scene, x, gy - 4, [0xff004d, 0x29adff, 0xffec27, 0xab5236][k % 4], 4, 32, 280, 2);
+      world.area(x, gy - 6, 34, 0.7 * power, 160, 'proc', status);
+    },
     // Elemental Cycle: every cast calls the next element in turn: fire, ice, lightning, earth, and round again.
     skill: (c) => {
       const k = (c.p.getData('element') as number | undefined) ?? 0;
@@ -4028,6 +4158,22 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   busurArkana: {
+    // Bintang Jatuh: she lands in a burst of starlight and looses three arrows straight up that hunt the sky.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      const g = scene.add.star(x, gy - 6, 4, 3, 14, 0xff77a8).setDepth(13);
+      scene.tweens.add({ targets: g, scale: 1.6, angle: 45, alpha: 0, duration: 320, onComplete: () => g.destroy() });
+      for (const a of [-1.25, -1.57, -1.9])
+        world.shot({
+          x,
+          y: gy - 8,
+          vx: Math.cos(a) * 230,
+          vy: Math.sin(a) * 230,
+          texture: 'panahArkana',
+          mult: 0.5 * power,
+          source: 'proc',
+          homing: true,
+        });
+    },
     // The charged star-arrow (step 2): a sigil flares at the bowstring as it leaves.
     onSwing: ({ p, scene }, _m, step) => {
       if (step !== 2) return;
@@ -4359,6 +4505,13 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   pedangGelap: {
+    // Tusukan Gerhana: the greatsword is driven into the ground and violet shadow-fire erupts in a ring around it.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      const VIOLET: readonly [number, number, number] = [0x2a0a2a, 0x8a3fd1, 0xc080ff];
+      for (let i = -2; i <= 2; i++)
+        later(scene, Math.abs(i) * 40, () => flameTongue(scene, x + i * 11, gy, 30 - Math.abs(i) * 5, 400, VIOLET));
+      world.area(x, gy - 8, 38, 0.7 * power, 160, 'proc', { slow: 900 });
+    },
     // The rising cut (step 1) throws its victim up into the air, a pillar of shadow under it.
     onHit: ({ p, scene }, t) => {
       if (p.comboStep !== 1 || 'tier' in t) return;
@@ -4673,6 +4826,31 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   enamLengan: {
+    // Tinju Meteor: as he lands, six phantom fists come down out of the air around him like hammers.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      for (let k = 0; k < 6; k++) {
+        const fx = x + (k - 2.5) * 12;
+        const fist = scene.add
+          .image(fx, gy - 50, 'w_enamLengan')
+          .setTint(0xffec27)
+          .setScale(1.6)
+          .setRotation(Math.PI / 2)
+          .setDepth(13);
+        scene.tweens.add({
+          targets: fist,
+          y: gy - 6,
+          delay: k * 35,
+          duration: 100,
+          ease: 'Quad.In',
+          onComplete: () => {
+            rocks(scene, fx, gy - 2, 2);
+            fist.destroy();
+            for (const t of world.targets(fx, gy))
+              if (Math.abs(t.x - fx) < 8 && t.y > gy - 30) world.strike(t, 0.3 * power, 'proc', false, undefined, 60);
+          },
+        });
+      }
+    },
     // Tinju Seribu (Thousand Fists): six phantom arms tear out of Ashura's back, red-skinned and gold-banded, and all
     // of them throw at once: a storm of golden fists fanned out in three lanes, along the ground, up at a slant and
     // steeply into the air, so nothing in front of him is out of reach. Speed lines stream past. The barrage ends
@@ -5005,7 +5183,12 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
 
   cakarNaga: {
     // The rake (step 0): three crimson gashes torn through the air in front of him, one per stroke.
+    // Terkaman Naga (the dive) pounces trailing fire.
     onSwing: ({ p, scene }, m, step) => {
+      if (m === p.weapon.dive) {
+        for (let i = 0; i < 6; i++) later(scene, i * 40, () => p.active && flameTongue(scene, p.x, p.y + 6, 12, 260, FIRE));
+        return;
+      }
       if (step !== 0) return;
       const f = p.facing;
       for (let k = 0; k < 3; k++)
@@ -5266,6 +5449,26 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   gerbangBabilonia: {
+    // Turun Tahta: the king steps down and three gates open in the floor around him, firing treasures up at his foes.
+    onDiveLand: ({ p, world, power }, x, gy) => {
+      const foes = world.targets(x, gy);
+      [-16, 0, 16].forEach((dx, i) => {
+        const t = foes[i % Math.max(1, foes.length)];
+        const gx = x + dx;
+        const a = t ? Phaser.Math.Angle.Between(gx, gy - 4, t.x, t.y) : -Math.PI / 2;
+        p.gatePortal(gx, gy - 4, a);
+        world.shot({
+          x: gx,
+          y: gy - 4,
+          vx: Math.cos(a) * 260,
+          vy: Math.sin(a) * 260,
+          texture: Phaser.Math.RND.pick(TREASURES),
+          tint: 0xfff0a0,
+          mult: 0.6 * power,
+          source: 'proc',
+        });
+      });
+    },
     // Enkidu, Chains of Heaven, the one friend the King ever had: golden ripples open in the air on both sides of
     // each of the three nearest enemies (flying or not), chains shoot out of them link by link, coil around the
     // target and pull taut, binding it where it stands. Then the chains slither back into the treasury.
@@ -5598,6 +5801,14 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   shrine: {
+    // Dismantle Jatuh: where Sukuna lands, cuts open in a ring all around him.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        later(scene, i * 30, () => cutMark(scene, x + Math.cos(a) * 22, gy - 10 + Math.sin(a) * 14, 0xff004d, 20, a + 0.8));
+      }
+      world.area(x, gy - 10, 36, 0.8 * power, 120, 'proc');
+    },
     // Fuga ("Open"): fire gathers into Sukuna's hands and takes the shape of a bow and a burning arrow. He draws it,
     // tracking the nearest enemy (in the air or not), and lets go at wherever it stands at that moment: the arrow
     // streaks there trailing embers and erupts into a pillar of fire from the ground to the sky that engulfs
@@ -5915,6 +6126,17 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   mugen: {
+    // Ao Jatuh: he lands on a point of Blue: everything near is dragged in and crushed.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      const orb = scene.add
+        .image(x, gy - 10, 'ao')
+        .setScale(0.6)
+        .setDepth(12);
+      scene.tweens.add({ targets: orb, scale: 2.4, angle: 540, duration: 300, yoyo: true, onComplete: () => orb.destroy() });
+      ring(scene, x, gy - 10, 0x29adff, 50, 4, 400, 2);
+      world.pull(x, gy - 10, 60, 160);
+      later(scene, 300, () => world.area(x, gy - 10, 26, 0.9 * power, 0, 'proc'));
+    },
     // Blue (Ao): a point of attraction opens in front of Gojo, drags enemies in and crushes them.
     basic: ({ p, world, scene, power }) => {
       const x = Phaser.Math.Clamp(p.x + p.facing * 56, 10, W - 10);
@@ -6120,10 +6342,12 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
 
   sakahoko: {
     // The dash finisher (step 2): a white streak hangs along his path, and he is already past the enemy.
+    // The dive (Tikaman Kilat) leaves the same streak along its slant.
     onSwing: ({ p, scene }, m, step) => {
-      if (step !== 2) return;
+      if (step !== 2 && m !== p.weapon.dive) return;
       const x0 = p.x;
-      later(scene, m.ms, () => p.active && bladeLine(scene, x0, p.y, p.x, p.y, 0xfff1e8, 100));
+      const y0 = p.y;
+      later(scene, m.ms, () => p.active && bladeLine(scene, x0, y0, p.x, p.y, 0xfff1e8, 100));
     },
     // Playful Cloud: the three-section staff, swung like a flail with nothing but Heavenly Restriction's strength
     // behind it. First a rising whip from the floor in front up into the air, then the end section snapped straight
@@ -6423,6 +6647,15 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   gunbai: {
+    // Gunbai Jatuh: he lands fan-first and the gust blows everything around him away, streaks of wind racing out.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      for (let i = 0; i < 8; i++) {
+        const f = i % 2 ? 1 : -1;
+        const r = scene.add.rectangle(x + f * 6, gy - 4 - (i >> 1) * 6, 12, 1, 0xd0b0ff, 0.8).setDepth(12);
+        scene.tweens.add({ targets: r, x: x + f * 60, alpha: 0, duration: 260, onComplete: () => r.destroy() });
+      }
+      world.area(x, gy - 8, 48, 0.5 * power, 320, 'proc');
+    },
     // The gunbai shove (step 0): the fan is a shield while it moves; blows glance off it.
     onSwing: ({ p, scene }, m, step) => {
       if (step !== 0) return;
@@ -6435,35 +6668,67 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         .strokePath();
       scene.tweens.add({ targets: g, x: f * 10, alpha: 0, duration: m.ms + 60, onComplete: () => g.destroy() });
     },
-    // Katon: Gokakyu: a giant fireball rolls forward, burning through everything in its way.
+    // Katon: Goka Mekkyaku (Majestic Destroyer Flame): Madara draws in a huge breath, fire glowing in his chest, and
+    // breathes out not a ball but a sea of flame: a rolling wall of fire that pours out ahead of him, growing taller
+    // as it goes until it reaches from the floor up into the sky, swallowing everything in front of him and leaving it
+    // burning. The ground it passed over smoulders.
     skill: ({ p, world, scene, power }) => {
       const f = p.facing;
-      p.lock(250);
+      p.lock(1000);
+      p.invuln(400);
       p.setVelocityX(0);
-      const ball = world.shot({
-        x: p.x + f * 16,
-        y: p.y - 10,
-        vx: f * 150,
-        vy: 0,
-        texture: 'gokakyu',
-        mult: 2.5 * power,
-        source: 'skill',
-        pierce: true,
-        knockback: 160,
-        status: { burn: 0.4 },
-      }) as Phaser.GameObjects.Image;
-      // Twice the sprite: a truly giant fireball (the body scales with it).
-      ball.setScale(2);
-      scene.cameras.main.shake(150, 0.01);
-      for (let i = 1; i <= 25; i++) {
-        later(scene, i * 70, () => {
-          if (!ball.active) return;
-          const ember = scene.add
-            .circle(ball.x - f * 18, ball.y + Phaser.Math.Between(-10, 10), 3, i % 2 ? 0xffa300 : 0xff004d)
-            .setDepth(8);
-          scene.tweens.add({ targets: ember, alpha: 0, y: ember.y - 6, duration: 300, onComplete: () => ember.destroy() });
-        });
+      // The breath drawn in: embers rush into his mouth.
+      for (let i = 0; i < 12; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const e = scene.add.rectangle(p.x + Math.cos(a) * 24, p.y - 3 + Math.sin(a) * 18, 1, 1, i % 2 ? 0xffa300 : 0xff004d).setDepth(13);
+        scene.tweens.add({ targets: e, x: p.x + f * 4, y: p.y - 4, delay: i * 15, duration: 220, onComplete: () => e.destroy() });
       }
+      const x0 = p.x + f * 8;
+      const LEN = 190;
+      const RUN = 650;
+      const hit = new Set<Phaser.GameObjects.GameObject>();
+      later(scene, 300, () => {
+        scene.cameras.main.shake(RUN, 0.007);
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          duration: RUN,
+          ease: 'Sine.Out',
+          onUpdate: (tw) => {
+            const v = tw.getValue() ?? 0;
+            const front = x0 + f * LEN * v;
+            const h = 18 + 80 * v;
+            // The wall's front: tongues of fire, tallest at the leading edge, embers above.
+            for (let k = 0; k < 3; k++) {
+              const fx = front - f * Phaser.Math.Between(0, 20);
+              flameTongue(scene, fx, FLOOR_Y, h * Phaser.Math.FloatBetween(0.5, 1), 320, FIRE);
+            }
+            const blob = scene.add
+              .circle(
+                front - f * 10,
+                FLOOR_Y - h * Phaser.Math.FloatBetween(0.2, 0.7),
+                Phaser.Math.Between(6, 12),
+                Math.random() < 0.5 ? 0xffa300 : 0xff004d,
+                0.6,
+              )
+              .setDepth(12);
+            scene.tweens.add({ targets: blob, scale: 1.8, alpha: 0, y: blob.y - 10, duration: 360, onComplete: () => blob.destroy() });
+            for (const t of world.targets(front, FLOOR_Y)) {
+              if (hit.has(t) || (t.x - front) * f > 6 || (t.x - x0) * f < -8 || t.y < FLOOR_Y - h - 6) continue;
+              hit.add(t);
+              world.strike(t, 2 * power, 'skill', false, { burn: 0.4 }, 200);
+            }
+          },
+          onComplete: () => {
+            // The ground it rolled over smoulders.
+            const scorch = scene.add
+              .rectangle(Math.min(x0, x0 + f * LEN), FLOOR_Y, LEN, 3, 0x2a0a0a, 0.8)
+              .setOrigin(0, 0.5)
+              .setDepth(3);
+            scene.tweens.add({ targets: scorch, alpha: 0, delay: 500, duration: 600, onComplete: () => scorch.destroy() });
+          },
+        });
+      });
     },
     // Tengai Shinsei: Madara raises one hand and the sky goes dark and red. A colossal meteor tears through the clouds,
     // its shadow spreading over the field as it falls; its line is chosen as it falls, the one that swats the most
@@ -6752,6 +7017,13 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   mokuton: {
+    // Hutan Jatuh: a tree bursts up where he lands and its roots grab at everything near it.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      tree(scene, x, 34, 700, 0);
+      leafBurst(scene, x, gy - 30, 10);
+      for (const t of world.targets(x, gy))
+        if (Math.abs(t.x - x) < 36 && t.y > gy - 34) world.strike(t, 0.5 * power, 'proc', false, { freeze: 600 }, 0);
+    },
     // The second step: roots spear up out of the floor ahead of him, one after another.
     onSwing: ({ p, world, scene }, _m, step) => {
       if (step !== 1 || !p.grounded) return;
@@ -7037,6 +7309,22 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   kunai: {
+    // Kunai Jatuh: three kunai with explosive tags stick in the floor ahead and go off one after another.
+    onDiveLand: ({ p, world, scene, power }, x, gy) => {
+      const f = p.facing;
+      [10, 26, 42].forEach((d, i) => {
+        const kx = Phaser.Math.Clamp(x + f * d, 4, W - 4);
+        const k = scene.add
+          .image(kx, gy - 3, 'w_kunai')
+          .setRotation(Math.PI / 2)
+          .setDepth(11);
+        later(scene, 200 + i * 90, () => {
+          k.destroy();
+          explosion(scene, kx, gy - 4, 12);
+          world.area(kx, gy - 6, 16, 0.5 * power, 140, 'proc', { burn: 0.1 });
+        });
+      });
+    },
     // Shunshin (step 0): crows scatter from where he stood a moment ago.
     onSwing: ({ p, scene }, _m, step) => {
       if (step !== 0) return;
@@ -7374,6 +7662,30 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   tongkatFrost: {
+    // Salju Jatuh: frost crystals shoot out of the floor on both sides of where he lands.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      for (const dir of [-1, 1])
+        for (let k = 0; k < 3; k++)
+          later(scene, k * 50, () => {
+            const cx = x + dir * (10 + k * 12);
+            const g = scene.add.graphics().setDepth(11);
+            const h = 16 - k * 3;
+            g.fillStyle(0x29adff).fillPoints(
+              [
+                new Phaser.Math.Vector2(-4, 0),
+                new Phaser.Math.Vector2(-3, -h * 0.7),
+                new Phaser.Math.Vector2(0, -h),
+                new Phaser.Math.Vector2(3, -h * 0.7),
+                new Phaser.Math.Vector2(4, 0),
+              ],
+              true,
+            );
+            g.fillStyle(0xc2f0ff).fillRect(-1, -h + 2, 1, h - 3);
+            g.setPosition(cx, gy + 1).setScale(1, 0);
+            scene.tweens.add({ targets: g, scaleY: 1, duration: 70, yoyo: true, hold: 200, onComplete: () => g.destroy() });
+          });
+      world.area(x, gy - 6, 44, 0.5 * power, 80, 'proc', { freeze: 600 });
+    },
     // Blizzard Vortex: Jack sweeps his crook up and calls the Wind. A twister of snow as tall as the sky spins up in
     // front of him and drifts forward, dragging in everything near it, on the ground or in the air, and grinding it
     // in ice; when the Wind lets go, the vortex bursts and freezes everything it held.
@@ -7742,43 +8054,89 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   katana: {
+    // Otoshi Giri: he lands in a crouch with the blade already back in its sheath; a beat later the cut appears,
+    // a white line across the floor on both sides of him, and everything on it falls apart.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      later(scene, 220, () => {
+        bladeLine(scene, x - 56, gy - 7, x + 56, gy - 7, 0xff004d, 120);
+        floatText(scene, x, gy - 26, 'CHIN', '#fff1e8');
+        for (const t of world.targets(x, gy))
+          if (Math.abs(t.x - x) < 58 && Math.abs(t.y - (gy - 7)) < 14) world.strike(t, 1 * power, 'proc', true);
+      });
+    },
     // After every step-in cut the blade clicks home in the scabbard: a glint at his hip.
     onSwing: ({ p, scene }, m, step) => {
       if (step < 0 || m.anim === 'thrust') return;
       later(scene, m.ms + 30, () => p.active && glint(scene, p.x - p.facing * 2, p.y + 3));
     },
-    // Iaido: a beat in stance while a glint runs down the sheathed blade, then one flash-draw straight through
-    // everything ahead. Enemies on the path freeze mid-step and only fall apart when the blade clicks back home.
+    // Mikiri (seeing through): he sheathes the blade, drops into a low stance and waits, a white ring of focus
+    // closing in around him (nothing touches him while he waits). The moment an enemy steps close or a projectile
+    // comes in, he has already read it: one white flash, the projectile is cut out of the air, and every enemy near
+    // him is cut at once, each a sure critical. If nothing comes, he draws anyway and the cut flies on as a crescent.
     skill: ({ p, world, scene, power }) => {
       const f = p.facing;
-      const y = p.y;
-      p.invuln(650);
-      p.lock(430);
+      const WAIT = 900;
+      p.invuln(WAIT + 200);
+      p.lock(WAIT);
       p.setVelocityX(0);
-      glint(scene, p.x + f * 6, y - 1);
-      later(scene, 170, () => {
-        if (!p.active) return;
-        const fromX = p.x;
-        const toX = Phaser.Math.Clamp(fromX + f * 130, 8, W - 8);
-        for (let i = 1; i <= 5; i++) afterimage(scene, p, fromX + ((toX - fromX) * i) / 6, y, 0.12 + i * 0.07);
-        p.body.reset(toX, y);
-        bladeLine(scene, fromX, y, toX, y, 0xff004d, 200);
-        scene.cameras.main.shake(90, 0.008);
-        const lo = Math.min(fromX, toX) - 8;
-        const hi = Math.max(fromX, toX) + 8;
-        const cut = world.targets(toX, y).filter((t) => Math.abs(t.y - y) < 20 && t.x >= lo && t.x <= hi);
-        for (const t of cut) world.strike(t, 0.2 * power, 'skill', false, { freeze: 400 });
-        // Chin: the blade is sheathed and every cut opens at once.
-        later(scene, 320, () => {
-          floatText(scene, Phaser.Math.Clamp(p.x, 20, W - 20), p.y - 20, 'CHIN', '#fff1e8');
-          for (const t of cut) {
-            if (!t.active) continue;
-            cutMark(scene, t.x, t.y, 0xff004d, 30, -0.6);
-            cutMark(scene, t.x, t.y, 0xff004d, 30, 0.6);
-            world.strike(t, 1.6 * power, 'skill', true);
+      const focus = scene.add.circle(p.x, p.y, 34).setStrokeStyle(1, 0xfff1e8, 0.8).setDepth(12);
+      scene.tweens.add({ targets: focus, radius: 14, duration: WAIT, ease: 'Quad.In' });
+      const t0 = scene.time.now;
+      let done = false;
+      const finish = () => {
+        done = true;
+        watch.remove();
+        focus.destroy();
+      };
+      const counter = () => {
+        finish();
+        p.lock(250);
+        scene.cameras.main.flash(90, 255, 241, 232);
+        floatText(scene, p.x, p.y - 22, 'MIKIRI!', '#fff1e8');
+        for (const h of world.hostiles())
+          if (Phaser.Math.Distance.Between(h.x, h.y, p.x, p.y) < 50) {
+            cutMark(scene, h.x, h.y, 0xfff1e8, 14);
+            h.destroy();
           }
-          if (cut.length) scene.cameras.main.shake(140, 0.014);
+        const foes = world.targets(p.x, p.y).filter((t) => Phaser.Math.Distance.Between(t.x, t.y, p.x, p.y) < 80);
+        foes.forEach((t, i) => {
+          afterimage(scene, p, t.x - Math.sign(t.x - p.x) * 8, t.y, 0.5);
+          later(scene, 40 + i * 40, () => {
+            if (!t.active) return;
+            bladeLine(scene, t.x - 16, t.y + 8, t.x + 16, t.y - 8, 0xff004d, 80);
+            world.strike(t, 2.4 * power, 'skill', true);
+          });
         });
+        later(scene, 60, () => glint(scene, p.x - f * 2, p.y + 3));
+      };
+      const watch = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          if (done || !p.active) return;
+          focus.setPosition(p.x, p.y);
+          const close = world.targets(p.x, p.y).some((t) => Phaser.Math.Distance.Between(t.x, t.y, p.x, p.y) < 28);
+          const shot = world.hostiles().some((h) => Phaser.Math.Distance.Between(h.x, h.y, p.x, p.y) < 30);
+          if (close || shot) return counter();
+          if (scene.time.now - t0 < WAIT) return;
+          // Nothing came: the draw is loosed as a flying crescent.
+          finish();
+          bladeLine(scene, p.x, p.y, Phaser.Math.Clamp(p.x + f * 40, 0, W), p.y, 0xfff1e8, 60);
+          const wave = world.shot({
+            x: p.x + f * 12,
+            y: p.y,
+            vx: f * 280,
+            vy: 0,
+            texture: 'slashKatana',
+            tint: 0xfff1e8,
+            mult: 1.6 * power,
+            source: 'skill',
+            pierce: true,
+            knockback: 160,
+          }) as Phaser.GameObjects.Image;
+          wave.setScale(f * 1.4, 1.6);
+          later(scene, 700, () => wave.active && wave.destroy());
+        },
       });
     },
     // Kuzuryusen, the Nine-Headed Dragon Flash: the nine strikes of the sword (karatake, kesagiri, migi-kesagiri,
@@ -8021,6 +8379,22 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
     },
   },
   rasengan: {
+    // Odama Rasengan: the giant sphere grinds into the ground where he lands, hitting again and again.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      const g = scene.add
+        .graphics()
+        .setPosition(x, gy - 12)
+        .setDepth(12);
+      g.fillStyle(0x29adff, 0.5).fillCircle(0, 0, 16);
+      g.lineStyle(1, 0xc2f0ff).beginPath().arc(0, 0, 12, 0, 4).strokePath().beginPath().arc(0, 0, 7, 2, 6).strokePath();
+      g.fillStyle(0xfff1e8).fillCircle(0, 0, 3);
+      scene.tweens.add({ targets: g, angle: 720, duration: 450, onComplete: () => g.destroy() });
+      for (let i = 0; i < 3; i++)
+        later(scene, i * 140, () => {
+          rocks(scene, x, gy - 2, 3);
+          world.area(x, gy - 10, 26, 0.35 * power, 40, 'proc');
+        });
+    },
     // Senpo: Rasenshuriken. Sage Mode flares (orange pigment around his eyes, the sage aura). He raises his hand and the
     // Rasenshuriken spins up overhead: a blue core in a ring of four screaming white blades. When he throws it, it is
     // aimed at the thickest knot of enemies right now, in the air or not. On arrival it swells into a sphere of
@@ -8411,6 +8785,20 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   kusanagi: {
+    // Chidori Jatuh: lightning answers his landing, striking down from the sky onto the two nearest enemies.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      world
+        .targets(x, gy)
+        .filter((t) => Phaser.Math.Distance.Between(t.x, t.y, x, gy) < 110)
+        .slice(0, 2)
+        .forEach((t, i) =>
+          later(scene, 60 + i * 80, () => {
+            if (!t.active) return;
+            stormArc(scene, t.x + Phaser.Math.Between(-8, 8), 0, t.x, t.y, 220, 2, 2);
+            world.strike(t, 0.8 * power, 'proc', false, { freeze: 400 });
+          }),
+        );
+    },
     // Chidori Katana (the finisher): the current races along his path ahead of the lunge.
     onSwing: ({ p, scene }, m, step) => {
       if (step !== 2) return;
@@ -8420,36 +8808,67 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
       stormArc(scene, x0, y0, Phaser.Math.Clamp(x0 + f * 60, 0, W), y0, m.ms + 80, 1, 2);
       sparks(scene, x0 + f * 6, y0, [0x29adff, 0xfff1e8], 8, 12);
     },
-    // Chidori Eiso: the Chidori in his hand stretches into a spear of lightning that lances through every enemy in the
-    // line and paralyzes it, crackling as it flickers out.
+    // Chidori: he grips his wrist and lightning gathers in his palm with the sound of a thousand birds, the ground
+    // cracking at his feet. Then he is gone: a blue streak through the nearest enemy (flyers too), on through the next
+    // and the next (three at most), each one run through and locked up by the current, and a burst of lightning
+    // where he stops.
     skill: ({ p, world, scene, power }) => {
-      const f = p.facing;
-      const y = p.y;
-      const len = 150;
-      const x0 = p.x + f * 6;
-      p.lock(300);
+      if (!world.targets(p.x, p.y).length) return false;
+      p.lock(420);
+      p.invuln(1000);
       p.setVelocityX(0);
-      const bolt = scene.add.graphics().setDepth(13);
-      const draw = () => {
-        bolt.clear();
-        for (const [w, c] of [
-          [3, 0x29adff],
-          [1, 0xfff1e8],
-        ] as const) {
-          bolt.lineStyle(w, c).beginPath().moveTo(x0, y);
-          for (let i = 1; i <= 10; i++) bolt.lineTo(x0 + (f * len * i) / 10, y + (i < 10 ? Phaser.Math.Between(-4, 4) : 0));
-          bolt.strokePath();
-        }
-      };
-      for (let k = 0; k < 5; k++) later(scene, k * 50, draw);
-      scene.tweens.add({ targets: bolt, alpha: 0, delay: 250, duration: 150, onComplete: () => bolt.destroy() });
-      sparks(scene, x0, y, [0x29adff, 0xfff1e8], 8, 12);
-      scene.cameras.main.shake(120, 0.008);
-      for (const t of world.targets(p.x, y)) {
-        if (Math.sign(t.x - p.x) !== f || Math.abs(t.x - p.x) > len + 6 || Math.abs(t.y - y) > 16) continue;
-        world.strike(t, 2.2 * power, 'skill', true, { freeze: 700 });
-        sparks(scene, t.x, t.y, [0x29adff, 0xfff1e8], 6, 14);
-      }
+      // The charge.
+      const chirp = scene.time.addEvent({
+        delay: 50,
+        repeat: 7,
+        callback: () => {
+          const hx = p.x + p.facing * 5;
+          const a = Math.random() * Math.PI * 2;
+          stormArc(scene, hx, p.y + 2, hx + Math.cos(a) * 10, p.y + 2 + Math.sin(a) * 8, 90, 1, 0);
+        },
+      });
+      ring(scene, p.x + p.facing * 5, p.y + 2, 0x29adff, 2, 12, 380);
+      rocks(scene, p.x, FLOOR_Y - 2, 4);
+      later(scene, 400, () => {
+        chirp.remove();
+        const hit = new Set<Phaser.GameObjects.GameObject>();
+        const leg = (k: number) => {
+          const t = world.targets(p.x, p.y).find((o) => !hit.has(o) && Phaser.Math.Distance.Between(o.x, o.y, p.x, p.y) < 160);
+          if (!t || k >= 3) {
+            ring(scene, p.x, p.y, 0x29adff, 4, 30, 260, 2);
+            sparks(scene, p.x, p.y, [0x29adff, 0xfff1e8], 12, 20);
+            return void p.lock(120);
+          }
+          hit.add(t);
+          p.lock(400);
+          const x0 = p.x;
+          const y0 = p.y;
+          const dir = t.x >= x0 ? 1 : -1;
+          p.facing = dir;
+          const x1 = Phaser.Math.Clamp(t.x + dir * 12, 8, W - 8);
+          const y1 = Math.min(t.y, FLOOR_Y - 8);
+          scene.tweens.addCounter({
+            from: 0,
+            to: 1,
+            duration: 90,
+            onUpdate: (tw) => {
+              const v = tw.getValue() ?? 0;
+              p.body.reset(x0 + (x1 - x0) * v, y0 + (y1 - y0) * v);
+              p.ghost(0x29adff);
+            },
+            onComplete: () => {
+              stormArc(scene, x0, y0, x1, y1, 220, 2, 2);
+              scene.cameras.main.shake(80, 0.01);
+              if (t.active) {
+                sparks(scene, t.x, t.y, [0x29adff, 0xfff1e8], 10, 16);
+                world.strike(t, 1.6 * power, 'skill', true, { freeze: 700 });
+              }
+              later(scene, 60, () => leg(k + 1));
+            },
+          });
+        };
+        leg(0);
+      });
     },
     // Kirin: Sasuke shoots a Katon fireball straight up to heat the air, and black thunderclouds roll in over the whole
     // arena, flickering. He raises his hand... and brings it down: the lightning of the sky itself takes the shape of
@@ -8754,6 +9173,13 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
 
   // Lightning Lord, king of the storm. His lightning is royal: gold, with a white-hot core and an electric-cyan fringe.
   halilintar: {
+    // Sambaran Jatuh: a pillar of lightning comes down on the spot he lands, and arcs run out along the floor.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      stormArc(scene, x, 0, x, gy - 4, 260, 3, 3);
+      for (const dir of [-1, 1]) stormArc(scene, x, gy - 3, x + dir * 50, gy - 3, 220, 1, 1);
+      for (const t of world.targets(x, gy))
+        if (Math.abs(t.x - x) < 52 && t.y > gy - 24) world.strike(t, 0.6 * power, 'proc', false, { freeze: 300 });
+    },
     // STATIK: every melee hit stores a charge (gold pips orbiting above his crown). The hit that fills the sixth calls
     // the storm down: a bolt from the sky onto that enemy, which then arcs to the two nearest others. The finisher's
     // overhead slam always cracks a small bolt down onto what it hits.
@@ -9155,6 +9581,14 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   // Nephalem, born of an angel and a demon: one half holy (white, gold), the other infernal (black, crimson); where they
   // meet, twilight violet.
   surgaNeraka: {
+    // Penghakiman Senja: a column of holy light falls on him as he lands and a ring of hellfire bursts out of the floor.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      const beam = scene.add.rectangle(x, 0, 10, gy, HOLY, 0.5).setOrigin(0.5, 0).setDepth(12);
+      scene.tweens.add({ targets: beam, scaleX: 0, alpha: 0, duration: 350, onComplete: () => beam.destroy() });
+      balanceSigil(scene, x, gy - 8, 16);
+      for (let i = -2; i <= 2; i++) flameTongue(scene, x + i * 10, gy, 16, 380, FIRE);
+      world.area(x, gy - 8, 34, 0.6 * power, 140, 'proc', { burn: 0.1, slow: 600 });
+    },
     // KESEIMBANGAN: holy (gold) cuts fill CAHAYA, infernal (crimson) cuts fill KEGELAPAN, the twilight finisher fills
     // both. When both are full, the halves resolve: a gold-and-crimson balance sigil bursts at the target, striking
     // everything around it, and the grace of it heals him.
@@ -9487,69 +9921,141 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
     },
   },
   gravitasi: {
-    // Gravity Order: he raises the scepter and commands gravity a hundredfold. A violet field drops over everything
-    // around him, pressure columns slam each enemy into the floor, the ground cracks under them and they are crushed
-    // again and again, left crawling under the weight.
-    skill: ({ p, world, scene, power }) => {
-      const R = 110;
-      const { x, y } = p;
-      const foes = world.targets(x, y).filter((t) => Phaser.Math.Distance.Between(x, y, t.x, t.y) <= R);
-      p.lock(450);
-      p.setVelocityX(0);
-      const field = scene.add.circle(x, y, R, 0x8a3fd1, 0).setStrokeStyle(1, 0xc080ff, 0.8).setDepth(7);
-      scene.tweens.add({ targets: field, fillAlpha: 0.18, duration: 120, yoyo: true, hold: 700, onComplete: () => field.destroy() });
-      ring(scene, x, y, 0xc080ff, R, 8, 260, 2);
-      ring(scene, x, y, 0xfff1e8, R * 0.7, 4, 220);
-      // The weight of the order: falling streaks rain down across the whole field.
-      for (let i = 0; i < 28; i++)
-        later(scene, i * 25, () => {
-          const s = scene.add.rectangle(x + Phaser.Math.Between(-R, R), y - R * 0.8, 1, 8, i % 3 ? 0x8a3fd1 : 0xfff1e8).setDepth(12);
-          scene.tweens.add({ targets: s, y: FLOOR_Y, scaleY: 2, alpha: 0, duration: 220, ease: 'Quad.In', onComplete: () => s.destroy() });
-        });
-      world.slam(x, y, R, 520);
-      scene.cameras.main.shake(180, 0.012);
-      for (const t of foes) {
-        // A pressure column drops onto each enemy from the sky.
-        const col = scene.add.rectangle(t.x, 0, 14, t.y, 0x8a3fd1, 0.35).setOrigin(0.5, 0).setScale(1, 0).setDepth(11);
-        const core = scene.add.rectangle(t.x, 0, 2, t.y, 0xfff1e8, 0.9).setOrigin(0.5, 0).setScale(1, 0).setDepth(11);
-        scene.tweens.add({ targets: [col, core], scaleY: 1, duration: 90, ease: 'Quad.In' });
+    // Jatuh Bintang: the impact bends space: a dark well opens, debris lifts off the floor and everything near is drawn in.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      const well = scene.add.circle(x, gy - 6, 26, 0x241a3d, 0.6).setDepth(4);
+      scene.tweens.add({ targets: well, radius: 4, alpha: 0, duration: 500, onComplete: () => well.destroy() });
+      for (let i = 0; i < 8; i++) {
+        const d = scene.add.rectangle(x + Phaser.Math.Between(-30, 30), gy - 2, 2, 2, i % 2 ? 0x5f574f : 0x8a3fd1).setDepth(12);
         scene.tweens.add({
-          targets: [col, core],
-          scaleX: 0,
+          targets: d,
+          y: gy - Phaser.Math.Between(16, 34),
+          x: x + (d.x - x) * 0.3,
           alpha: 0,
-          delay: 650,
-          duration: 200,
-          onComplete: () => (col.destroy(), core.destroy()),
+          duration: 500,
+          onComplete: () => d.destroy(),
         });
       }
-      // Crushing ticks; the last one cracks the ground under each enemy.
-      for (let k = 0; k < 4; k++)
-        later(scene, 120 + k * 160, () => {
-          const last = k === 3;
-          for (const t of foes) {
-            if (!t.active) continue;
-            ring(scene, t.x, t.y, 0xc080ff, 14, 3, 140);
-            world.strike(t, (last ? 1.4 : 0.6) * power, 'skill', last, { slow: 2500 });
-            if (!last) continue;
-            rocks(scene, t.x, FLOOR_Y, 4);
-            const crack = scene.add.rectangle(t.x, FLOOR_Y, 2, 1, 0x1d0f2e).setDepth(9);
-            scene.tweens.add({ targets: crack, scaleX: 14, duration: 90 });
-            scene.tweens.add({ targets: crack, alpha: 0, delay: 600, duration: 300, onComplete: () => crack.destroy() });
-          }
-          if (last) scene.cameras.main.shake(220, 0.02);
-        });
+      world.pull(x, gy - 6, 64, 140);
+      world.area(x, gy - 6, 40, 0.5 * power, 0, 'proc', { slow: 1200 });
     },
-    // Planetary Orbit: he lifts the scepter and the floor tears up around him; three chunks of ground rise, are crushed
-    // by his gravity into three small worlds (a grey moon, a ringed violet planet and a molten one) and fall into
-    // orbit around him. Their orbits are tilted against each other and widen with every turn, the centre of the
+    // Gravity Order: he raises the scepter and turns up the gravity of the whole world. The air over the entire arena
+    // goes violet and heavy, pressure rains down in streaks from one wall to the other, and every enemy on the map
+    // (flyers are dragged out of the sky) is pinned under a column of force. The order climbs, x10, x100, x1000, each
+    // step crushing harder: the floor sags and cracks under them, they are flattened into it, until at the last
+    // step they are crushed outright. REMUK!
+    skill: ({ p, world, scene, power }) => {
+      const foes = world.targets(p.x, p.y);
+      if (!foes.length) return false;
+      const cam = scene.cameras.main;
+      p.lock(600);
+      p.setVelocityX(0);
+      const STEPS = [
+        { at: 200, mult: 0.3, label: 'x10' },
+        { at: 520, mult: 0.4, label: 'x100' },
+        { at: 840, mult: 0.5, label: 'x1000' },
+      ];
+      const END = 1200;
+      // The whole sky turns heavy.
+      const heavy = scene.add
+        .rectangle(0, 0, W, FLOOR_Y + 20, 0x241a3d, 0)
+        .setOrigin(0)
+        .setDepth(7);
+      scene.tweens.add({ targets: heavy, fillAlpha: 0.45, duration: 200 });
+      ring(scene, p.x, p.y, 0xc080ff, 6, W, 500, 2);
+      // Pressure raining from wall to wall, harder at every step.
+      const rain = scene.time.addEvent({
+        delay: 20,
+        loop: true,
+        callback: () => {
+          for (let i = 0; i < 2; i++) {
+            const s = scene.add
+              .rectangle(Phaser.Math.Between(0, W), Phaser.Math.Between(0, 40), 1, 10, Math.random() < 0.3 ? 0xfff1e8 : 0x8a3fd1)
+              .setDepth(12);
+            scene.tweens.add({
+              targets: s,
+              y: FLOOR_Y,
+              scaleY: 2.5,
+              alpha: 0,
+              duration: 200,
+              ease: 'Quad.In',
+              onComplete: () => s.destroy(),
+            });
+          }
+        },
+      });
+      // A column of force on every enemy on the map; flyers are hurled down to the floor.
+      world.slam(W / 2, FLOOR_Y / 2, 9999, 560);
+      const cols = foes.map((t) => {
+        const col = scene.add.rectangle(t.x, 0, 14, t.y, 0x8a3fd1, 0.3).setOrigin(0.5, 0).setDepth(11);
+        const core = scene.add.rectangle(t.x, 0, 2, t.y, 0xfff1e8, 0.8).setOrigin(0.5, 0).setDepth(11);
+        col.setScale(1, 0);
+        core.setScale(1, 0);
+        scene.tweens.add({ targets: [col, core], scaleY: 1, duration: 120, ease: 'Quad.In' });
+        const follow = scene.time.addEvent({
+          delay: 16,
+          loop: true,
+          callback: () => {
+            if (!t.active) return;
+            col.setPosition(t.x, 0).setSize(14, t.y);
+            core.setPosition(t.x, 0).setSize(2, t.y);
+          },
+        });
+        return { col, core, follow };
+      });
+      STEPS.forEach((st, k) =>
+        later(scene, st.at, () => {
+          floatText(scene, W / 2, 44 + k * 2, `GRAVITASI ${st.label}`, '#c080ff');
+          cam.shake(160, 0.006 + k * 0.005);
+          for (const c of cols) c.col.setFillStyle(0x8a3fd1, 0.3 + k * 0.15);
+          for (const t of world.targets(p.x, p.y)) {
+            // The floor sags under each of them: a dark dent that widens with the order.
+            const dent = scene.add.ellipse(t.x, FLOOR_Y + 1, 10 + k * 8, 3 + k, 0x1d0f2e, 0.9).setDepth(5);
+            scene.tweens.add({ targets: dent, alpha: 0, delay: 300, duration: 300, onComplete: () => dent.destroy() });
+            ring(scene, t.x, t.y, 0xc080ff, 18 - k * 3, 2, 160);
+            world.strike(t, st.mult * power, 'skill', false, { slow: 2500 }, 0);
+          }
+        }),
+      );
+      // REMUK: the last step crushes them into the floor.
+      later(scene, END, () => {
+        rain.remove();
+        cols.forEach((c) => (c.follow.remove(), c.col.destroy(), c.core.destroy()));
+        cam.flash(140, 138, 63, 209);
+        cam.shake(380, 0.03);
+        floatText(scene, W / 2, 60, 'REMUK!', '#fff1e8');
+        for (const t of world.targets(p.x, p.y)) {
+          rocks(scene, t.x, FLOOR_Y - 2, 6);
+          const crack = scene.add.graphics().setDepth(5);
+          for (const [w, c] of [
+            [3, 0x1d0f2e],
+            [1, 0xc080ff],
+          ] as const) {
+            crack
+              .lineStyle(w, c)
+              .beginPath()
+              .moveTo(t.x - 16, FLOOR_Y);
+            for (let i = 1; i <= 6; i++) crack.lineTo(t.x - 16 + i * 5.3, FLOOR_Y + (i % 2 ? 2 : 0));
+            crack.strokePath();
+          }
+          scene.tweens.add({ targets: crack, alpha: 0, delay: 500, duration: 400, onComplete: () => crack.destroy() });
+          sparks(scene, t.x, t.y, [0x8a3fd1, 0xc080ff, 0xfff1e8], 8, 14);
+          world.strike(t, 1.4 * power, 'skill', true, { slow: 2500 }, 0);
+        }
+        scene.tweens.add({ targets: heavy, fillAlpha: 0, duration: 400, onComplete: () => heavy.destroy() });
+      });
+    },
+    // Planetary Orbit: he lifts the scepter and the floor tears up around him; six chunks of ground rise, are crushed
+    // by his gravity into six small worlds (a grey moon, a ringed violet planet, a molten one, an ice world, a jade
+    // one and a striped gas giant) and fall into orbit around him. Their orbits are tilted against each other and widen with every turn, the centre of the
     // system drifting to the middle of the arena, until the three planets are sweeping the whole field from the floor
     // to the sky, striking whatever they pass (gravity bends their paths toward anything that strays near an orbit).
-    // Then he closes his hand: the orbits stop, the planets line up (syzygy)
-    // pointing at the heaviest knot of enemies and crash into it one after another.
+    // Then he closes his hand: the orbits stop, all six planets line up (syzygy)
+    // pointing at the heaviest knot of enemies and crash into it one after another, the gas giant last.
     fusion: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
       const cam = scene.cameras.main;
-      const ORBIT = 1500;
+      const ORBIT = 1900;
       p.invuln(ORBIT + 600);
       p.lock(ORBIT + 300);
       p.setVelocity(0, 0);
@@ -9562,7 +10068,11 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         { rim: 0x3b3b4f, body: 0x83769c, lit: 0xc2c3c7, mark: 0x5f574f },
         { rim: 0x2b2f6b, body: 0x8a3fd1, lit: 0xc080ff, mark: 0xffec27 },
         { rim: 0x7a2230, body: 0xff004d, lit: 0xffa300, mark: 0xffec27 },
+        { rim: 0x1d2b53, body: 0x29adff, lit: 0xc2f0ff, mark: 0xfff1e8 },
+        { rim: 0x003b1f, body: 0x008751, lit: 0x00e436, mark: 0x003b1f },
+        { rim: 0x4a2a1a, body: 0xd08a50, lit: 0xffccaa, mark: 0xab5236 },
       ];
+      const N = looks.length;
       const planets = looks.map((c, i) => {
         const pg = scene.add.graphics();
         pg.fillStyle(c.rim).fillCircle(0, 0, 7);
@@ -9571,18 +10081,24 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         if (i === 0) pg.fillStyle(c.mark).fillCircle(2, 2, 1.5).fillCircle(-2, 3, 1);
         if (i === 1) pg.lineStyle(1, c.mark).strokeEllipse(0, 0, 22, 5);
         if (i === 2) pg.fillStyle(c.mark).fillRect(-3, 1, 5, 1).fillRect(0, -4, 3, 1);
-        const sx = ox + (i - 1) * 22;
+        // Ice caps; jade craters; the gas giant's bands.
+        if (i === 3) pg.fillStyle(c.mark).fillRect(-3, -6, 6, 2).fillRect(-3, 4, 6, 2);
+        if (i === 4) pg.fillStyle(c.mark).fillCircle(2, 1, 1.5).fillCircle(-1, 3, 1).fillCircle(3, -2, 1);
+        if (i === 5) pg.fillStyle(c.mark).fillRect(-6, -2, 12, 1).fillRect(-5, 1, 10, 1).fillRect(-4, 4, 8, 1);
+        const sx = ox + (i - (N - 1) / 2) * 16;
+        const size = i === 5 ? 2.4 : 1.6;
         const body = scene.add
           .container(sx, FLOOR_Y - 4, [pg])
-          .setScale(1.6)
+          .setScale(size)
           .setDepth(13);
         rocks(scene, sx, FLOOR_Y - 2, 5);
         return {
           body,
           i,
           color: c.body,
-          phase: (i * Math.PI * 2) / 3,
-          tilt: (i - 1) * 0.22,
+          size,
+          phase: (i * Math.PI * 2) / N,
+          tilt: (i - (N - 1) / 2) * 0.12,
           dx: 0,
           dy: 0,
           last: new Map<Phaser.GameObjects.GameObject, number>(),
@@ -9597,7 +10113,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         const cx = Phaser.Math.Linear(ox, MX, grow);
         const cy = Phaser.Math.Linear(oy, MY, grow);
         const rx = 18 + grow * 136;
-        const ry = 10 + grow * (52 + pl.i * 5);
+        const ry = 10 + grow * (44 + pl.i * 4);
         const a = pl.phase + t * Math.PI * 4.2;
         const [ex, ey] = [Math.cos(a) * rx, Math.sin(a) * ry];
         return {
@@ -9641,7 +10157,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
             pl.dx = Phaser.Math.Linear(pl.dx, bend ? prey.x - o.x : 0, 0.25);
             pl.dy = Phaser.Math.Linear(pl.dy, bend ? prey.y - o.y : 0, 0.25);
             const [qx, qy] = [o.x + pl.dx, o.y + pl.dy];
-            pl.body.setPosition(qx, qy).setScale(Phaser.Math.Linear(pl.body.scaleX, 1, 0.1));
+            pl.body.setPosition(qx, qy).setScale(Phaser.Math.Linear(pl.body.scaleX, pl.size * 0.62, 0.1));
             const d = scene.add.rectangle(qx, qy, 2, 2, pl.color).setDepth(12);
             scene.tweens.add({ targets: d, alpha: 0, scale: 0.3, duration: 260, onComplete: () => d.destroy() });
             for (const e of world.targets(qx, qy)) {
@@ -9650,7 +10166,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               pl.last.set(e, now);
               sparks(scene, e.x, e.y, [pl.color, 0xfff1e8], 6, 14);
               ring(scene, e.x, e.y, 0xc080ff, 4, 14, 160);
-              world.strike(e, 0.9 * power, 'skill', false, { slow: 900 });
+              world.strike(e, 0.7 * power, 'skill', false, { slow: 900 });
               cam.shake(40, 0.004);
             }
           }
@@ -9667,21 +10183,21 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           scene.tweens.add({ targets: line, alpha: 0, delay: 250, duration: 200, onComplete: () => line.destroy() });
           planets.forEach((pl, i) => {
             // Line up behind each other on the way in, then fall on the mark one by one.
-            const lx = tx - Math.cos(a) * (60 + i * 18);
-            const ly = ty - Math.sin(a) * (60 + i * 18);
+            const lx = tx - Math.cos(a) * (50 + i * 14);
+            const ly = ty - Math.sin(a) * (50 + i * 14);
             scene.tweens.add({ targets: pl.body, x: lx, y: ly, duration: 180, ease: 'Sine.Out' });
-            later(scene, 260 + i * 90, () => {
+            later(scene, 260 + i * 80, () => {
               const [hx, hy] = mark?.active ? [mark.x, mark.y] : [tx, ty];
               scene.tweens.add({
                 targets: pl.body,
                 x: hx,
                 y: hy,
-                scale: 1.6,
+                scale: pl.size,
                 duration: 110,
                 ease: 'Quad.In',
                 onComplete: () => {
                   pl.body.destroy();
-                  const last = i === 2;
+                  const last = i === N - 1;
                   ring(scene, hx, hy, pl.color, 4, last ? 50 : 28, 300, last ? 3 : 2);
                   sparks(scene, hx, hy, [pl.color, 0xfff1e8, 0xc080ff], last ? 22 : 10, last ? 44 : 24);
                   if (hy > FLOOR_Y - 30) rocks(scene, hx, FLOOR_Y - 2, 5);
@@ -9712,107 +10228,169 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         },
       });
     },
-    // Black Hole: the sky goes dark and a singularity tears open in front of him. Its accretion disk spins up, light
-    // bends around it and every enemy in the arena is dragged into the horizon and ground down; then it collapses
-    // and bursts in a flash that hits everything.
+    // Black Hole: the world goes dark and every star in the sky starts to smear toward one point in front of him,
+    // where light itself is swallowed: a singularity opens, the camera is drawn in toward it. Its accretion disk
+    // blazes, jets of plasma shoot out of its poles, light bends in rings around it, and the arena comes apart: chunks
+    // of the floor tear loose and spiral in, every enemy on the map is dragged toward the horizon, stretched into
+    // streaks (spaghettified) and ground by the tides. Then it collapses to a single point and the world goes black
+    // for a heartbeat, until it bursts back out as a white hole: a blinding sphere that fills the screen, and waves of
+    // gravity rolling across the whole arena one after another. SINGULARITAS!
     ult: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
-      const bx = Phaser.Math.Clamp(p.x + p.facing * 80, 50, W - 50);
-      const by = FLOOR_Y - 46;
-      const LIFE = 2600;
-      p.invuln(LIFE + 900);
-      p.lock(LIFE + 300);
-      p.setVelocity(0, 0);
+      const bx = Phaser.Math.Clamp(p.x + p.facing * 80, 60, W - 60);
+      const by = FLOOR_Y - 56;
+      const LIFE = 2700;
       const cam = scene.cameras.main;
-      cam.flash(150, 138, 63, 209);
+      p.invuln(LIFE + 1400);
+      p.lock(LIFE + 700);
+      p.setVelocity(0, 0);
       const dark = scene.add
-        .rectangle(0, 0, W, FLOOR_Y + 40, 0x05030a, 0.7)
+        .rectangle(0, 0, W, FLOOR_Y + 40, 0x05030a, 0.85)
         .setOrigin(0)
         .setDepth(8)
         .setAlpha(0);
-      scene.tweens.add({ targets: dark, alpha: 1, duration: 400 });
-      // His own aura answering the hole.
+      scene.tweens.add({ targets: dark, alpha: 1, duration: 500 });
+      cam.zoomTo(1.05, LIFE);
+      // The stars smear toward the point.
+      for (let i = 0; i < 40; i++) {
+        const sx = Phaser.Math.Between(0, W);
+        const sy = Phaser.Math.Between(0, FLOOR_Y - 20);
+        const star = scene.add.rectangle(sx, sy, 1, 1, i % 4 ? 0xfff1e8 : 0xc080ff).setDepth(9);
+        const a = Phaser.Math.Angle.Between(sx, sy, bx, by);
+        scene.tweens.add({ targets: star, scaleX: 8, rotation: a, delay: 200 + i * 10, duration: 500 });
+        scene.tweens.add({
+          targets: star,
+          x: bx,
+          y: by,
+          alpha: 0,
+          delay: 700 + i * 30,
+          duration: 700,
+          ease: 'Quad.In',
+          onComplete: () => star.destroy(),
+        });
+      }
+      // His aura answering it.
       const aura = scene.add.circle(p.x, p.y, 12, 0x8a3fd1, 0.25).setStrokeStyle(1, 0xc080ff).setDepth(9);
-      scene.tweens.add({ targets: aura, scale: 1.3, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });
-      // Glow, event horizon and photon ring.
+      scene.tweens.add({ targets: aura, scale: 1.4, alpha: 0.5, duration: 280, yoyo: true, repeat: -1 });
+      // The singularity: glow, horizon, photon ring.
       const glow = scene.add.circle(bx, by, 1, 0x8a3fd1, 0.35).setDepth(12);
       const hole = scene.add.circle(bx, by, 1, 0x000000).setStrokeStyle(2, 0xfff1e8).setDepth(14);
-      scene.tweens.add({ targets: glow, radius: 34, duration: 600, ease: 'Back.Out' });
-      scene.tweens.add({ targets: hole, radius: 16, duration: 600, ease: 'Back.Out' });
-      // The accretion disk: hot matter streaming around the horizon, its back half passing behind it.
+      scene.tweens.add({ targets: glow, radius: 46, delay: 400, duration: 700, ease: 'Back.Out' });
+      scene.tweens.add({ targets: hole, radius: 22, delay: 400, duration: 700, ease: 'Back.Out' });
+      // Accretion disk (its back half behind the horizon) and the polar jets.
       const disk = scene.add.graphics().setDepth(15);
       const behind = scene.add.graphics().setDepth(11);
+      const jets = scene.add.graphics().setDepth(13);
       const spin = scene.tweens.addCounter({
         from: 0,
         to: 1,
-        duration: LIFE,
+        delay: 400,
+        duration: LIFE - 400,
         onUpdate: (tw) => {
           const t = tw.getValue() ?? 0;
-          const grow = Math.min(1, t * 4);
+          const grow = Math.min(1, t * 3);
           disk.clear();
           behind.clear();
-          for (let i = 0; i < 48; i++) {
-            const a = (i / 48) * Math.PI * 2 + t * 40;
-            const r = (30 + (i % 3) * 6) * grow;
+          for (let i = 0; i < 72; i++) {
+            const a = (i / 72) * Math.PI * 2 + t * 50;
+            const r = (36 + (i % 4) * 6) * grow;
             const g = Math.sin(a) > 0 ? disk : behind;
-            g.fillStyle([0xffa300, 0xffec27, 0xc080ff, 0xfff1e8][i % 4], 0.9).fillRect(
+            g.fillStyle([0xffa300, 0xffec27, 0xc080ff, 0xfff1e8, 0xff004d][i % 5], 0.95).fillRect(
               bx + Math.cos(a) * r,
-              by + Math.sin(a) * r * 0.22,
+              by + Math.sin(a) * r * 0.24,
               2,
               1,
             );
           }
+          jets.clear();
+          if (t > 0.15) {
+            const len = 90 * Math.min(1, (t - 0.15) * 4);
+            const w = 3 + Math.sin(t * 90) * 1.5;
+            for (const dir of [-1, 1]) {
+              jets.fillStyle(0xc080ff, 0.35).fillRect(bx - w * 1.6, dir < 0 ? by - len : by, w * 3.2, len);
+              jets.fillStyle(0xfff1e8, 0.9).fillRect(bx - w / 2, dir < 0 ? by - len : by, w, len);
+            }
+          }
         },
       });
-      // Light bending: rings close in on the horizon over and over.
-      for (let k = 0; k < 8; k++) later(scene, 300 + k * 280, () => ring(scene, bx, by, k % 2 ? 0xc080ff : 0x8a3fd1, 150, 16, 500, 2));
-      // Stars and debris from the whole sky spiral in.
-      for (let i = 0; i < 70; i++)
-        later(scene, 300 + i * 30, () => {
-          const a0 = Math.random() * Math.PI * 2;
-          const r0 = Phaser.Math.Between(90, 200);
-          const m = scene.add.rectangle(0, 0, 2, 1, [0xfff1e8, 0xc080ff, 0xffa300][i % 3]).setDepth(12);
+      // Light bending in rings around it.
+      for (let k = 0; k < 10; k++) later(scene, 500 + k * 220, () => ring(scene, bx, by, k % 2 ? 0xc080ff : 0xffa300, 180, 22, 520, 2));
+      // The arena comes apart: chunks of floor tear loose all along it and spiral in.
+      for (let i = 0; i < 36; i++)
+        later(scene, 600 + i * 50, () => {
+          const x0 = Phaser.Math.Between(0, W);
+          rocks(scene, x0, FLOOR_Y - 2, 1);
+          const chunk = scene.add.rectangle(x0, FLOOR_Y - 2, 3, 3, i % 2 ? 0xab5236 : 0x5f574f).setDepth(12);
+          const a0 = Phaser.Math.Angle.Between(bx, by, x0, FLOOR_Y);
+          const r0 = Phaser.Math.Distance.Between(bx, by, x0, FLOOR_Y);
           scene.tweens.addCounter({
             from: 0,
             to: 1,
-            duration: 700,
+            duration: 900,
             ease: 'Quad.In',
             onUpdate: (tw) => {
               const t = tw.getValue() ?? 0;
-              const a = a0 + t * 5;
-              m.setPosition(bx + Math.cos(a) * r0 * (1 - t), by + Math.sin(a) * r0 * (1 - t) * 0.6).setRotation(a + Math.PI / 2);
+              const a = a0 + t * 4;
+              chunk.setPosition(bx + Math.cos(a) * r0 * (1 - t), by + Math.sin(a) * r0 * (1 - t) * 0.7).setAngle(t * 720);
             },
-            onComplete: () => m.destroy(),
+            onComplete: () => chunk.destroy(),
           });
         });
-      // The pull: every enemy on the map (bosses are too massive to move) is dragged in and ground at the horizon.
-      for (let k = 0; k < 20; k++)
-        later(scene, 400 + k * 100, () => {
-          world.pull(bx, by, 9999, 300);
-          if (k % 2) cam.shake(100, 0.006);
-          if (k % 3 === 0) world.area(bx, by, 34, 0.5 * power, 0, 'ult', { slow: 800 });
+      // The pull and the tides: everyone on the map (bosses too massive to move, but not to tear) is dragged in and
+      // stretched toward the horizon; whatever reaches it is ground hardest.
+      const streaks = scene.add.graphics().setDepth(10);
+      for (let k = 0; k < 22; k++)
+        later(scene, 700 + k * 90, () => {
+          world.pull(bx, by, 9999, 320);
+          streaks.clear();
+          for (const t of world.targets(bx, by)) {
+            streaks.lineStyle(1, 0xc080ff, 0.5).lineBetween(t.x, t.y, Phaser.Math.Linear(t.x, bx, 0.6), Phaser.Math.Linear(t.y, by, 0.6));
+            if (k % 3) continue;
+            const d = Phaser.Math.Distance.Between(t.x, t.y, bx, by);
+            world.strike(t, (d < 56 ? 0.55 : 0.25) * power, 'ult', false, { slow: 900 }, 0);
+          }
+          if (k % 2) cam.shake(90, 0.008);
         });
-      // Collapse and burst.
+      // Collapse to a point; a heartbeat of black.
       later(scene, LIFE, () => {
         spin.stop();
+        streaks.destroy();
         disk.destroy();
         behind.destroy();
-        scene.tweens.add({ targets: [hole, glow], radius: 1, duration: 160, ease: 'Quad.In' });
+        jets.destroy();
+        scene.tweens.add({ targets: [hole, glow], radius: 1, duration: 200, ease: 'Quad.In' });
       });
-      later(scene, LIFE + 180, () => {
+      const black = scene.add.rectangle(0, 0, W, H, 0x000000, 1).setOrigin(0).setDepth(95).setAlpha(0);
+      const point = scene.add.circle(bx, by, 1.5, 0xfff1e8).setDepth(96).setAlpha(0);
+      later(scene, LIFE + 200, () => {
+        black.setAlpha(1);
+        point.setAlpha(1);
         hole.destroy();
         glow.destroy();
+      });
+      // The white hole.
+      later(scene, LIFE + 480, () => {
+        black.destroy();
+        point.destroy();
         scene.tweens.killTweensOf(aura);
         aura.destroy();
-        floatText(scene, W / 2, 48, 'COLLAPSE!', '#fff1e8');
-        cam.flash(300, 255, 241, 232);
-        cam.shake(500, 0.035);
-        ring(scene, bx, by, 0xfff1e8, 4, 220, 600, 3);
-        ring(scene, bx, by, 0x8a3fd1, 4, 160, 500, 4);
-        sparks(scene, bx, by, [0xfff1e8, 0xc080ff, 0xffa300], 30, 90);
-        for (const t of world.targets(bx, by)) world.strike(t, 4 * power, 'ult', true);
-        world.area(bx, by, 60, 1 * power, 260, 'ult');
-        scene.tweens.add({ targets: dark, alpha: 0, duration: 500, onComplete: () => dark.destroy() });
+        cam.flash(350, 255, 241, 232);
+        cam.shake(700, 0.04);
+        cam.zoomTo(1.12, 120);
+        later(scene, 140, () => cam.zoomTo(1, 500));
+        floatText(scene, W / 2, 50, 'SINGULARITAS!', '#fff1e8');
+        const white = scene.add.circle(bx, by, 4, 0xfff1e8, 0.9).setDepth(16);
+        scene.tweens.add({ targets: white, radius: 260, alpha: 0, duration: 700, ease: 'Quad.Out', onComplete: () => white.destroy() });
+        sparks(scene, bx, by, [0xfff1e8, 0xc080ff, 0xffa300], 40, 140);
+        for (const t of world.targets(bx, by)) world.strike(t, 4 * power, 'ult', true, undefined, 300);
+        // Gravity waves rolling across the whole arena, one after another.
+        for (let k = 0; k < 3; k++)
+          later(scene, 250 + k * 260, () => {
+            ring(scene, bx, by, k % 2 ? 0x8a3fd1 : 0xc080ff, 10, 340, 600, 3);
+            cam.shake(150, 0.012);
+            for (const t of world.targets(bx, by)) world.strike(t, 0.6 * power, 'ult', false, { slow: 1200 }, 120);
+          });
+        scene.tweens.add({ targets: dark, alpha: 0, delay: 600, duration: 600, onComplete: () => dark.destroy() });
       });
     },
   },

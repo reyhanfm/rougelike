@@ -50,7 +50,7 @@ A class touches **every** one of these; missing one is a type error or a broken 
    color (hair color on rows 1–3), so do not use `c` for eyes. `legs.kind`: pants / robe / armor / coat / float.
 2. `loot.ts` — add to `WeaponId`, add `WEAPONS` entry: combo (3–4 moves, finisher with bigger `cd`), `air` combo
    (2–3 moves of its own, each with a `hover` lift so it reaches flyers, never a dive), `dive` (down + attack in the air:
-   a plunge, usually with `slam`),
+   a plunge, usually with `slam`, plus its own landing in `SKILLS[id].onDiveLand`: no two dives land the same way),
    `skill` (cd seconds), `ult`, `fusion` (required). Baseline combo DPS must stay **20–38** (checked in game.check).
 3. `sprites.ts` — `w_<weaponId>` held sprite (required, checked) and any projectile/prop textures.
 4. `skills.ts` — `SKILLS[weaponId]` with `skill`, `ult` and `fusion` (and `basic` if `cast: true`).
@@ -160,4 +160,9 @@ Magic Archer (Panah Prisma, Supernova), Dark Avenger (Perjanjian Gelap `shadowBl
 wheel around the arena), Toji (Playful Cloud flail), Gojo (Muryokusho void). Every class has a PASIF (passives.ts).
 Then: Cu Chulainn (Gae Bolg run-up, leap and spear storm, `crimsonSpear`), Madara (winged Perfect Susanoo built in
 layers, `perfectSusanoo` + `susanooBlade`), Itachi (Tsukuyomi crosses, clone stabs, 72-hour clock), Ashura (Tinju
-Seribu: six arms, three lanes of fists, giant fist).
+Seribu: six arms, three lanes of fists, giant fist). Skill pass: Samurai Mikiri (counter stance, replaced an Iaido
+that duplicated his passive), Sasuke Chidori (chained dash), Madara Katon: Goka Mekkyaku (rolling wall of fire). Dash pass: Magic Archer star mines,
+Dark Avenger shadow-pool slide + eruption, Antares half-dragon fire charge, Naruto Rasengan charge (his old clone dash
+duplicated his passive), Nephalem split light/hellfire paths closing in a cross. Buffs: Cultivator (swords no longer return
+and block the next attack: 1/2/3-sword volleys, 4 guard swords that also cut projectiles), Gravity Master (Gravity Order
+is map-wide x10/x100/x1000 crush, six-planet Orbit Planet, Black Hole with jets, torn floor, black beat and white hole).

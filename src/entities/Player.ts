@@ -690,6 +690,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.onLand(() => {
         this.world.area(this.x, this.y, radius, m.dmg * 1.2, m.knockback, 'basic', m.status);
         this.scene.cameras.main.shake(150, 0.015);
+        // Each class's dive lands its own way (rock walls, a pillar of lightning, hands from the underworld...).
+        if (m === this.weapon.dive)
+          SKILLS[this.weapon.id].onDiveLand?.(
+            { p: this, world: this.world, scene: this.scene, power: this.stats.skillPower },
+            this.x,
+            this.y + 7,
+          );
         this.swingUntil = 0;
         this.lock(0);
       });
