@@ -5,6 +5,7 @@ import { INTROS, invasionBanner } from '../entities/invasions.ts';
 import { createEnemy, Enemy } from '../entities/Enemy.ts';
 import { Player } from '../entities/Player.ts';
 import { SKILLS } from '../entities/skills.ts';
+import { PASSIVES, type PassiveCtx } from '../entities/passives.ts';
 import { padConnected } from '../gamepad.ts';
 import { duckMusic, playMusic, sfx, soundLabel, stopMusic, toggleSound } from '../audio.ts';
 import { COLOR } from '../gfx/sprites.ts';
@@ -304,6 +305,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       return;
     }
     this.player.update(time);
+    if (!this.cleared) this.passive.tick?.(this.pctx, time, delta);
     if (!this.cleared && this.player.tickDebuffs(time) && this.player.hp <= 0) return this.playerDown();
     this.regenerate(delta);
     // Copy: a burn tick may kill (and remove) an enemy mid-loop.
@@ -407,6 +409,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.tweens.add({ targets: ring, radius, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
     for (const e of this.enemies.getChildren() as Enemy[]) {
       if (e === except || !e.active || e.hp >= e.maxHp || Phaser.Math.Distance.Between(x, y, e.x, e.y) > radius) continue;
+      // Cu Chulainn's cursed wounds do not close.
+      if (this.time.now < (e.getData('bleedUntil') ?? 0)) continue;
       const amount = Math.round(e.maxHp * fraction);
       e.hp = Math.min(e.maxHp, e.hp + amount);
       floatText(this, e.x, e.y - 12, `+${amount}`, '#00e436');
@@ -614,10 +618,27 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     return this.hittables().sort((a, b) => Phaser.Math.Distance.Between(x, y, a.x, a.y) - Phaser.Math.Distance.Between(x, y, b.x, b.y));
   }
 
-  strike(t: Phaser.GameObjects.Sprite, mult: number, source: HitSource, crit: boolean, status?: Status): void {
+  strike(t: Phaser.GameObjects.Sprite, mult: number, source: HitSource, crit: boolean, status?: Status, knockback = 120): void {
     if (this.over || !t.active) return;
-    this.attack(t as Hittable, mult, source, 120, crit);
+    this.attack(t as Hittable, mult, source, knockback, crit);
     this.applyStatus(t as Hittable, status);
+  }
+
+  afflict(t: Phaser.GameObjects.Sprite, status: Status): void {
+    if (!this.over && t.active) this.applyStatus(t as Hittable, status);
+  }
+
+  hostiles(): Phaser.Physics.Arcade.Image[] {
+    return (this.hazards.getChildren() as Phaser.Physics.Arcade.Image[]).filter((h) => h.active);
+  }
+
+  /** The class passive's hooks, with what they may touch. */
+  private get passive() {
+    return PASSIVES[this.cls];
+  }
+
+  private get pctx(): PassiveCtx {
+    return { p: this.player, world: this, scene: this };
   }
 
   /** Turn a homing shot toward the nearest enemy it has not hit yet, keeping its speed. */
@@ -749,7 +770,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       floatText(this, t.x, t.y - 18, 'TAHAN', COLOR.gray);
       burst(this, t.x + Math.sign(fromX - t.x) * 5, t.y, 0xffa300, 4);
     }
-    const crit = forceCrit || (source === 'basic' && st.dashCrit > 0 && this.player.takeDashCrit()) || Math.random() < st.critChance;
+    // The class passive may sharpen this hit (marked prey, a drawn iai, a gravity well).
+    const mod = this.passive.modify?.(this.pctx, t, source);
+    if (mod?.mult) mult *= mod.mult;
+    const crit =
+      forceCrit || !!mod?.crit || (source === 'basic' && st.dashCrit > 0 && this.player.takeDashCrit()) || Math.random() < st.critChance;
     const enraged = st.rage > 0 && this.player.hp < st.maxHp / 2;
     const weak = this.player.has('weak') ? WEAK_MULT : 1;
     const big = t instanceof Boss || t.getData('elite') ? 1 + st.bossDamage : 1;
@@ -772,6 +797,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const x = t.x;
     const y = t.y;
     const killed = this.damage(t, dmg, crit ? COLOR.gold : COLOR.text, knockback);
+    // Passive procs never feed passives again (no loops).
+    if (source !== 'proc') this.passive.onHit?.(this.pctx, t, { source, crit, killed, dmg });
     if (source === 'basic' || source === 'skill') this.player.addUlt((ULT_GAIN[source] + (killed ? ULT_GAIN.kill : 0)) * st.ultGainMult);
     // Korek Api / Inti Es and friends: basic hits may set the target burning or frozen.
     if (source === 'basic' && !killed) {
@@ -863,6 +890,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.cameras.main.shake(200, 0.012);
     }
     if (this.stats.healOnKill) this.player.heal(this.stats.healOnKill);
+    // Any death counts for the passive (burn ticks and passive procs too); the target is still readable here.
+    if (!this.over) this.passive.onKill?.(this.pctx, t);
     if (Math.random() < this.stats.goldChance) {
       this.coins++;
       sfx('coin');
@@ -894,7 +923,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   private hurtPlayer(dmg: number, fromX: number, source?: Hittable, debuff?: Debuff): void {
     if (this.over || this.cleared) return;
+    // The passive may turn the hit away entirely (God Hand, crow substitution, Susanoo).
+    if (!this.player.invulnerable && this.passive.guard?.(this.pctx, dmg, fromX, source)) return;
     const result = this.player.hurt(dmg, fromX);
+    this.passive.onAttacked?.(this.pctx, result, source);
     if (result === 'dead') return this.playerDown();
     if (result === 'hit' && debuff) this.player.afflict(debuff, dmg);
     if (result === 'hit' && source?.active && this.stats.thorns) this.damage(source, this.stats.thorns, COLOR.gray, 80);
@@ -1233,7 +1265,17 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const sets = activePairs(this.items).map((p) => p.name);
     const sound = `${padConnected() ? 'Y' : 'M'} ${soundLabel()}`;
     this.pauseText
-      .setText(['PAUSE', '', ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []), pauseHint(), sound].join('\n'))
+      .setText(
+        [
+          'PAUSE',
+          '',
+          `PASIF: ${CLASSES[this.cls].passive.name}`,
+          '',
+          ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []),
+          pauseHint(),
+          sound,
+        ].join('\n'),
+      )
       .setVisible(this.paused);
   }
 

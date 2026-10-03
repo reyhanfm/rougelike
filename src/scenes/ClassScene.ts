@@ -21,6 +21,8 @@ export class ClassScene extends Phaser.Scene {
   private markers: Phaser.GameObjects.Rectangle[] = [];
   private names: Phaser.GameObjects.Text[] = [];
   private trait!: Phaser.GameObjects.Text;
+  private passiveTitle!: Phaser.GameObjects.Text;
+  private passiveDesc!: Phaser.GameObjects.Text;
   private dash!: Phaser.GameObjects.Text;
   private synergyTitle!: Phaser.GameObjects.Text;
   private synergyDesc!: Phaser.GameObjects.Text;
@@ -69,10 +71,13 @@ export class ClassScene extends Phaser.Scene {
     });
 
     const wrap = { width: W - 30 };
-    this.trait = text(this, 16, 102, '', COLOR.text, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
-    this.dash = text(this, 16, 124, '', '#00e436', 7).setWordWrapWidth(wrap.width);
-    this.synergyTitle = text(this, 16, 136, '', COLOR.gold, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
-    this.synergyDesc = text(this, 16, 146, '', COLOR.blue, 7).setWordWrapWidth(wrap.width).setLineSpacing(3);
+    // Stacked under each other in refresh(): each block starts right below the one before.
+    this.trait = text(this, 16, 102, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
+    this.passiveTitle = text(this, 16, 0, '', '#ff77a8', 7).setWordWrapWidth(wrap.width);
+    this.passiveDesc = text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(1);
+    this.dash = text(this, 16, 0, '', '#00e436', 6).setWordWrapWidth(wrap.width);
+    this.synergyTitle = text(this, 16, 0, '', COLOR.gold, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
+    this.synergyDesc = text(this, 16, 0, '', COLOR.blue, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
     const hint = text(this, W / 2, 173, '', COLOR.gray, 6).setOrigin(0.5, 0);
     onPadChange(this, () =>
       hint.setText(
@@ -114,10 +119,17 @@ export class ClassScene extends Phaser.Scene {
     this.markers.forEach((m, i) => m.setVisible(i === this.selected));
     this.names.forEach((n, i) => n.setColor(i === this.selected ? COLOR.gold : COLOR.text));
     this.trait.setText(`SIFAT: ${c.trait}`);
+    this.passiveTitle.setText(`PASIF: ${c.passive.name}`);
+    this.passiveDesc.setText(c.passive.desc);
     this.dash.setText(`DASH (${padConnected() ? 'B' : 'K'}): ${DASHES[CLASS_IDS[this.selected]].name}`);
     this.synergyTitle.setText(`SINERGI (${WEAPONS[c.weapon].name}): ${c.synergy.name}`);
-    // A long title wraps; the description follows right under it.
-    this.synergyDesc.setText(c.synergy.desc).setY(this.synergyTitle.y + this.synergyTitle.height + 1);
+    this.synergyDesc.setText(c.synergy.desc);
+    // Long texts wrap; each block follows right under the one before.
+    const stack = [this.trait, this.passiveTitle, this.passiveDesc, this.dash, this.synergyTitle, this.synergyDesc];
+    for (let i = 1; i < stack.length; i++) {
+      const prev = stack[i - 1];
+      stack[i].setY(prev.y + prev.height + (i === 1 || i === 3 || i === 4 ? 2 : 1));
+    }
   }
 
   private start(): void {

@@ -57,5 +57,10 @@ export interface PlayerWorld {
   area(x: number, y: number, radius: number, mult: number, knockback: number, source: HitSource, status?: Status): void;
   /** Living enemies and boss, nearest to (x, y) first. */
   targets(x: number, y: number): Phaser.GameObjects.Sprite[];
-  strike(target: Phaser.GameObjects.Sprite, mult: number, source: HitSource, crit: boolean, status?: Status): void;
+  /** `knockback` defaults to a light push; 0 for damage that must not move the target (bleed ticks). */
+  strike(target: Phaser.GameObjects.Sprite, mult: number, source: HitSource, crit: boolean, status?: Status, knockback?: number): void;
+  /** Apply a status (slow/freeze/burn) without a hit. */
+  afflict(target: Phaser.GameObjects.Sprite, status: Status): void;
+  /** Hostile projectiles in flight (Gojo's Infinity stops them). */
+  hostiles(): Phaser.Physics.Arcade.Image[];
 }

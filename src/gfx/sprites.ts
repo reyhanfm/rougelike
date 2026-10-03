@@ -1227,6 +1227,8 @@ export const SPRITES: Record<string, string[]> = {
 
   heart: ['.88.88.', '8878888', '8888888', '.88888.', '..888..', '...8...'],
   soul: ['..c..', '.cc..', '.c7c.', 'c777c', '.ccc.'],
+  // Nephalem's gliding feathers (white, tinted holy gold or hell crimson as they fall).
+  featherShot: ['.7.', '767', '767', '767', '.7.', '.6.'],
 
   ground: ['bbbbbbbb', 'b3bb3bb3', '34444344', '44454444', '44444454', '45444444', '44444544', '44544444'],
   dirt: ['44454444', '44444454', '45444444', '44444544', '44544444', '44444444', '44544454', '44444444'],

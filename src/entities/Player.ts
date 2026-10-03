@@ -8,6 +8,7 @@ import type { ClassId } from '../logic/classes.ts';
 import { SKILLS, TREASURES } from './skills.ts';
 import { CLASSES, FURY } from '../logic/classes.ts';
 import { DASHES } from './dashes.ts';
+import { PASSIVES } from './passives.ts';
 import { STYLES, airTilt, emitTrail, pirouette } from './styles.ts';
 import { rumble } from '../gamepad.ts';
 import { sfx } from '../audio.ts';
@@ -192,7 +193,34 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.lock(0);
   }
 
-  // --- used by skills ---
+  // --- used by skills and passives ---
+
+  get grounded(): boolean {
+    return this.body.blocked.down || this.body.touching.down;
+  }
+
+  get dashing(): boolean {
+    return this.scene.time.now < this.dashUntil;
+  }
+
+  get invulnerable(): boolean {
+    return this.scene.time.now < this.invulnUntil || this.hp <= 0;
+  }
+
+  /** A jump key is held (Nephalem glides on it). */
+  get jumpHeld(): boolean {
+    const k = this.keys;
+    return k.space.isDown || k.w.isDown || k.up.isDown;
+  }
+
+  /** A hit turned away by a passive: a short grace, a sound and a label. */
+  parry(label: string, color: string): void {
+    this.avoid(this.scene.time.now, label, color);
+  }
+
+  private get passiveCtx() {
+    return { p: this, world: this.world, scene: this.scene };
+  }
 
   invuln(ms: number): void {
     this.invulnUntil = Math.max(this.invulnUntil, this.scene.time.now + ms);
@@ -346,6 +374,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(this.facing * d.speed, d.vy ?? 0);
     sfx('dash');
     d.start?.({ p: this, world: this.world, scene: this.scene, power: this.stats.dashPower });
+    PASSIVES[this.skin].onDash?.(this.passiveCtx);
   }
 
   /** Dashes with a hit strike every enemy they touch, once per dash. */
@@ -591,6 +620,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       sfx('shoot');
       this.swingReadyAt = time + this.stats.swingCooldown * 1000 * (1 - FURY.step * this.fury);
       SKILLS[this.weapon.id].basic?.({ p: this, world: this.world, scene: this.scene, power: 1 });
+      PASSIVES[this.skin].onAttack?.(this.passiveCtx, this.move);
       return;
     }
     const grounded = this.body.blocked.down || this.body.touching.down;
@@ -684,6 +714,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         pierce: true,
       });
     }
+    PASSIVES[this.skin].onAttack?.(this.passiveCtx, this.move);
   }
 
   private useSkill(time: number, kind: 'skill' | 'ult' | 'fusion'): void {
