@@ -161,4 +161,6 @@ wheel around the arena), Toji (Playful Cloud flail), Gojo (Muryokusho void). Eve
 Then: Cu Chulainn (Gae Bolg run-up, leap and spear storm, `crimsonSpear`), Madara (winged Perfect Susanoo built in
 layers, `perfectSusanoo` + `susanooBlade`), Itachi (Tsukuyomi crosses, clone stabs, 72-hour clock), Ashura (Tinju
 Seribu: six arms, three lanes of fists, giant fist). Skill pass: Samurai Mikiri (counter stance, replaced an Iaido
-that duplicated his passive), Sasuke Chidori (chained dash), Madara Katon: Goka Mekkyaku (rolling wall of fire).
+that duplicated his passive), Sasuke Chidori (chained dash), Madara Katon: Goka Mekkyaku (rolling wall of fire). Dash pass: Magic Archer star mines,
+Dark Avenger shadow-pool slide + eruption, Antares half-dragon fire charge, Naruto Rasengan charge (his old clone dash
+duplicated his passive), Nephalem split light/hellfire paths closing in a cross.

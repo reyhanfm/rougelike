@@ -14,8 +14,8 @@ import {
   sparks,
   stormArc,
   thorns,
-  TWILIGHT,
-  twilightWings,
+  HOLY,
+  HELL,
   type SkillCtx,
 } from './skills.ts';
 
@@ -176,33 +176,28 @@ export const DASHES: Record<ClassId, DashStyle> = {
     },
   },
   magicArcher: {
-    name: 'KEDIP ARKANA',
-    desc: 'TELEPORT KE DEPAN, LEDAKAN DI TEMPAT ASAL',
-    speed: 0,
-    ms: 100,
+    name: 'JEJAK BINTANG',
+    desc: 'MELESAT RENDAH, MENJATUHKAN 3 RANJAU BINTANG YANG MELEDAK SESAAT KEMUDIAN',
+    speed: 300,
+    ms: 170,
     tint: 0xff77a8,
-    // A magic circle opens under her and blows up as she blinks out; she reappears in a burst of stars.
+    // She darts away low and drops three little stars behind her as she goes; they hang there pulsing, then go off one
+    // after another, a pink burst each (a trap for whatever follows her).
     start: ({ p, world, scene, power }) => {
-      const circle = [
-        scene.add.circle(p.x, p.y, 14).setStrokeStyle(1, 0xff77a8),
-        scene.add.star(p.x, p.y, 6, 6, 13).setStrokeStyle(1, 0x83769c),
-      ];
-      circle.forEach((c) => c.setDepth(9));
-      scene.tweens.add({
-        targets: circle,
-        angle: 120,
-        scale: 1.8,
-        alpha: 0,
-        duration: 350,
-        onComplete: () => circle.forEach((c) => c.destroy()),
-      });
-      world.area(p.x, p.y, 22, 0.8 * power, 120, 'skill');
-      sparks(scene, p.x, p.y, [0xff77a8, 0x83769c], 10, 24);
-      p.ghost(0xff77a8);
-      p.body.reset(Phaser.Math.Clamp(p.x + p.facing * 80, 8, W - 8), p.y);
-      const star = scene.add.star(p.x, p.y, 5, 3, 9, 0xffec27).setDepth(13);
-      scene.tweens.add({ targets: star, angle: 144, scale: 0, duration: 300, onComplete: () => star.destroy() });
-      sparks(scene, p.x, p.y, [0xffec27, 0xff77a8], 8, 16);
+      for (let i = 0; i < 3; i++)
+        later(scene, i * 55, () => {
+          const x = p.x;
+          const y = p.y;
+          const star = scene.add.star(x, y, 4, 2, 6, 0xffec27).setStrokeStyle(1, 0xff77a8).setDepth(12);
+          scene.tweens.add({ targets: star, scale: 1.4, angle: 90, yoyo: true, repeat: 2, duration: 100 });
+          later(scene, 550 + i * 90, () => {
+            star.destroy();
+            const b = scene.add.star(x, y, 4, 4, 16, 0xff77a8).setDepth(13);
+            scene.tweens.add({ targets: b, scale: 1.5, angle: 45, alpha: 0, duration: 260, onComplete: () => b.destroy() });
+            sparks(scene, x, y, [0xff77a8, 0xffec27], 8, 16);
+            world.area(x, y, 22, 0.7 * power, 120, 'skill', { slow: 500 });
+          });
+        });
     },
   },
   reaper: {
@@ -349,24 +344,47 @@ export const DASHES: Record<ClassId, DashStyle> = {
     },
   },
   darkAvenger: {
-    name: 'LANGKAH KEGELAPAN',
-    desc: 'DASH GELAP MENEBAS YANG DILEWATI',
-    speed: 300,
-    ms: 160,
-    tint: 0x7e2553,
-    hit: { mult: 0.7, radius: 14, cut: 0x8a3fd1 },
-    // He bursts out of a pool of darkness and a violet crescent tears along with him.
-    start: ({ p, scene }) => {
-      const pool = scene.add.ellipse(p.x, p.y + 7, 24, 5, 0x000000, 0.8).setDepth(8);
-      scene.tweens.add({ targets: pool, scaleX: 1.6, alpha: 0, duration: 400, onComplete: () => pool.destroy() });
-      for (let i = 0; i < 5; i++) puff(scene, p.x + Phaser.Math.Between(-6, 6), p.y + 4, 0x7e2553, 2, 12, 450);
-      const arc = scene.add
-        .image(p.x, p.y, 'slashMoon')
-        .setTint(0x8a3fd1)
-        .setScale(p.facing * 1.6, 1.6)
-        .setDepth(12);
-      during(scene, 160, 16, () => arc.setPosition(p.x + p.facing * 10, p.y));
-      later(scene, 170, () => scene.tweens.add({ targets: arc, alpha: 0, duration: 150, onComplete: () => arc.destroy() }));
+    name: 'TENGGELAM BAYANGAN',
+    desc: 'TENGGELAM KE BAYANGAN SENDIRI, MELUNCUR DI LANTAI, LALU MELEDAK KE ATAS MELEMPAR MUSUH',
+    speed: 260,
+    ms: 220,
+    tint: 0x2a0a2a,
+    // He sinks into his own shadow: only a black pool slides along the floor, bubbling violet. At the end he erupts
+    // out of it in a pillar of darkness that throws everything above it into the air.
+    start: ({ p, world, scene, power }) => {
+      const pool = scene.add
+        .ellipse(p.x, p.y + 7, 16, 4, 0x000000, 0.85)
+        .setStrokeStyle(1, 0x8a3fd1)
+        .setDepth(11);
+      const follow = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          pool.setPosition(p.x, p.y + 7);
+          if (Math.random() < 0.4) puff(scene, p.x + Phaser.Math.Between(-6, 6), p.y + 5, 0x8a3fd1, 1.5, 6, 300);
+        },
+      });
+      later(scene, 220, () => {
+        follow.remove();
+        pool.destroy();
+        const { x, y } = p;
+        const pillar = scene.add
+          .rectangle(x, y + 8, 14, 50, 0x2a0a2a, 0.85)
+          .setOrigin(0.5, 1)
+          .setStrokeStyle(1, 0x8a3fd1)
+          .setDepth(12);
+        pillar.setScale(1, 0);
+        scene.tweens.add({ targets: pillar, scaleY: 1, duration: 90, ease: 'Quad.Out' });
+        scene.tweens.add({ targets: pillar, scaleX: 0, alpha: 0, delay: 160, duration: 200, onComplete: () => pillar.destroy() });
+        sparks(scene, x, y, [0x8a3fd1, 0xc080ff, 0x2a0a2a], 12, 20);
+        scene.cameras.main.shake(100, 0.01);
+        for (const t of world.targets(x, y)) {
+          if (Math.abs(t.x - x) > 18 || t.y > y + 10 || t.y < y - 50) continue;
+          world.strike(t, 1 * power, 'skill', false, undefined, 60);
+          if (!('tier' in t) && !t.getData('elite')) (t as Phaser.Physics.Arcade.Sprite).setVelocityY(-220);
+          cutMark(scene, t.x, t.y, 0x8a3fd1);
+        }
+      });
     },
   },
   ashura: {
@@ -392,33 +410,43 @@ export const DASHES: Record<ClassId, DashStyle> = {
     },
   },
   antares: {
-    name: 'SAYAP NAGA',
-    desc: 'SAYAP NAGA HITAM MENGEPAK KE ATAS, API KEHANCURAN DI KAKI',
-    speed: 200,
-    vy: -240,
+    name: 'LANGKAH NAGA',
+    desc: 'BERUBAH SETENGAH NAGA SESAAT, MENERJANG RENDAH SAMBIL MENYEMBURKAN API',
+    speed: 300,
     ms: 200,
-    gravity: true,
-    tint: 0xff004d,
-    // Black dragon wings with crimson membranes snap open for one beat, and a gout of dragonfire bursts beneath him.
-    start: ({ p, world, scene, power }) => {
-      const wings = [-1, 1].map((s) =>
-        scene.add
-          .triangle(p.x + s * 5, p.y - 2, 0, 0, s * 24, -16, s * 16, 8, 0xb3122e)
-          .setStrokeStyle(1, 0x1d0f2e)
-          .setOrigin(0, 0)
-          .setDepth(9),
-      );
-      during(scene, 200, 25, () => puff(scene, p.x, p.y + 6, 0xff004d, 2, -2, 300));
-      scene.tweens.add({
-        targets: wings,
-        scaleY: { from: 1, to: 0.2 },
-        alpha: 0,
-        duration: 300,
-        onUpdate: () => wings.forEach((w, k) => w.setPosition(p.x + (k ? 5 : -5), p.y - 2)),
-        onComplete: () => wings.forEach((w) => w.destroy()),
+    tint: 0xb3122e,
+    hit: { mult: 0.7, radius: 16, status: { burn: 0.2 }, cut: 0xff004d },
+    // For a heartbeat the dragon shows through: the shadow of a crimson dragon surges forward with him, its jaws open,
+    // fire pouring out ahead of it; it roars as it fades back into him.
+    start: ({ p, scene }) => {
+      const f = p.facing;
+      const dragon = scene.add
+        .image(p.x, p.y - 2, 'dragon')
+        .setFlipX(f < 0)
+        .setTint(0xb3122e)
+        .setAlpha(0.7)
+        .setDepth(9);
+      const follow = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          dragon.setPosition(p.x - f * 2, p.y - 2);
+          const fb = scene.add
+            .circle(
+              p.x + f * 12,
+              p.y - 2 + Phaser.Math.Between(-3, 3),
+              Phaser.Math.Between(2, 3),
+              Math.random() < 0.5 ? 0xffa300 : 0xff004d,
+            )
+            .setDepth(12);
+          scene.tweens.add({ targets: fb, x: fb.x + f * 24, scale: 2, alpha: 0, duration: 220, onComplete: () => fb.destroy() });
+        },
       });
-      for (let i = 0; i < 8; i++) puff(scene, p.x + Phaser.Math.Between(-8, 8), p.y + 8, i % 2 ? 0xffa300 : 0xff004d, 3, -4, 350);
-      world.area(p.x, p.y + 6, 22, 0.6 * power, 120, 'skill', { burn: 0.2 });
+      later(scene, 200, () => {
+        follow.remove();
+        ring(scene, p.x, p.y, 0xff004d, 4, 22, 240, 2);
+        scene.tweens.add({ targets: dragon, alpha: 0, scale: 1.3, duration: 200, onComplete: () => dragon.destroy() });
+      });
     },
   },
   gilgamesh: {
@@ -644,37 +672,36 @@ export const DASHES: Record<ClassId, DashStyle> = {
     },
   },
   naruto: {
-    name: 'KAGE BUNSHIN',
-    desc: 'KLON MELEMPAR KE DEPAN, LALU MENINJU MUSUH TERDEKAT',
+    name: 'RASENGAN TERJANG',
+    desc: 'MENERJANG DENGAN RASENGAN DI TANGAN, MENGGILING SEMUA YANG DITABRAK',
     speed: 320,
-    ms: 170,
-    tint: 0xffa300,
-    hit: { mult: 0.6, radius: 14, cut: 0xffa300 },
-    // POF: a shadow clone appears in a puff of smoke and flings him forward, then charges the nearest enemy and bursts.
-    start: ({ p, world, scene, power }) => {
-      const { x, y } = p;
-      for (let i = 0; i < 6; i++) puff(scene, x + Phaser.Math.Between(-6, 6), y + Phaser.Math.Between(-6, 6), 0xc2c3c7, 3, 6, 400);
-      floatText(scene, x, y - 16, 'POF', '#c2c3c7');
-      const clone = scene.add.image(x, y, p.texture.key).setFlipX(p.flipX).setDepth(9);
-      const t = world.targets(x, y).find((e) => Phaser.Math.Distance.Between(x, y, e.x, e.y) < 90);
-      const burstClone = () => {
-        for (let i = 0; i < 5; i++)
-          puff(scene, clone.x + Phaser.Math.Between(-5, 5), clone.y + Phaser.Math.Between(-5, 5), 0xc2c3c7, 3, 6, 400);
-        clone.destroy();
-      };
-      if (!t) return void later(scene, 250, burstClone);
-      scene.tweens.add({
-        targets: clone,
-        x: t.x - Math.sign(t.x - x) * 8,
-        y: t.y,
-        duration: 160,
-        onComplete: () => {
-          if (t.active) {
-            world.strike(t, 0.8 * power, 'skill', false);
-            sparks(scene, t.x, t.y, [0xffa300, 0xffec27], 6, 12);
+    ms: 200,
+    tint: 0x29adff,
+    hit: { mult: 0.9, radius: 16, cut: 0x29adff },
+    // A Rasengan spins up in his palm in a blink and he charges with it held out in front, grinding through whatever
+    // he runs into; it bursts in a ring of wind as he stops.
+    start: ({ p, scene }) => {
+      const f = p.facing;
+      const g = scene.add.graphics().setDepth(12);
+      g.fillStyle(0x29adff, 0.6).fillCircle(0, 0, 7);
+      g.lineStyle(1, 0xc2f0ff).beginPath().arc(0, 0, 5, 0, 4).strokePath();
+      g.fillStyle(0xfff1e8).fillCircle(0, 0, 2);
+      const follow = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          g.setPosition(p.x + f * 9, p.y).setRotation(g.rotation + 0.6);
+          if (Math.random() < 0.5) {
+            const s = scene.add.rectangle(p.x + f * 9, p.y + Phaser.Math.Between(-6, 6), 4, 1, 0xc2f0ff).setDepth(11);
+            scene.tweens.add({ targets: s, x: s.x - f * 14, alpha: 0, duration: 160, onComplete: () => s.destroy() });
           }
-          burstClone();
         },
+      });
+      later(scene, 200, () => {
+        follow.remove();
+        ring(scene, g.x, g.y, 0x29adff, 4, 22, 240, 2);
+        sparks(scene, g.x, g.y, [0x29adff, 0xc2f0ff], 8, 16);
+        g.destroy();
       });
     },
   },
@@ -762,34 +789,38 @@ export const DASHES: Record<ClassId, DashStyle> = {
     },
   },
   nephalem: {
-    name: 'LUNCUR SENJA',
-    desc: 'MELUNCUR DENGAN KEDUA SAYAP: BULU CAHAYA DI ATAS, BARA NERAKA DI BAWAH',
-    speed: 380,
-    vy: -50,
-    ms: 220,
-    tint: TWILIGHT,
-    hit: { mult: 0.6, radius: 16, status: { burn: 0.15 }, cut: TWILIGHT },
-    // He spreads both wings full and glides low across the arena; white feathers peel off above him and crimson embers
-    // fall below, and whoever he passes is cut in a violet cross.
-    start: ({ p, scene }) => {
-      const angel = p.flipX ? 1 : -1;
-      const wg = scene.add.graphics();
-      const wings = scene.add.container(p.x, p.y - 4, [wg]).setDepth(9.5);
-      twilightWings(wg, angel, 18, -0.3);
-      during(scene, 220, 16, () => wings.setPosition(p.x, p.y - 4));
-      scene.tweens.add({ targets: wings, alpha: 0, delay: 220, duration: 200, onComplete: () => wings.destroy() });
-      during(scene, 220, 30, (i) => {
-        const up = scene.add.rectangle(p.x, p.y - 10, 3, 1, 0xfff1e8).setDepth(11);
-        scene.tweens.add({
-          targets: up,
-          y: up.y - 10,
-          x: up.x - p.facing * 10,
-          angle: 180,
-          alpha: 0,
-          duration: 500,
-          onComplete: () => up.destroy(),
-        });
-        if (i % 2) puff(scene, p.x, p.y + 6, 0xff004d, 1.5, -6, 400);
+    name: 'BELAH SENJA',
+    desc: 'TERBELAH JADI CAHAYA & API YANG MENYILANG, LALU BERSATU LAGI DENGAN TEBASAN SILANG',
+    speed: 340,
+    ms: 200,
+    tint: 0xc080ff,
+    // He splits in two: his angel half arcs ahead high in a trail of gold light, his demon half low in a trail of
+    // hellfire. Where they meet again, he is whole, and the two trails close on that spot as a gold-and-crimson cross.
+    start: ({ p, world, scene, power }) => {
+      const f = p.facing;
+      const x0 = p.x;
+      const y0 = p.y;
+      const x1 = Phaser.Math.Clamp(x0 + f * 68, 8, W - 8);
+      const trail = scene.add.graphics().setDepth(11);
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration: 200,
+        onUpdate: (tw) => {
+          const v = tw.getValue() ?? 0;
+          const x = x0 + (x1 - x0) * v;
+          const off = Math.sin(v * Math.PI) * 16;
+          trail.fillStyle(HOLY).fillRect(x, y0 - off, 2, 2);
+          trail.fillStyle(HELL).fillRect(x, y0 + off * 0.6, 2, 2);
+        },
+      });
+      scene.tweens.add({ targets: trail, alpha: 0, delay: 260, duration: 240, onComplete: () => trail.destroy() });
+      later(scene, 200, () => {
+        const { x, y } = p;
+        bladeLine(scene, x - 12, y - 12, x + 12, y + 12, HOLY, 80);
+        bladeLine(scene, x - 12, y + 12, x + 12, y - 12, HELL, 80);
+        feathers(scene, x, y - 6, 3, 10, 12);
+        world.area(x, y, 26, 1 * power, 140, 'skill', { burn: 0.1, slow: 500 });
       });
     },
   },
