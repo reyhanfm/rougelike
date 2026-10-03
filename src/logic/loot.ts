@@ -77,6 +77,10 @@ export interface Move {
   pierce?: boolean;
   /** This move's projectiles vanish after this many px (shotgun pellets). */
   range?: number;
+  /** A flurry: the hitbox strikes each enemy this many times over the move (dmg is per hit). */
+  hits?: number;
+  /** Throws non-boss enemies it hits upward at this speed, px/s (a launcher). */
+  launch?: number;
   status?: Status;
 }
 
@@ -210,9 +214,12 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0xff4a6e,
     cut: 0xff004d,
     combo: [
-      { anim: 'thrust', dmg: 1, cd: 1, ms: 140, reach: box(34, 8), knockback: 150 },
-      { anim: 'thrust', dmg: 1.1, cd: 1, ms: 140, reach: box(34, 8), knockback: 150, lunge: 110 },
-      { anim: 'down', dmg: 1.3, cd: 1.4, ms: 200, reach: box(30, 26), knockback: 200 },
+      // A long poke at the very tip of the spear's reach.
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 140, reach: box(40, 8), knockback: 150 },
+      // The spear twirled around him, the shaft and the point both striking (two hits).
+      { anim: 'spin', dmg: 0.6, cd: 1.1, ms: 240, reach: box(40, 24), knockback: 120, hitbox: 'around', hits: 2 },
+      // Gae Bolg driven home on a charge, the curse's barbs bursting out (SKILLS.tombak.onHit).
+      { anim: 'thrust', dmg: 1.3, cd: 1.4, ms: 180, reach: box(36, 10), knockback: 240, lunge: 220, trail: 0xff004d },
     ],
     air: {
       name: 'TUSUKAN BAWAH',
@@ -441,12 +448,10 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     crit: 0.1,
     arc: 'slashKatana',
     combo: [
-      // Kesa-giri: diagonal cut down from the shoulder.
-      { anim: 'down', dmg: 1, cd: 0.9, ms: 90, reach: box(26, 22), knockback: 90, cut: 0xfff1e8 },
-      // Kiri-age: the blade comes straight back up.
-      { anim: 'up', dmg: 1, cd: 0.9, ms: 90, reach: box(26, 22), knockback: 90, cut: 0xfff1e8 },
-      // Karatake-wari: overhead cut that splits straight down.
-      { anim: 'overhead', dmg: 1.3, cd: 1.1, ms: 130, reach: box(28, 30), knockback: 140, cut: 0xfff1e8 },
+      // Every cut is a step in: kiri-age, the draw-cut rising out of the scabbard, then kesa-giri back down across
+      // the shoulder; the blade clicks home in its scabbard after each (SKILLS.katana.onSwing).
+      { anim: 'up', dmg: 1, cd: 0.9, ms: 90, reach: box(26, 22), knockback: 90, lunge: 110, cut: 0xfff1e8 },
+      { anim: 'down', dmg: 1, cd: 0.9, ms: 90, reach: box(26, 22), knockback: 90, lunge: 110, cut: 0xfff1e8 },
       // Iai: a flash-draw straight through the enemy.
       { anim: 'thrust', dmg: 2, cd: 1.6, ms: 150, reach: box(32, 12), knockback: 200, lunge: 320, trail: 0xfff1e8, cut: 0xff004d },
     ],
@@ -537,9 +542,10 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     impact: 0xffec27,
     fist: true,
     combo: [
-      { anim: 'jab', dmg: 1, cd: 1, ms: 80, reach: box(16, 12), knockback: 60, extra: 1 },
-      { anim: 'hook', dmg: 1, cd: 1, ms: 90, reach: box(18, 16), knockback: 70, extra: 1 },
-      { anim: 'uppercut', dmg: 1.1, cd: 1, ms: 100, reach: box(16, 22), knockback: 90, extra: 1 },
+      // Two arms jab at once, then all six in a flurry, then an uppercut that throws the enemy up.
+      { anim: 'jab', dmg: 0.55, cd: 1, ms: 100, reach: box(18, 14), knockback: 40, extra: 1, hits: 2 },
+      { anim: 'jab', dmg: 0.4, cd: 1.1, ms: 150, reach: box(20, 18), knockback: 40, extra: 1, hits: 3 },
+      { anim: 'uppercut', dmg: 1.1, cd: 1, ms: 110, reach: box(16, 24), knockback: 80, extra: 1, launch: 220 },
       { anim: 'jab', dmg: 1.5, cd: 1.6, ms: 180, reach: box(30, 24), knockback: 180, lunge: 140, extra: 2 },
     ],
     air: {
@@ -569,9 +575,10 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0xff004d,
     cut: 0xb3122e,
     combo: [
-      { anim: 'down', dmg: 1, cd: 0.9, ms: 100, reach: box(22, 20), knockback: 110, status: { burn: 0.15 } },
-      { anim: 'up', dmg: 1, cd: 0.9, ms: 100, reach: box(22, 22), knockback: 110, status: { burn: 0.15 } },
-      { anim: 'cross', dmg: 1, cd: 1, ms: 140, reach: box(26, 24), knockback: 140, status: { burn: 0.2 } },
+      // Dragon claws, not a blade: a three-stroke rake (SKILLS.cakarNaga.onSwing draws the gashes), then a rising
+      // claw that throws the enemy up, then the tearing charge.
+      { anim: 'hook', dmg: 0.45, cd: 1, ms: 150, reach: box(22, 20), knockback: 60, hits: 3, status: { burn: 0.1 } },
+      { anim: 'uppercut', dmg: 1.1, cd: 1, ms: 120, reach: box(20, 26), knockback: 80, launch: 200, status: { burn: 0.15 } },
       // Claw of Destruction: he tears forward through the enemy, a crimson wake behind him.
       {
         anim: 'thrust',
@@ -675,10 +682,11 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0xe8e8f0,
     cut: 0xc2c3c7,
     combo: [
-      { anim: 'thrust', dmg: 1, cd: 1, ms: 90, reach: box(26, 10), knockback: 90 },
-      { anim: 'thrust', dmg: 1, cd: 1, ms: 90, reach: box(26, 10), knockback: 90, lunge: 120 },
-      { anim: 'down', dmg: 1.1, cd: 1, ms: 110, reach: box(24, 22), knockback: 120 },
-      { anim: 'thrust', dmg: 1.7, cd: 1.5, ms: 160, reach: box(32, 12), knockback: 220, lunge: 300 },
+      // Heavenly Restriction speed: three stabs in the time of one, a cut down, then a dash so fast it leaves him on
+      // the far side of the enemy, a white streak behind (SKILLS.sakahoko.onSwing).
+      { anim: 'thrust', dmg: 0.4, cd: 1.1, ms: 150, reach: box(28, 10), knockback: 40, hits: 3 },
+      { anim: 'down', dmg: 1, cd: 1, ms: 110, reach: box(24, 22), knockback: 120 },
+      { anim: 'thrust', dmg: 1.8, cd: 1.5, ms: 160, reach: box(32, 12), knockback: 240, lunge: 340, trail: 0xfff1e8 },
     ],
     air: {
       name: 'TIKAMAN KILAT',
@@ -707,8 +715,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0xd0b0ff,
     cut: 0xfff1e8,
     combo: [
-      { anim: 'down', dmg: 1, cd: 1, ms: 130, reach: box(26, 24), knockback: 140 },
-      { anim: 'up', dmg: 1, cd: 1, ms: 130, reach: box(26, 26), knockback: 140 },
+      // Gunbai shove: the war fan held up as a shield and rammed forward; it turns blows aside while it moves
+      // (SKILLS.gunbai.onSwing) and throws the enemy back.
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 140, reach: box(22, 26), knockback: 300 },
       // Kama: the chained sickle is thrown ahead.
       { anim: 'shoot', dmg: 1.1, cd: 1, ms: 120, reach: box(0, 0), knockback: 90, angles: [0] },
       // Gunbai gust: a great sweep blows everything around away.
@@ -738,8 +747,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arc: 'slashBranch',
     cut: 0x00e436,
     combo: [
-      { anim: 'thrust', dmg: 1, cd: 1, ms: 130, reach: box(34, 10), knockback: 150 },
-      { anim: 'up', dmg: 1, cd: 1, ms: 130, reach: box(26, 26), knockback: 140 },
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 130, reach: box(40, 10), knockback: 150 },
+      // He brings his hand down and roots spear up out of the floor ahead of him (SKILLS.mokuton.onSwing).
+      { anim: 'overhead', dmg: 1, cd: 1, ms: 130, reach: box(26, 26), knockback: 140 },
       // Wood bursts out all around and snags whatever it hits.
       { anim: 'spin', dmg: 1.5, cd: 1.5, ms: 220, reach: box(44, 32), knockback: 220, hitbox: 'around', status: { freeze: 300 } },
     ],
@@ -770,15 +780,14 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arcTint: 0xff6060,
     cut: 0xff004d,
     combo: [
-      // Close in: two quick kunai cuts.
-      { anim: 'down', dmg: 1, cd: 1, ms: 90, reach: box(22, 18), knockback: 90 },
-      { anim: 'up', dmg: 1, cd: 1, ms: 90, reach: box(22, 20), knockback: 90 },
+      // Shunshin: he is suddenly in front of the enemy with the kunai in it, leaving crows behind (onSwing).
+      { anim: 'thrust', dmg: 1.1, cd: 1, ms: 100, reach: box(24, 12), knockback: 90, lunge: 180, trail: 0x1c1c28 },
       // Shurikenjutsu: three shuriken in a tight fan.
       { anim: 'shoot', dmg: 0.7, cd: 1.1, ms: 110, reach: box(0, 0), knockback: 50, angles: [-0.12, 0, 0.12] },
       // Katon: Hosenka: a spray of small fireballs.
       {
         anim: 'shoot',
-        dmg: 0.6,
+        dmg: 0.5,
         cd: 1.5,
         ms: 150,
         reach: box(0, 0),

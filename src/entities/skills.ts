@@ -1537,6 +1537,11 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   tombak: {
+    // The charging finisher (step 2): the curse's barbs burst out of whatever the spear goes into.
+    onHit: ({ p, scene }, t) => {
+      if (p.comboStep !== 2) return;
+      thorns(scene, t.x, t.y, 0xff004d, 7, 14);
+    },
     // Gae Bolg: causality reversed. The heart is pierced first (red barbs burst out of the target), then the spear
     // arrives after it along a bent crimson path.
     skill: ({ p, world, scene, power }) => {
@@ -4999,6 +5004,24 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   cakarNaga: {
+    // The rake (step 0): three crimson gashes torn through the air in front of him, one per stroke.
+    onSwing: ({ p, scene }, m, step) => {
+      if (step !== 0) return;
+      const f = p.facing;
+      for (let k = 0; k < 3; k++)
+        later(scene, (k * m.ms) / 3, () => {
+          if (!p.active) return;
+          const x = p.x + f * 14;
+          for (const o of [-4, 0, 4]) {
+            const g = scene.add
+              .rectangle(x + o, p.y + o * 0.6, 18, 1, k === 2 ? 0xff004d : 0xb3122e)
+              .setRotation(f * (k % 2 ? -0.7 : 0.7))
+              .setDepth(12);
+            scene.tweens.add({ targets: g, alpha: 0, scaleX: 1.3, duration: 180, onComplete: () => g.destroy() });
+          }
+          sparks(scene, x, p.y, [0xff004d, 0xffa300], 3, 8);
+        });
+    },
     // Dragon's Fear: Antares lets a sliver of what he is show. A colossal slit-pupiled dragon's eye opens in the sky
     // above him, the air turns red, and the pressure rolls out in waves: every enemy around him freezes in terror,
     // shaking where it stands, as the heat scorches it.
@@ -6096,6 +6119,12 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   sakahoko: {
+    // The dash finisher (step 2): a white streak hangs along his path, and he is already past the enemy.
+    onSwing: ({ p, scene }, m, step) => {
+      if (step !== 2) return;
+      const x0 = p.x;
+      later(scene, m.ms, () => p.active && bladeLine(scene, x0, p.y, p.x, p.y, 0xfff1e8, 100));
+    },
     // Playful Cloud: the three-section staff, swung like a flail with nothing but Heavenly Restriction's strength
     // behind it. First a rising whip from the floor in front up into the air, then the end section snapped straight
     // out at full length, then the whole staff brought over his head and down onto the ground ahead, which caves in
@@ -6394,6 +6423,18 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   gunbai: {
+    // The gunbai shove (step 0): the fan is a shield while it moves; blows glance off it.
+    onSwing: ({ p, scene }, m, step) => {
+      if (step !== 0) return;
+      p.invuln(m.ms + 80);
+      const f = p.facing;
+      const g = scene.add.graphics().setDepth(12);
+      g.lineStyle(2, 0xd0b0ff, 0.8)
+        .beginPath()
+        .arc(p.x + f * 8, p.y, 12, f > 0 ? -1.1 : Math.PI - 1.1, f > 0 ? 1.1 : Math.PI + 1.1)
+        .strokePath();
+      scene.tweens.add({ targets: g, x: f * 10, alpha: 0, duration: m.ms + 60, onComplete: () => g.destroy() });
+    },
     // Katon: Gokakyu: a giant fireball rolls forward, burning through everything in its way.
     skill: ({ p, world, scene, power }) => {
       const f = p.facing;
@@ -6711,6 +6752,30 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   mokuton: {
+    // The second step: roots spear up out of the floor ahead of him, one after another.
+    onSwing: ({ p, world, scene }, _m, step) => {
+      if (step !== 1 || !p.grounded) return;
+      const f = p.facing;
+      const hit = new Set<Phaser.GameObjects.GameObject>();
+      for (let k = 0; k < 3; k++)
+        later(scene, 60 + k * 50, () => {
+          const x = p.x + f * (18 + k * 14);
+          if (x < 0 || x > W) return;
+          const g = scene.add.graphics().setDepth(11);
+          const h = 16 + k * 2;
+          g.fillStyle(0x3b2418).fillTriangle(-4, 0, 4, 0, 0, -h - 2);
+          g.fillStyle(0x7a5c44).fillTriangle(-3, 0, 3, 0, 0, -h);
+          g.fillStyle(0x00e436).fillRect(1, -h * 0.6, 2, 1);
+          g.setPosition(x, FLOOR_Y + 2).setScale(1, 0);
+          scene.tweens.add({ targets: g, scaleY: 1, duration: 80, yoyo: true, hold: 160, onComplete: () => g.destroy() });
+          leafBurst(scene, x, FLOOR_Y - h, 3);
+          for (const t of world.targets(x, FLOOR_Y)) {
+            if (hit.has(t) || Math.abs(t.x - x) > 9 || t.y < FLOOR_Y - 34) continue;
+            hit.add(t);
+            world.strike(t, 0.5, 'proc', false, { freeze: 300 }, 100);
+          }
+        });
+    },
     // Jukai Kotan: he slaps both palms to the ground and a forest erupts in a wave ahead of him: trunk after trunk
     // bursts up, canopies spread, and branches whip out to snare anything flying nearby. Everything caught is bound.
     skill: ({ p, world, scene, power }) => {
@@ -6972,6 +7037,23 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   kunai: {
+    // Shunshin (step 0): crows scatter from where he stood a moment ago.
+    onSwing: ({ p, scene }, _m, step) => {
+      if (step !== 0) return;
+      for (let i = 0; i < 5; i++) {
+        const crow = scene.add.graphics().setDepth(12).fillStyle(0x1c1c28);
+        crow.fillTriangle(-3, 0, 0, -2, 0, 1).fillTriangle(3, 0, 0, -2, 0, 1);
+        crow.setPosition(p.x + Phaser.Math.Between(-4, 4), p.y + Phaser.Math.Between(-5, 5));
+        scene.tweens.add({
+          targets: crow,
+          x: crow.x - p.facing * Phaser.Math.Between(6, 16),
+          y: crow.y - Phaser.Math.Between(8, 18),
+          alpha: 0,
+          duration: 450,
+          onComplete: () => crow.destroy(),
+        });
+      }
+    },
     // Amaterasu: black flames cling to the nearest enemy and burn for five seconds, leaping to anything that comes close.
     skill: ({ p, world, scene, power }) => {
       const first = world.targets(p.x, p.y)[0];
@@ -7660,6 +7742,11 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   katana: {
+    // After every step-in cut the blade clicks home in the scabbard: a glint at his hip.
+    onSwing: ({ p, scene }, m, step) => {
+      if (step < 0 || m.anim === 'thrust') return;
+      later(scene, m.ms + 30, () => p.active && glint(scene, p.x - p.facing * 2, p.y + 3));
+    },
     // Iaido: a beat in stance while a glint runs down the sheathed blade, then one flash-draw straight through
     // everything ahead. Enemies on the path freeze mid-step and only fall apart when the blade clicks back home.
     skill: ({ p, world, scene, power }) => {

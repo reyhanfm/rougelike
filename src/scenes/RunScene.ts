@@ -732,6 +732,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.player.hitThisSwing.add(t);
       this.attack(t, move.dmg, 'basic', move.knockback);
       this.applyStatus(t, move.status);
+      // Launchers throw small fry into the air (not bosses or elites, which are too heavy).
+      if (move.launch && t.active && t instanceof Enemy && !t.getData('elite')) t.setVelocityY(-move.launch);
       // The weapon's own on-hit mechanic (Lightning Lord's STATIK).
       if (t.active) SKILLS[this.weaponId].onHit?.({ p: this.player, world: this, scene: this, power: this.stats.skillPower }, t);
       // Ashura phantom arms: golden fists fly in from beside the player, each a follow-up hit for 40%.
