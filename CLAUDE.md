@@ -21,24 +21,24 @@ Dev URL shortcuts (from ClassScene, dev only): `?round=10`, `?weapon=busur`, `?m
 
 ## Layout
 
-| File                                                      | What lives there                                                                                                  |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `src/logic/classes.ts`                                    | `ClassId`, `CLASSES`: name, weapon, color, head sprite rows, legs, trait, synergy, optional awaken                |
-| `src/logic/loot.ts`                                       | `WeaponId`, `WEAPONS`: combo moves, air move, projectile, skill/ult/fusion names + desc; items, rewards           |
-| `src/entities/skills.ts`                                  | `SKILLS[weaponId]`: `skill`, `ult`, `fusion` (J+L), optional `basic` (cast) and `onHit` (per melee hit)           |
-| `src/entities/dashes.ts`                                  | `DASHES[classId]`: each class's own dash (K) movement, hit and VFX                                                |
-| `src/entities/passives.ts`                                | `PASSIVES[classId]`: the class PASIF (always-on technique) via hooks: tick/onAttack/onHit/onKill/modify/guard/... |
-| `src/entities/styles.ts`                                  | `STYLES[classId]`: run stride, lean, jump style, trail particles, weapon hold pose                                |
-| `src/gfx/sprites.ts`                                      | `PALETTE` (one char per color), `SPRITES` text grids (`w_<weaponId>` held weapon, projectiles, props), `LEGS`     |
-| `src/entities/Player.ts`                                  | input, combo/attack/dash/skill flow, `useSkill` (shows the skill name itself)                                     |
-| `src/entities/arena.ts`                                   | `PlayerWorld` (what skills may do: `shot`, `pull`, `slam`, `area`, `targets`, `strike`) and `Arena` (enemy side)  |
-| `src/scenes/RunScene.ts`                                  | the run: implements both interfaces, status effects (burn/freeze/slow), HUD, rewards                              |
-| `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H` — shrink them when rows no longer fit above y=102)                  |
-| `src/entities/Enemy.ts`, `Boss.ts`, `src/logic/stages.ts` | enemies, bosses, round scaling, special bosses                                                                    |
-| `src/keys.ts`, `src/touch.ts`, `src/gamepad.ts`           | synthetic key presses; touch buttons and controller (per-screen button layout) press the keyboard keys            |
-| `src/entities/invasions.ts`                               | `INTROS[special]`: entrance cinematic of a hidden boss crashing into a normal round (`INVASION` in stages.ts)     |
-| `src/audio.ts`                                            | Web Audio chiptune: `SONGS` (hub/run/boss/special), `sfx(name)`, `playMusic(track)`, M toggles sound              |
-| `src/logic/game.check.ts`                                 | data/balance assertions — keep them passing, add one for new non-trivial rules                                    |
+| File                                                      | What lives there                                                                                                   |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `src/logic/classes.ts`                                    | `ClassId`, `CLASSES`: name, weapon, color, head sprite rows, legs, trait, synergy, optional awaken                 |
+| `src/logic/loot.ts`                                       | `WeaponId`, `WEAPONS`: combo moves, air move, projectile, skill/ult/fusion names + desc; items, rewards            |
+| `src/entities/skills.ts`                                  | `SKILLS[weaponId]`: `skill`, `ult`, `fusion` (J+L), optional `basic` (cast), `onHit` (melee hit), `onSwing` (move) |
+| `src/entities/dashes.ts`                                  | `DASHES[classId]`: each class's own dash (K) movement, hit and VFX                                                 |
+| `src/entities/passives.ts`                                | `PASSIVES[classId]`: the class PASIF (always-on technique) via hooks: tick/onAttack/onHit/onKill/modify/guard/...  |
+| `src/entities/styles.ts`                                  | `STYLES[classId]`: run stride, lean, jump style, trail particles, weapon hold pose                                 |
+| `src/gfx/sprites.ts`                                      | `PALETTE` (one char per color), `SPRITES` text grids (`w_<weaponId>` held weapon, projectiles, props), `LEGS`      |
+| `src/entities/Player.ts`                                  | input, combo/attack/dash/skill flow, `useSkill` (shows the skill name itself)                                      |
+| `src/entities/arena.ts`                                   | `PlayerWorld` (what skills may do: `shot`, `pull`, `slam`, `area`, `targets`, `strike`) and `Arena` (enemy side)   |
+| `src/scenes/RunScene.ts`                                  | the run: implements both interfaces, status effects (burn/freeze/slow), HUD, rewards                               |
+| `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H` — shrink them when rows no longer fit above y=102)                   |
+| `src/entities/Enemy.ts`, `Boss.ts`, `src/logic/stages.ts` | enemies, bosses, round scaling, special bosses                                                                     |
+| `src/keys.ts`, `src/touch.ts`, `src/gamepad.ts`           | synthetic key presses; touch buttons and controller (per-screen button layout) press the keyboard keys             |
+| `src/entities/invasions.ts`                               | `INTROS[special]`: entrance cinematic of a hidden boss crashing into a normal round (`INVASION` in stages.ts)      |
+| `src/audio.ts`                                            | Web Audio chiptune: `SONGS` (hub/run/boss/special), `sfx(name)`, `playMusic(track)`, M toggles sound               |
+| `src/logic/game.check.ts`                                 | data/balance assertions — keep them passing, add one for new non-trivial rules                                     |
 
 ## Adding or reworking a character — the checklist
 
@@ -89,6 +89,10 @@ The user wants each character to be **keren**, iconic and unmistakably theirs. W
 
 ## Gotchas
 
+- Basic combos must not share a skeleton (three melee weapons were all `down, up, overhead`). Give each its own
+  rhythm with the move data (`cross`, `spin`, lunges, negative `knockback` pulls in, `pierce`/`range` on shots) and
+  per-move effects in `SKILLS[id].onSwing(c, m, step)` / `onHit` (check `p.comboStep`): Heracles' rock wave, the
+  Avenger's launcher and dark crescent, Hassan's PENGGAL execution, the Gunners' shotgun pull.
 - Passives: no two classes should share a trigger AND an effect (God Hand blocks weak hits, Itachi swaps with
   crows, Madara's Susanoo saves him once; Gojo stops projectiles). `world.afflict` applies a status without a hit,
   `world.hostiles()` lists enemy projectiles, `world.strike(..., knockback = 0)` for damage over time.

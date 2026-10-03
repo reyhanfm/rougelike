@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { FLOOR_Y, H, W, cutMark, floatText } from '../gfx/ui.ts';
-import type { WeaponId } from '../logic/loot.ts';
+import type { Move, WeaponId } from '../logic/loot.ts';
 import type { PlayerWorld } from './arena.ts';
 import type { Player } from './Player.ts';
 
@@ -17,12 +17,14 @@ type SkillFn = (c: SkillCtx) => boolean | void;
 
 /** basic: what the attack key casts for Weapon.cast weapons; fusion: attack + skill together (Weapon.fusion). */
 /** onHit: runs on every melee hit of the weapon (a class mechanic, e.g. Lightning Lord's STATIK). */
+/** onSwing: runs as each basic move starts (`step`: index in the combo, -1 in the air) for move-specific effects. */
 type WeaponSkills = {
   skill: SkillFn;
   ult: SkillFn;
   basic?: SkillFn;
   fusion?: SkillFn;
   onHit?: (c: SkillCtx, t: Phaser.GameObjects.Sprite) => void;
+  onSwing?: (c: SkillCtx, m: Move, step: number) => void;
 };
 
 const later = (scene: Phaser.Scene, ms: number, fn: () => void) => scene.time.delayedCall(ms, fn);
@@ -811,6 +813,14 @@ function crimsonSpear(scene: Phaser.Scene, len: number): Phaser.GameObjects.Cont
   return scene.add.container(0, 0, [g]).setDepth(14);
 }
 
+/** A small puff of gun smoke at (x, y). */
+function smokePuff(scene: Phaser.Scene, x: number, y: number): void {
+  for (let i = 0; i < 4; i++) {
+    const c = scene.add.circle(x + Phaser.Math.Between(-2, 2), y + Phaser.Math.Between(-2, 2), 2, 0x83769c, 0.7).setDepth(12);
+    scene.tweens.add({ targets: c, y: c.y - 6, scale: 2, alpha: 0, duration: 300, onComplete: () => c.destroy() });
+  }
+}
+
 /** A giant blade of shadow, hilt at the container's origin and pointing up `len` px: black edge, violet body, a crimson vein. */
 function shadowBlade(scene: Phaser.Scene, x: number, y: number, len: number): Phaser.GameObjects.Container {
   const g = scene.add.graphics();
@@ -1243,6 +1253,31 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   belati: {
+    // PENGGAL, the finisher: an azure crescent of grave-fire trails the stroke and black feathers fall where it passed.
+    onSwing: ({ p, scene }, _m, step) => {
+      if (step !== 2) return;
+      const f = p.facing;
+      later(scene, 60, () => {
+        const g = scene.add.graphics().setDepth(12);
+        g.lineStyle(5, 0x29adff, 0.35)
+          .beginPath()
+          .arc(p.x - f * 10, p.y, 26, f > 0 ? -0.9 : Math.PI - 0.9, f > 0 ? 0.9 : Math.PI + 0.9)
+          .strokePath();
+        g.lineStyle(1, 0xc2f0ff)
+          .beginPath()
+          .arc(p.x - f * 10, p.y, 26, f > 0 ? -0.9 : Math.PI - 0.9, f > 0 ? 0.9 : Math.PI + 0.9)
+          .strokePath();
+        scene.tweens.add({ targets: g, alpha: 0, duration: 260, onComplete: () => g.destroy() });
+        feathers(scene, p.x - f * 20, p.y - 6, 4, 14, 14);
+      });
+    },
+    // ...and a life nearly spent (non-boss, under 30% HP) is taken outright.
+    onHit: ({ p, world, scene }, t) => {
+      if (p.comboStep !== 2 || !doomed(t)) return;
+      flameTongue(scene, t.x, t.y + 8, 22, 400);
+      floatText(scene, t.x, t.y - 24, 'PENGGAL!', '#7fe6ff');
+      world.strike(t, 99, 'proc', true, undefined, 0);
+    },
     // Evening Bell: "the bell of twilight has tolled your name." A bronze bell appears over the nearest enemy (in the
     // air or on the ground) and follows it, tolling three times: each toll is a ring of sound closing on it and a
     // tongue of azure flame catching on it, while black feathers, the omen of death, drift down around it. Then
@@ -1830,6 +1865,33 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   kapak: {
+    // The finisher hits the floor so hard that a wave of rock heaves up and runs on ahead along the ground.
+    onSwing: ({ p, world, scene }, m, step) => {
+      if (step !== 2 || !p.grounded) return;
+      const f = p.facing;
+      const hit = new Set<Phaser.GameObjects.GameObject>();
+      later(scene, m.ms * 0.8, () => {
+        scene.cameras.main.shake(140, 0.012);
+        for (let k = 0; k < 5; k++)
+          later(scene, k * 45, () => {
+            const x = p.x + f * (22 + k * 16);
+            if (x < 0 || x > W) return;
+            const g = scene.add.graphics().setDepth(11);
+            const h = 12 - k;
+            g.fillStyle(0x4a2a1a).fillTriangle(-6, 0, 6, 0, 0, -h - 2);
+            g.fillStyle(0xab5236).fillTriangle(-4, 0, 4, 0, 0, -h);
+            g.fillStyle(0xd08a50).fillTriangle(-1, -h * 0.4, 1, -h * 0.4, 0, -h);
+            g.setPosition(x, FLOOR_Y + 2).setScale(1, 0);
+            scene.tweens.add({ targets: g, scaleY: 1, duration: 70, yoyo: true, hold: 90, onComplete: () => g.destroy() });
+            rocks(scene, x, FLOOR_Y - 2, 2);
+            for (const t of world.targets(x, FLOOR_Y)) {
+              if (hit.has(t) || Math.abs(t.x - x) > 10 || t.y < FLOOR_Y - 30) continue;
+              hit.add(t);
+              world.strike(t, 0.6, 'proc', false, { slow: 600 }, 160);
+            }
+          });
+      });
+    },
     // Singa Nemea (the First Labour): Heracles roars, and the golden ghost of the Nemean Lion he strangled bounds out
     // of him. It pounces on the nearest enemy (leaping up to flyers), rakes it with its claws and pins it, then
     // springs on to the next (three victims at most). Its last landing ends in a roar that stuns everything near it.
@@ -2444,6 +2506,20 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   sabit: {
+    // The hook cuts drag a thread of soul-light back to the blade; every soul the reap (step 2) cuts flies into him.
+    onHit: ({ p, scene }, t) => {
+      if (p.comboStep === 2) {
+        soulTo(scene, t.x, t.y, p, 0x29adff);
+        p.heal(1);
+        return;
+      }
+      const g = scene.add
+        .graphics()
+        .setDepth(12)
+        .lineStyle(1, 0x29adff, 0.9)
+        .lineBetween(t.x, t.y, p.x + p.facing * 8, p.y);
+      scene.tweens.add({ targets: g, alpha: 0, duration: 220, onComplete: () => g.destroy() });
+    },
     // Gerbang Alam Baka (the Gate of the Underworld): the Reaper drags the tip of his scythe along the floor and the
     // ground tears open behind it toward the thicker side of the fight, a violet slit glowing up from below. Bony
     // hands claw up out of it and seize every enemy standing on the rift; chains of soul-light shoot up from it, snare
@@ -2819,6 +2895,25 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   senapan: {
+    // The shotgun pull (step 2): a fat muzzle blast and a shell ejected behind.
+    onSwing: ({ p, scene }, _m, step) => {
+      if (step !== 2) return;
+      const f = p.facing;
+      const fl = scene.add.circle(p.x + f * 12, p.y + 1, 5, 0xffec27).setDepth(13);
+      scene.tweens.add({ targets: fl, radius: 1, alpha: 0, duration: 90, onComplete: () => fl.destroy() });
+      smokePuff(scene, p.x + f * 14, p.y);
+      const shell = scene.add.rectangle(p.x, p.y - 2, 2, 3, 0xff004d).setDepth(13);
+      scene.tweens.add({
+        targets: shell,
+        x: p.x - f * 12,
+        y: FLOOR_Y,
+        angle: 360,
+        duration: 380,
+        ease: 'Quad.In',
+        onComplete: () => shell.destroy(),
+      });
+      scene.cameras.main.shake(60, 0.004);
+    },
     // Anti-materiel shot: he drops to one knee and shoulders the long rifle. A red laser and a scope reticle settle
     // on the biggest threat on the field (the most HP left, flyers and bosses too), tightening as he steadies his
     // breath. The shot cracks along that line across the whole arena: a white-hot tracer, everything on it punched
@@ -3928,6 +4023,13 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   busurArkana: {
+    // The charged star-arrow (step 2): a sigil flares at the bowstring as it leaves.
+    onSwing: ({ p, scene }, _m, step) => {
+      if (step !== 2) return;
+      const x = p.x + p.facing * 10;
+      ring(scene, x, p.y, 0xff77a8, 2, 14, 220, 2);
+      sparks(scene, x, p.y, [0xff77a8, 0xffec27, 0xfff1e8], 8, 12);
+    },
     // Panah Prisma (Prism Arrow): an arcane sigil opens in front of her bow and light streams into it while she draws.
     // The arrow she looses is a shard of white light aimed at the nearest enemy (in the air too); it punches through
     // everything in its way, and every body it passes through splits it like a prism: three beams of colored light,
@@ -4252,6 +4354,39 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   pedangGelap: {
+    // The rising cut (step 1) throws its victim up into the air, a pillar of shadow under it.
+    onHit: ({ p, scene }, t) => {
+      if (p.comboStep !== 1 || 'tier' in t) return;
+      (t as Phaser.Physics.Arcade.Sprite).setVelocityY(-210);
+      const pillar = scene.add
+        .rectangle(t.x, t.y + 4, 6, 24, 0x2a0a2a, 0.8)
+        .setOrigin(0.5, 1)
+        .setDepth(11);
+      scene.tweens.add({ targets: pillar, scaleY: 1.6, alpha: 0, duration: 260, onComplete: () => pillar.destroy() });
+      sparks(scene, t.x, t.y, [0x8a3fd1, 0x2a0a2a], 6, 12);
+    },
+    // The overhead finisher looses a short crescent of darkness that cuts on past the blade.
+    onSwing: ({ p, world, scene }, m, step) => {
+      if (step !== 2) return;
+      later(scene, m.ms * 0.6, () => {
+        if (!p.active) return;
+        const f = p.facing;
+        const wave = world.shot({
+          x: p.x + f * 14,
+          y: p.y,
+          vx: f * 260,
+          vy: 0,
+          texture: 'slashMoon',
+          tint: 0x8a3fd1,
+          mult: 0.6,
+          source: 'proc',
+          pierce: true,
+          knockback: 120,
+        }) as Phaser.GameObjects.Image;
+        wave.setScale(f * 1.2, 1.4);
+        later(scene, 260, () => wave.active && wave.destroy());
+      });
+    },
     // Perjanjian Gelap (Dark Pact): the avenger pays in blood. He cuts his own palm (a price of his HP, waived while
     // MODE AVENGER burns) and the blood runs up into the greatsword, which swells into a giant blade of shadow raised
     // high behind him. He brings it over in one enormous arc, from the sky behind to the floor in front, cleaving
@@ -8189,6 +8324,15 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
   },
 
   kusanagi: {
+    // Chidori Katana (the finisher): the current races along his path ahead of the lunge.
+    onSwing: ({ p, scene }, m, step) => {
+      if (step !== 2) return;
+      const f = p.facing;
+      const x0 = p.x;
+      const y0 = p.y;
+      stormArc(scene, x0, y0, Phaser.Math.Clamp(x0 + f * 60, 0, W), y0, m.ms + 80, 1, 2);
+      sparks(scene, x0 + f * 6, y0, [0x29adff, 0xfff1e8], 8, 12);
+    },
     // Chidori Eiso: the Chidori in his hand stretches into a spear of lightning that lances through every enemy in the
     // line and paralyzes it, crackling as it flickers out.
     skill: ({ p, world, scene, power }) => {

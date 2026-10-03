@@ -519,6 +519,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
         'w_pedangTerbang',
         'iceshard',
         'panahArkana',
+        'panahBintang',
         'w_pedang',
         'w_kapak',
         'w_katana',
