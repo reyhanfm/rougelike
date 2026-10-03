@@ -21,23 +21,24 @@ Dev URL shortcuts (from ClassScene, dev only): `?round=10`, `?weapon=busur`, `?m
 
 ## Layout
 
-| File                                                      | What lives there                                                                                                 |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `src/logic/classes.ts`                                    | `ClassId`, `CLASSES`: name, weapon, color, head sprite rows, legs, trait, synergy, optional awaken               |
-| `src/logic/loot.ts`                                       | `WeaponId`, `WEAPONS`: combo moves, air move, projectile, skill/ult/fusion names + desc; items, rewards          |
-| `src/entities/skills.ts`                                  | `SKILLS[weaponId]`: `skill`, `ult`, `fusion` (J+L), optional `basic` (cast) and `onHit` (per melee hit)          |
-| `src/entities/dashes.ts`                                  | `DASHES[classId]`: each class's own dash (K) movement, hit and VFX                                               |
-| `src/entities/styles.ts`                                  | `STYLES[classId]`: run stride, lean, jump style, trail particles, weapon hold pose                               |
-| `src/gfx/sprites.ts`                                      | `PALETTE` (one char per color), `SPRITES` text grids (`w_<weaponId>` held weapon, projectiles, props), `LEGS`    |
-| `src/entities/Player.ts`                                  | input, combo/attack/dash/skill flow, `useSkill` (shows the skill name itself)                                    |
-| `src/entities/arena.ts`                                   | `PlayerWorld` (what skills may do: `shot`, `pull`, `slam`, `area`, `targets`, `strike`) and `Arena` (enemy side) |
-| `src/scenes/RunScene.ts`                                  | the run: implements both interfaces, status effects (burn/freeze/slow), HUD, rewards                             |
-| `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H` — shrink them when rows no longer fit above y=102)                 |
-| `src/entities/Enemy.ts`, `Boss.ts`, `src/logic/stages.ts` | enemies, bosses, round scaling, special bosses                                                                   |
-| `src/keys.ts`, `src/touch.ts`, `src/gamepad.ts`           | synthetic key presses; touch buttons and controller (per-screen button layout) press the keyboard keys           |
-| `src/entities/invasions.ts`                               | `INTROS[special]`: entrance cinematic of a hidden boss crashing into a normal round (`INVASION` in stages.ts)    |
-| `src/audio.ts`                                            | Web Audio chiptune: `SONGS` (hub/run/boss/special), `sfx(name)`, `playMusic(track)`, M toggles sound             |
-| `src/logic/game.check.ts`                                 | data/balance assertions — keep them passing, add one for new non-trivial rules                                   |
+| File                                                      | What lives there                                                                                                  |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `src/logic/classes.ts`                                    | `ClassId`, `CLASSES`: name, weapon, color, head sprite rows, legs, trait, synergy, optional awaken                |
+| `src/logic/loot.ts`                                       | `WeaponId`, `WEAPONS`: combo moves, air move, projectile, skill/ult/fusion names + desc; items, rewards           |
+| `src/entities/skills.ts`                                  | `SKILLS[weaponId]`: `skill`, `ult`, `fusion` (J+L), optional `basic` (cast) and `onHit` (per melee hit)           |
+| `src/entities/dashes.ts`                                  | `DASHES[classId]`: each class's own dash (K) movement, hit and VFX                                                |
+| `src/entities/passives.ts`                                | `PASSIVES[classId]`: the class PASIF (always-on technique) via hooks: tick/onAttack/onHit/onKill/modify/guard/... |
+| `src/entities/styles.ts`                                  | `STYLES[classId]`: run stride, lean, jump style, trail particles, weapon hold pose                                |
+| `src/gfx/sprites.ts`                                      | `PALETTE` (one char per color), `SPRITES` text grids (`w_<weaponId>` held weapon, projectiles, props), `LEGS`     |
+| `src/entities/Player.ts`                                  | input, combo/attack/dash/skill flow, `useSkill` (shows the skill name itself)                                     |
+| `src/entities/arena.ts`                                   | `PlayerWorld` (what skills may do: `shot`, `pull`, `slam`, `area`, `targets`, `strike`) and `Arena` (enemy side)  |
+| `src/scenes/RunScene.ts`                                  | the run: implements both interfaces, status effects (burn/freeze/slow), HUD, rewards                              |
+| `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H` — shrink them when rows no longer fit above y=102)                  |
+| `src/entities/Enemy.ts`, `Boss.ts`, `src/logic/stages.ts` | enemies, bosses, round scaling, special bosses                                                                    |
+| `src/keys.ts`, `src/touch.ts`, `src/gamepad.ts`           | synthetic key presses; touch buttons and controller (per-screen button layout) press the keyboard keys            |
+| `src/entities/invasions.ts`                               | `INTROS[special]`: entrance cinematic of a hidden boss crashing into a normal round (`INVASION` in stages.ts)     |
+| `src/audio.ts`                                            | Web Audio chiptune: `SONGS` (hub/run/boss/special), `sfx(name)`, `playMusic(track)`, M toggles sound              |
+| `src/logic/game.check.ts`                                 | data/balance assertions — keep them passing, add one for new non-trivial rules                                    |
 
 ## Adding or reworking a character — the checklist
 
@@ -52,7 +53,10 @@ A class touches **every** one of these; missing one is a type error or a broken 
 3. `sprites.ts` — `w_<weaponId>` held sprite (required, checked) and any projectile/prop textures.
 4. `skills.ts` — `SKILLS[weaponId]` with `skill`, `ult` and `fusion` (and `basic` if `cast: true`).
 5. `dashes.ts` — `DASHES[classId]`. 6. `styles.ts` — `STYLES[classId]`.
-6. Run `npm run verify`, then **look at it in the browser** (see Testing) — skill, ult, fusion, dash, idle sprite.
+6. `passives.ts` — `PASSIVES[classId]` + `passive: { name, desc }` in `classes.ts` (name ≤ 20, desc ≤ 90, unique; checked).
+   A passive is a real effect with its own VFX, not a stat line (stats belong in `trait`). Its hits are `'proc'`
+   (never re-trigger `onHit`); per-round state goes through `state(p, init)`, per-frame marks through `overlay(c)`.
+7. Run `npm run verify`, then **look at it in the browser** (see Testing) — skill, ult, fusion, dash, idle sprite.
 
 ## Quality bar: every character must look and feel cool
 
@@ -85,6 +89,9 @@ The user wants each character to be **keren**, iconic and unmistakably theirs. W
 
 ## Gotchas
 
+- Passives: no two classes should share a trigger AND an effect (God Hand blocks weak hits, Itachi swaps with
+  crows, Madara's Susanoo saves him once; Gojo stops projectiles). `world.afflict` applies a status without a hit,
+  `world.hostiles()` lists enemy projectiles, `world.strike(..., knockback = 0)` for damage over time.
 - `Player.useSkill` already floats the skill/ult name — do not add a second `floatText` with the same name.
 - Phaser `triangle(x, y, x1, y1, ...)` is offset by its origin; inside containers use `.setOrigin(0)` so the points
   are local coordinates.
@@ -139,4 +146,9 @@ ult), Naruto (Senpo: Rasenshuriken aimed at the crowd, Chojo Odama Rasen Tarenga
 Bijudama), Lightning Lord (new class: STATIK charge via `SKILLS.halilintar.onHit`, Tombak Halilintar chain javelin, Mahkota
 Badai orb crown, Penghakiman Guntur storm web ult, `stormArc` lightning helper), Nephalem (new class, half angel half demon: holy blade + twin hellblade, KESEIMBANGAN
 onHit, Sayap Senja, Gerbang Surga & Neraka, Senjakala; always-on wings via `STYLES[cls].attach`). Earlier sessions reworked Samurai, Archer
-(Kanshou & Bakuya), and added Naruto, Sasuke and the Kaguya bonus boss. Others are older and are the next candidates.
+(Kanshou & Bakuya), and added Naruto, Sasuke and the Kaguya bonus boss. Generic-skill pass (2026-10): Heracles (Singa Nemea
+lion `nemeanLion`, Nine Lives set piece), Grim Reaper (Gerbang Alam Baka `underworldHand`, Panen Maut `giantReaper`),
+Gunners (sniper, Badai Timah minigun), Cultivator (Formasi Enam Pedang seal, Sungai Seribu Pedang spline river),
+Magic Archer (Panah Prisma, Supernova), Dark Avenger (Perjanjian Gelap `shadowBlade`, costs HP), Ashura (Cakra Asura
+wheel around the arena), Toji (Playful Cloud flail), Gojo (Muryokusho void). Every class has a PASIF (passives.ts).
+Still plainer: Cu Chulainn's ult, Madara's Susanoo ult, Itachi's Tsukuyomi, Ashura's Tinju Seribu.

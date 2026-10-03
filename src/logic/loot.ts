@@ -486,7 +486,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       hover: 170,
       trail: 0x8a3fd1,
     },
-    skill: { name: 'TEBASAN GELAP', desc: 'GELOMBANG GELAP MENEMBUS, X3 SAAT MODE AVENGER', cd: 5 },
+    skill: { name: 'PERJANJIAN GELAP', desc: 'BAYAR 8% HP: PEDANG BAYANGAN RAKSASA MEMBELAH SETENGAH LINGKARAN, HP KEMBALI X2', cd: 5 },
     fusion: { name: 'GERHANA', desc: 'J+L: BULAN HITAM, TANAH TERBELAH, TOMBAK GELAP JATUH (X2 AVENGER)', cd: 10 },
     // Never cast: the Dark Avenger awakens instead of using an ult.
     ult: { name: 'MODE AVENGER', desc: 'OTOMATIS SAAT METER PENUH' },
@@ -520,7 +520,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     },
     skill: { name: 'TINJU SERIBU', desc: 'RENTETAN PUKULAN KE DEPAN', cd: 5 },
     fusion: { name: 'GENGGAMAN ASURA', desc: 'J+L: ENAM LENGAN GAIB MENCENGKERAM 6 MUSUH, MEREMAS & MEMBANTING', cd: 9 },
-    ult: { name: 'WUJUD ASHURA', desc: 'ENAM GELOMBANG TINJU, AMARAH PENUH, KEBAL' },
+    ult: { name: 'CAKRA ASURA', desc: 'AMARAH PENUH: RODA ENAM LENGAN MENGGILAS KELILING ARENA, LALU ENAM TINJU MENGHANTAM' },
   },
   cakarNaga: {
     id: 'cakarNaga',
@@ -626,7 +626,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     air: { name: 'AO', anim: 'thrust', dmg: 2, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 },
     skill: { name: 'AKA', desc: 'MERAH: TOLAKAN MENGHEMPAS SEMUA DI DEPAN', cd: 3 },
     fusion: { name: 'MURASAKI', desc: 'J+L: UNGU HAMPA MENGHAPUS SEMUA DI JALURNYA', cd: 8 },
-    ult: { name: 'MURYOKUSHO', desc: 'DOMAIN: SEMUA MUSUH BEKU, LALU DIHANTAM' },
+    ult: { name: 'MURYOKUSHO', desc: 'DOMAIN HAMPA: SEMUA MUSUH BEKU TENGGELAM INFORMASI, DIPUKUL SATU-SATU, LALU PECAH' },
   },
   sakahoko: {
     id: 'sakahoko',
@@ -655,7 +655,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       dive: { vx: 340, vy: 30 },
       trail: 0xfff1e8,
     },
-    skill: { name: 'PLAYFUL CLOUD', desc: 'TONGKAT 3 RUAS BERPUTAR, HANTAM 3X', cd: 5 },
+    skill: { name: 'PLAYFUL CLOUD', desc: 'TONGKAT 3 RUAS DICAMBUKKAN: SAPU KE ATAS, LECUT LURUS, HANTAM TANAH', cd: 5 },
     fusion: { name: 'SPLIT SOUL KATANA', desc: 'J+L: MEMANTUL DINDING KE DINDING MENEBAS SEMUA, LALU JIWANYA TERBELAH', cd: 10 },
     ult: { name: 'RANTAI SERIBU MIL', desc: 'TOMBAK BERANTAI MEMANTUL KE TIAP MUSUH, DITARIK, LALU DIHANTAM' },
   },

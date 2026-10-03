@@ -74,7 +74,7 @@ export class ClassScene extends Phaser.Scene {
     // Stacked under each other in refresh(): each block starts right below the one before.
     this.trait = text(this, 16, 102, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
     this.passiveTitle = text(this, 16, 0, '', '#ff77a8', 7).setWordWrapWidth(wrap.width);
-    this.passiveDesc = text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
+    this.passiveDesc = text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(1);
     this.dash = text(this, 16, 0, '', '#00e436', 6).setWordWrapWidth(wrap.width);
     this.synergyTitle = text(this, 16, 0, '', COLOR.gold, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
     this.synergyDesc = text(this, 16, 0, '', COLOR.blue, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
@@ -128,7 +128,7 @@ export class ClassScene extends Phaser.Scene {
     const stack = [this.trait, this.passiveTitle, this.passiveDesc, this.dash, this.synergyTitle, this.synergyDesc];
     for (let i = 1; i < stack.length; i++) {
       const prev = stack[i - 1];
-      stack[i].setY(prev.y + prev.height + (i === 1 || i === 3 || i === 4 ? 3 : 1));
+      stack[i].setY(prev.y + prev.height + (i === 1 || i === 3 || i === 4 ? 2 : 1));
     }
   }
 
