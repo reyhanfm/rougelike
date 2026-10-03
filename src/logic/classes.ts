@@ -656,11 +656,10 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0c11c0..',
     ],
     passive: { name: 'INFINITY', desc: 'PROYEKTIL MUSUH MELAMBAT & BERHENTI SEBELUM MENYENTUH, LALU LENYAP' },
-    trait: 'MUGEN: TAHAN 1 SERANGAN TIAP 8 DTK, HINDAR 10%, HP -10%',
+    trait: 'MUGEN: TAHAN 1 SERANGAN TIAP 6 DTK, HINDAR 15%',
     apply: (s) => {
-      s.barrier = 8;
-      s.dodge += 0.1;
-      s.maxHp *= 0.9;
+      s.barrier = 6;
+      s.dodge += 0.15;
     },
     synergy: {
       name: 'ENAM MATA',

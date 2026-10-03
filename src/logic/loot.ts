@@ -826,16 +826,16 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   mugen: {
     id: 'mugen',
     name: 'MUGEN',
-    desc: 'J: AO MENARIK, L: AKA MENGHEMPAS, J+L: MURASAKI',
+    desc: 'J: AO MENARIK KE KERUMUNAN, L: AKA MENGHEMPAS, J+L: MURASAKI',
     cast: true,
     dmg: 1.1,
     cd: 2.2,
     crit: 0.05,
-    // One Blue cast: four crushing ticks of 0.5.
-    combo: [{ anim: 'thrust', dmg: 2, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 }],
+    // One Blue cast: four crushing ticks of 0.6.
+    combo: [{ anim: 'thrust', dmg: 2.4, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 }],
     air: [
       // (Cast weapon: the attack key always casts Ao; these describe the cast for balance.)
-      { anim: 'thrust', dmg: 2, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 },
+      { anim: 'thrust', dmg: 2.4, cd: 1, ms: 0, reach: box(40, 40), knockback: 0 },
     ],
     dive: {
       name: 'AO JATUH',
@@ -851,8 +851,8 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0x29adff,
       status: { slow: 900 },
     },
-    skill: { name: 'AKA', desc: 'MERAH: TOLAKAN MENGHEMPAS SEMUA DI DEPAN', cd: 3 },
-    fusion: { name: 'MURASAKI', desc: 'J+L: UNGU HAMPA MENGHAPUS SEMUA DI JALURNYA', cd: 8 },
+    skill: { name: 'JUTSUSHIKI HANTEN: AKA', desc: 'MERAH DIBIDIK KE GARIS TERPADAT (UDARA JUGA), MENGHEMPAS & MELEDAK', cd: 3 },
+    fusion: { name: 'KYOSHIKI: MURASAKI', desc: 'J+L: AO & AKA BERTABRAKAN, UNGU HAMPA DIBIDIK, MENGHAPUS RUANG DI JALURNYA', cd: 7 },
     ult: { name: 'MURYOKUSHO', desc: 'DOMAIN HAMPA: SEMUA MUSUH BEKU TENGGELAM INFORMASI, DIPUKUL SATU-SATU, LALU PECAH' },
   },
   sakahoko: {

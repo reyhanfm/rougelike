@@ -417,6 +417,67 @@ export function balanceSigil(scene: Phaser.Scene, x: number, y: number, r: numbe
   scene.tweens.add({ targets: c, alpha: 0, scale: 1.3, delay: 320, duration: 260, onComplete: () => c.destroy() });
 }
 
+/** Gojo's cursed-energy spheres: Blue (attraction), Red (repulsion), Purple (imaginary mass). */
+const ORB_COLORS = {
+  ao: { rim: 0x1d2b53, mid: 0x29adff, lit: 0xc2f0ff },
+  aka: { rim: 0x7a0a1e, mid: 0xff004d, lit: 0xff77a8 },
+  murasaki: { rim: 0x1d0f2e, mid: 0x8a3fd1, lit: 0xc080ff },
+} as const;
+
+/**
+ * A layered sphere of radius `r` at (x, y): dark rim, colored body, lit side, a white heart and three spiral arms,
+ * turning (`spin` > 0 clockwise for Blue drawing in, < 0 for Red throwing out). Returns its container (destroy it).
+ */
+function cursedOrb(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  r: number,
+  kind: keyof typeof ORB_COLORS,
+  spin = 1,
+): Phaser.GameObjects.Container {
+  const c = ORB_COLORS[kind];
+  const g = scene.add.graphics();
+  g.fillStyle(c.mid, 0.25).fillCircle(0, 0, r * 1.45);
+  g.fillStyle(c.rim).fillCircle(0, 0, r + 1);
+  g.fillStyle(c.mid).fillCircle(0, 0, r);
+  g.fillStyle(c.lit).fillCircle(-r * 0.25, -r * 0.25, r * 0.55);
+  g.fillStyle(0xfff1e8).fillCircle(0, 0, Math.max(1, r * 0.28));
+  for (let k = 0; k < 3; k++) {
+    const a0 = (k / 3) * Math.PI * 2;
+    g.lineStyle(Math.max(1, r * 0.12), 0xfff1e8, 0.8).beginPath();
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8;
+      const [px, py] = [Math.cos(a0 + t * 2.4) * r * 1.3 * (1 - t * 0.7), Math.sin(a0 + t * 2.4) * r * 1.3 * (1 - t * 0.7)];
+      if (i) g.lineTo(px, py);
+      else g.moveTo(px, py);
+    }
+    g.strokePath();
+  }
+  const o = scene.add.container(x, y, [g]).setDepth(13);
+  scene.tweens.add({ targets: o, angle: 360 * spin, duration: 700, repeat: -1 });
+  return o;
+}
+
+/**
+ * Of the lines from (ox, oy) toward each enemy, the one that passes within `width` of the most of them (ahead of the
+ * origin only); ties go to the nearer enemy. Returns the angle, or `fallback` when there is no one.
+ */
+function bestLine(foes: Phaser.GameObjects.Sprite[], ox: number, oy: number, width: number, fallback: number): number {
+  let best = { a: fallback, n: 0, d: Infinity };
+  for (const t of foes) {
+    const a = Phaser.Math.Angle.Between(ox, oy, t.x, t.y);
+    const [cx, cy] = [Math.cos(a), Math.sin(a)];
+    const n = foes.filter((e) => {
+      const along = (e.x - ox) * cx + (e.y - oy) * cy;
+      return along > -6 && Math.abs(-(e.x - ox) * cy + (e.y - oy) * cx) <= width;
+    }).length;
+    const d = Phaser.Math.Distance.Between(ox, oy, t.x, t.y);
+    if (n > best.n || (n === best.n && d < best.d)) best = { a, n, d };
+  }
+  return best.a;
+}
+
 /** A boulder ripped from the ground at (x0, FLOOR_Y) and hurled in an arc onto `t`; `onHit` runs if it lands. */
 function hurlRock(scene: Phaser.Scene, x0: number, t: Phaser.GameObjects.Sprite, onHit: () => void): void {
   const r = scene.add
@@ -6137,95 +6198,191 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
       world.pull(x, gy - 10, 60, 160);
       later(scene, 300, () => world.area(x, gy - 10, 26, 0.9 * power, 0, 'proc'));
     },
-    // Blue (Ao): a point of attraction opens in front of Gojo, drags enemies in and crushes them.
+    // Ao (Blue, the amplified Limitless): Gojo points and a point of attraction opens where the enemies are thickest in
+    // front of him (in the air too; empty air ahead if there is no one). Space folds toward it: a turning blue sphere
+    // with spiral arms, rings of space collapsing inward and motes torn in; it drags everything near into it and
+    // crushes it four times.
     basic: ({ p, world, scene, power }) => {
-      const x = Phaser.Math.Clamp(p.x + p.facing * 56, 10, W - 10);
-      const y = p.y - 10;
-      const orb = scene.add.image(x, y, 'ao').setScale(0.6).setDepth(12);
-      scene.tweens.add({ targets: orb, scale: 3, angle: 720, duration: 500, yoyo: true, onComplete: () => orb.destroy() });
-      const glow = scene.add.circle(x, y, 30, 0x29adff, 0.2).setDepth(11);
-      scene.tweens.add({ targets: glow, radius: 8, alpha: 0, duration: 1000, onComplete: () => glow.destroy() });
-      const ring = scene.add.circle(x, y, 46).setStrokeStyle(2, 0x29adff, 0.8).setDepth(12);
-      scene.tweens.add({ targets: ring, radius: 4, alpha: 0.2, duration: 450, repeat: 1, onComplete: () => ring.destroy() });
-      for (let i = 0; i < 14; i++) {
-        const a = (i / 14) * Math.PI * 2;
-        const mote = scene.add.rectangle(x + Math.cos(a) * 66, y + Math.sin(a) * 66, 2, 2, 0xc2f0ff).setDepth(12);
-        scene.tweens.add({ targets: mote, x, y, delay: i * 30, duration: 400, onComplete: () => mote.destroy() });
+      const f = p.facing;
+      const foes = world.targets(p.x, p.y).filter((t) => f * (t.x - p.x) > -6 && Phaser.Math.Distance.Between(p.x, p.y, t.x, t.y) < 140);
+      const near = (e: Phaser.GameObjects.Sprite) => foes.filter((o) => Phaser.Math.Distance.Between(e.x, e.y, o.x, o.y) < 40).length;
+      const mark = foes.length ? foes.reduce((b, e) => (near(e) > near(b) ? e : b)) : undefined;
+      const x = Phaser.Math.Clamp(mark ? mark.x : p.x + f * 56, 10, W - 10);
+      const y = Math.min(mark ? mark.y : p.y - 10, FLOOR_Y - 10);
+      const orb = cursedOrb(scene, x, y, 3, 'ao', 1);
+      scene.tweens.add({ targets: orb, scale: 3, duration: 250, yoyo: true, hold: 500, onComplete: () => orb.destroy() });
+      for (let k = 0; k < 3; k++) later(scene, k * 230, () => ring(scene, x, y, 0x29adff, 46, 3, 300, 2));
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const mote = scene.add.rectangle(x + Math.cos(a) * 66, y + Math.sin(a) * 66, 2, 2, i % 3 ? 0xc2f0ff : 0xfff1e8).setDepth(12);
+        scene.tweens.add({ targets: mote, x, y, delay: i * 30, duration: 380, ease: 'Quad.In', onComplete: () => mote.destroy() });
       }
       for (let i = 0; i < 4; i++) {
         later(scene, i * 250, () => {
-          world.pull(x, y, 72, 130);
-          world.area(x, y, 32, 0.5 * power, 0, 'basic');
+          world.pull(x, y, 76, 140);
+          world.area(x, y, 34, 0.6 * power, 0, 'basic');
         });
       }
     },
-    // Red (Aka): reversed cursed energy fired forward; it blasts everything in its path away.
+    // Jutsushiki Hanten: Aka (Cursed Technique Reversal: Red). Gojo raises two fingers and reversed cursed energy
+    // gathers at their tip: a red sphere grows as rings of space are thrown outward from it. He releases it along the
+    // line that passes through the most enemies (any direction, flyers too): it tears through everything on the way,
+    // hurling each of them away, and where it ends the repulsion bursts outward.
     skill: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
       const f = p.facing;
-      const x = p.x + f * 14;
-      const flare = scene.add
-        .image(x, p.y - 4, 'aka')
-        .setScale(2)
-        .setDepth(12);
-      scene.tweens.add({ targets: flare, scale: 6, alpha: 0, duration: 250, onComplete: () => flare.destroy() });
-      scene.cameras.main.shake(150, 0.012);
-      const red = world.shot({
-        x,
-        y: p.y - 4,
-        vx: f * 300,
-        vy: 0,
-        texture: 'aka',
-        mult: 1.8 * power,
-        source: 'skill',
-        pierce: true,
-        knockback: 320,
-      });
-      // Three times the orb (and its hitbox).
-      (red as Phaser.GameObjects.Image).setScale(3);
-    },
-    // Hollow Purple (Murasaki): Blue and Red collide in front of Gojo; the imaginary mass erases everything in its path.
-    fusion: ({ p, world, scene, power }) => {
-      const f = p.facing;
-      const x = p.x + f * 30;
-      // Centered high enough that the huge sphere sweeps the floor and the air above it.
-      const y = FLOOR_Y - 42;
-      p.lock(500);
-      p.invuln(500);
+      p.lock(300);
       p.setVelocityX(0);
-      const orbs = [scene.add.image(x - 26, y - 20, 'ao'), scene.add.image(x + 26, y - 20, 'aka')].map((o) => o.setScale(2.5).setDepth(13));
-      scene.tweens.add({
-        targets: orbs,
-        x,
-        y,
-        duration: 400,
+      const fx = p.x + f * 8;
+      const fy = p.y - 7;
+      glint(scene, fx, fy);
+      const orb = cursedOrb(scene, fx, fy, 6, 'aka', -1).setScale(0.2);
+      scene.tweens.add({ targets: orb, scale: 1, duration: 240, ease: 'Back.Out' });
+      for (let k = 0; k < 3; k++) later(scene, k * 70, () => ring(scene, fx, fy, 0xff004d, 4, 22, 200, 1));
+      later(scene, 260, () => {
+        const a = bestLine(world.targets(fx, fy), fx, fy, 16, f > 0 ? 0 : Math.PI);
+        const [cx, cy] = [Math.cos(a), Math.sin(a)];
+        scene.cameras.main.shake(160, 0.014);
+        ring(scene, fx, fy, 0xff77a8, 6, 34, 220, 2);
+        const hit = new Set<Phaser.GameObjects.GameObject>();
+        const trail = scene.add.graphics().setDepth(12);
+        let last = { x: fx, y: fy };
+        scene.tweens.addCounter({
+          from: 0,
+          to: 380,
+          duration: 700,
+          ease: 'Quad.In',
+          onUpdate: (tw) => {
+            const d = tw.getValue() ?? 0;
+            const [x, y] = [fx + cx * d, fy + cy * d];
+            orb.setPosition(x, y);
+            trail.lineStyle(10, 0xff004d, 0.25).lineBetween(last.x, last.y, x, y);
+            trail.lineStyle(3, 0xff77a8, 0.7).lineBetween(last.x, last.y, x, y);
+            last = { x, y };
+            for (const t of world.targets(x, y)) {
+              if (hit.has(t) || Phaser.Math.Distance.Between(x, y, t.x, t.y) > 18) continue;
+              hit.add(t);
+              sparks(scene, t.x, t.y, [0xff004d, 0xff77a8, 0xfff1e8], 7, 14);
+              world.strike(t, 2.2 * power, 'skill', false, undefined, 340);
+            }
+            if (x < -12 || x > W + 12 || y < -12 || y > FLOOR_Y + 4) tw.complete();
+          },
+          onComplete: () => {
+            const { x, y } = orb;
+            orb.destroy();
+            scene.tweens.add({ targets: trail, alpha: 0, duration: 300, onComplete: () => trail.destroy() });
+            const [bx, by] = [Phaser.Math.Clamp(x, 0, W), Math.min(y, FLOOR_Y - 4)];
+            ring(scene, bx, by, 0xff004d, 6, 44, 320, 3);
+            ring(scene, bx, by, 0xfff1e8, 4, 30, 260, 1);
+            scene.cameras.main.shake(180, 0.016);
+            world.area(bx, by, 40, 1 * power, 280, 'skill');
+          },
+        });
+      });
+    },
+    // Kyoshiki: Murasaki (Hollow Technique: Purple). Blue opens at one hand and Red at the other; Gojo brings them
+    // together and they spiral into each other until they collide and fuse into imaginary mass, a vast violet sphere
+    // crackling with violet lightning. He sends it along the line through the most enemies (any direction): whatever
+    // it passes through is erased, and it leaves a scar of erased space behind it that slowly closes.
+    fusion: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
+      const f = p.facing;
+      p.lock(1000);
+      p.invuln(1100);
+      p.setVelocity(0, 0);
+      const cam = scene.cameras.main;
+      const cx0 = p.x + f * 18;
+      const cy0 = p.y - 16;
+      const blue = cursedOrb(scene, p.x - 16, p.y - 10, 6, 'ao', 1).setScale(0);
+      const red = cursedOrb(scene, p.x + 16, p.y - 10, 6, 'aka', -1).setScale(0);
+      scene.tweens.add({ targets: [blue, red], scale: 1, duration: 260, ease: 'Back.Out' });
+      // They spiral into each other.
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
+        delay: 300,
+        duration: 380,
         ease: 'Quad.In',
+        onUpdate: (tw) => {
+          const t = tw.getValue() ?? 0;
+          const r = 22 * (1 - t);
+          const a = t * Math.PI * 3;
+          blue.setPosition(cx0 + Math.cos(a + Math.PI) * r, cy0 + Math.sin(a + Math.PI) * r * 0.6);
+          red.setPosition(cx0 + Math.cos(a) * r, cy0 + Math.sin(a) * r * 0.6);
+        },
         onComplete: () => {
-          orbs.forEach((o) => o.destroy());
-          scene.cameras.main.flash(250, 138, 63, 209);
-          scene.cameras.main.shake(500, 0.03);
-          const sphere = world.shot({
-            x,
-            y,
-            vx: f * 140,
-            vy: 0,
-            texture: 'murasaki',
-            mult: 4 * power,
-            source: 'skill',
-            pierce: true,
-            knockback: 200,
-          });
-          // A huge sphere (about 90px): six times the sprite, and its hitbox with it.
-          (sphere as Phaser.GameObjects.Image).setScale(6);
-          // The erased path: purple afterimages trail behind it.
-          for (let i = 1; i <= 20; i++) {
-            later(scene, i * 60, () => {
-              if (!sphere.active) return;
-              const { x: gx, y: gy } = sphere as Phaser.GameObjects.Image;
-              const ghost = scene.add.image(gx, gy, 'murasaki').setScale(6).setAlpha(0.35).setDepth(8);
-              scene.tweens.add({ targets: ghost, alpha: 0, scale: 4, duration: 350, onComplete: () => ghost.destroy() });
-            });
+          blue.destroy();
+          red.destroy();
+          cam.flash(220, 138, 63, 209);
+          cam.shake(400, 0.03);
+          ring(scene, cx0, cy0, 0xc080ff, 6, 60, 360, 3);
+        },
+      });
+      const R = 24;
+      const sphere = cursedOrb(scene, cx0, cy0, R, 'murasaki', 1).setScale(0);
+      later(scene, 680, () => scene.tweens.add({ targets: sphere, scale: 1, duration: 200, ease: 'Back.Out' }));
+      // Violet lightning crackling over it.
+      const crackle = scene.add.graphics().setDepth(14);
+      const zap = scene.time.addEvent({
+        delay: 60,
+        loop: true,
+        callback: () => {
+          crackle.clear();
+          if (!sphere.active || sphere.scale < 0.5) return;
+          for (let i = 0; i < 3; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const pts = jag(
+              sphere.x + Math.cos(a) * R,
+              sphere.y + Math.sin(a) * R,
+              sphere.x + Math.cos(a) * (R + 12),
+              sphere.y + Math.sin(a) * (R + 12),
+              3,
+            );
+            crackle
+              .lineStyle(1, i % 2 ? 0xc080ff : 0xfff1e8)
+              .beginPath()
+              .moveTo(pts[0][0], pts[0][1]);
+            for (const [x, y] of pts) crackle.lineTo(x, y);
+            crackle.strokePath();
           }
         },
+      });
+      later(scene, 950, () => {
+        const a = bestLine(world.targets(cx0, cy0), cx0, cy0, R + 4, f > 0 ? 0 : Math.PI);
+        const [cx, cy] = [Math.cos(a), Math.sin(a)];
+        const hit = new Set<Phaser.GameObjects.GameObject>();
+        // The scar of erased space: dark discs along the path with a violet edge, closing slowly.
+        const scar = scene.add.graphics().setDepth(4);
+        let lastScar = -99;
+        scene.tweens.addCounter({
+          from: 0,
+          to: 420,
+          duration: 1500,
+          onUpdate: (tw) => {
+            const d = tw.getValue() ?? 0;
+            const [x, y] = [cx0 + cx * d, cy0 + cy * d];
+            sphere.setPosition(x, y);
+            if (d - lastScar > 10) {
+              lastScar = d;
+              scar.fillStyle(0x8a3fd1, 0.5).fillCircle(x, y, R + 3);
+              scar.fillStyle(0x05030a, 0.9).fillCircle(x, y, R - 2);
+              cam.shake(60, 0.006);
+            }
+            for (const t of world.targets(x, y)) {
+              if (hit.has(t) || Phaser.Math.Distance.Between(x, y, t.x, t.y) > R + 8) continue;
+              hit.add(t);
+              sparks(scene, t.x, t.y, [0x8a3fd1, 0xc080ff, 0xfff1e8], 10, 18);
+              world.strike(t, 4 * power, 'skill', true, { slow: 1200 }, 200);
+            }
+            if (x < -R * 2 || x > W + R * 2 || y < -R * 2 || y > H + R) tw.complete();
+          },
+          onComplete: () => {
+            zap.remove();
+            crackle.destroy();
+            sphere.destroy();
+            scene.tweens.add({ targets: scar, alpha: 0, duration: 900, onComplete: () => scar.destroy() });
+          },
+        });
       });
     },
     // Muryokusho (Unlimited Void): Gojo forms the domain's hand sign and a black void spreads out of him until it
@@ -6254,6 +6411,24 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           .setDepth(4),
       );
       scene.tweens.add({ targets: stars, alpha: 1, delay: 500, duration: 300 });
+      // The Six Eyes: the blindfold comes off and a vast eye opens over the void, iris of layered blue rings with a
+      // star of light in it, watching everything at once.
+      const eg = scene.add.graphics();
+      eg.fillStyle(0x1d2b53).fillEllipse(0, 0, 92, 34);
+      eg.fillStyle(0xfff1e8).fillEllipse(0, 0, 86, 28);
+      eg.fillStyle(0x1d2b53).fillCircle(0, 0, 14);
+      eg.fillStyle(0x29adff).fillCircle(0, 0, 12);
+      eg.fillStyle(0xc2f0ff).fillCircle(0, 0, 7);
+      eg.lineStyle(1, 0x1d2b53).strokeCircle(0, 0, 9).strokeCircle(0, 0, 4);
+      eg.fillStyle(0x000000).fillCircle(0, 0, 2);
+      eg.fillStyle(0xfff1e8).fillRect(-5, -0.5, 10, 1).fillRect(-0.5, -5, 1, 10);
+      const sixEyes = scene.add
+        .container(W / 2, 46, [eg])
+        .setDepth(4.5)
+        .setScale(1, 0)
+        .setAlpha(0.9);
+      scene.tweens.add({ targets: sixEyes, scaleY: 1, delay: 650, duration: 280, ease: 'Back.Out' });
+      later(scene, 1000, () => ring(scene, W / 2, 46, 0x29adff, 12, 60, 500, 2));
       // Streams of information rushing past.
       const streams = scene.time.addEvent({
         delay: 40,
@@ -6298,7 +6473,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           ring(scene, t.x, t.y, 0x29adff, 2, 20, 220, 2);
           sparks(scene, t.x, t.y, [0x29adff, 0xc2f0ff, 0xfff1e8], 10, 16);
           cam.shake(80, 0.01);
-          world.strike(t, 1.1 * power, 'ult', false, undefined, 0);
+          world.strike(t, 1.4 * power, 'ult', false, undefined, 0);
         }),
       );
       // The snap: the void shatters.
@@ -6333,8 +6508,8 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               .setDepth(9);
             scene.tweens.add({ targets: sh, y: sh.y + 60, angle: 180, alpha: 0, duration: 600, onComplete: () => sh.destroy() });
           }
-          [voidG, rim, cracks, ...stars].forEach((o) => o.destroy());
-          for (const t of world.targets(p.x, p.y)) world.strike(t, 2.5 * power, 'ult', true);
+          [voidG, rim, cracks, sixEyes, ...stars].forEach((o) => o.destroy());
+          for (const t of world.targets(p.x, p.y)) world.strike(t, 3 * power, 'ult', true);
         });
       });
     },
