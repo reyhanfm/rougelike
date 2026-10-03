@@ -352,6 +352,67 @@ function staticCrown(scene: Phaser.Scene, p: Player): void {
   });
 }
 
+/** Nephalem's three colors: holy gold, hellfire crimson, and twilight violet where they meet. */
+export const HOLY = 0xffec27;
+export const HELL = 0xff004d;
+export const TWILIGHT = 0xc080ff;
+/** KESEIMBANGAN: charges of each half needed for the balance burst. */
+const BALANCE_MAX = 4;
+
+/**
+ * Nephalem's wings, drawn at the graphics' origin: a white feathered wing toward `angel` (-1 left, 1 right) and a black
+ * bat wing toward the other side. `span` is the longest feather in px; `flap` (-1..1) tilts both up or down.
+ */
+export function twilightWings(g: Phaser.GameObjects.Graphics, angel: number, span: number, flap: number): void {
+  // The angel's wing: five feathers fanned up and out, longest on top; grey outline, white vane, a gold tip.
+  for (let k = 0; k < 5; k++) {
+    const a = -1.05 + k * 0.33 + flap * 0.5;
+    const l = span * (1 - k * 0.1);
+    const [tx, ty] = [angel * Math.cos(a) * l, Math.sin(a) * l];
+    const w = 1.5 + span * 0.06;
+    g.fillStyle(0x83769c).fillTriangle(0, -w - 0.8, 0, w + 0.8, tx * 1.04, ty * 1.04);
+    g.fillStyle(0xfff1e8).fillTriangle(0, -w, 0, w, tx, ty);
+    g.fillStyle(HOLY).fillCircle(tx * 0.92, ty * 0.92, Math.max(1, span * 0.04));
+  }
+  // The demon's wing: three finger bones with a scalloped membrane between them and a claw at the top.
+  const d = -angel;
+  const bones = [-1.0, -0.45, 0.15].map((b, i) => {
+    const l = span * [1, 0.85, 0.6][i];
+    return { x: d * Math.cos(b + flap * 0.5) * l, y: Math.sin(b + flap * 0.5) * l };
+  });
+  const v = (x: number, y: number) => new Phaser.Math.Vector2(x, y);
+  const pts = [v(0, -1)];
+  bones.forEach((b, i) => {
+    pts.push(v(b.x, b.y));
+    const n = bones[i + 1];
+    if (n) pts.push(v((b.x + n.x) * 0.36, (b.y + n.y) * 0.36 + 1));
+  });
+  pts.push(v(d * 2, span * 0.18));
+  g.fillStyle(0x7a2230).fillPoints(pts, true);
+  g.lineStyle(1, 0x1d0f2e).strokePoints(pts, true);
+  for (const b of bones) g.lineStyle(1, 0x3b1a2a).lineBetween(0, 0, b.x, b.y);
+  g.fillStyle(0xfff1e8).fillRect(bones[0].x - 0.5, bones[0].y - 1.5, 1, 2);
+}
+
+/** A balance sigil (gold and crimson halves curled into each other) that swells, turns and fades at (x, y). */
+export function balanceSigil(scene: Phaser.Scene, x: number, y: number, r: number): void {
+  const g = scene.add.graphics();
+  g.fillStyle(HOLY)
+    .slice(0, 0, r, -Math.PI / 2, Math.PI / 2, false)
+    .fillPath();
+  g.fillStyle(HELL)
+    .slice(0, 0, r, Math.PI / 2, (3 * Math.PI) / 2, false)
+    .fillPath();
+  g.fillStyle(HELL).fillCircle(0, -r / 2, r / 2);
+  g.fillStyle(HOLY).fillCircle(0, r / 2, r / 2);
+  g.fillStyle(HOLY).fillCircle(0, -r / 2, r / 6);
+  g.fillStyle(HELL).fillCircle(0, r / 2, r / 6);
+  g.lineStyle(2, TWILIGHT).strokeCircle(0, 0, r);
+  const c = scene.add.container(x, y, [g]).setDepth(13).setScale(0).setAlpha(0.6);
+  scene.tweens.add({ targets: c, scale: 1, angle: 180, duration: 320, ease: 'Quad.Out' });
+  scene.tweens.add({ targets: c, alpha: 0, scale: 1.3, delay: 320, duration: 260, onComplete: () => c.destroy() });
+}
+
 /** A boulder ripped from the ground at (x0, FLOOR_Y) and hurled in an arc onto `t`; `onHit` runs if it lands. */
 function hurlRock(scene: Phaser.Scene, x0: number, t: Phaser.GameObjects.Sprite, onHit: () => void): void {
   const r = scene.add
@@ -7308,6 +7369,340 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           alpha: 0,
           duration: 450,
           onComplete: () => [night, clouds, rune].forEach((o) => o.destroy()),
+        });
+      });
+    },
+  },
+  // Nephalem, born of an angel and a demon: one half holy (white, gold), the other infernal (black, crimson); where they
+  // meet, twilight violet.
+  surgaNeraka: {
+    // KESEIMBANGAN: holy (gold) cuts fill CAHAYA, infernal (crimson) cuts fill KEGELAPAN, the twilight finisher fills
+    // both. When both are full, the halves resolve: a gold-and-crimson balance sigil bursts at the target, striking
+    // everything around it, and the grace of it heals him.
+    onHit: ({ p, world, scene, power }, t) => {
+      const cut = p.move.cut ?? p.weapon.cut;
+      let light = ((p.getData('light') as number | undefined) ?? 0) + (cut === HOLY || cut === TWILIGHT ? 1 : 0);
+      let dark = ((p.getData('dark') as number | undefined) ?? 0) + (cut === HELL || cut === TWILIGHT ? 1 : 0);
+      light = Math.min(BALANCE_MAX, light);
+      dark = Math.min(BALANCE_MAX, dark);
+      if (light >= BALANCE_MAX && dark >= BALANCE_MAX) {
+        light = dark = 0;
+        balanceSigil(scene, t.x, t.y, 16);
+        scene.cameras.main.shake(140, 0.012);
+        world.area(t.x, t.y, 32, 1.2 * power, 120, 'proc', { burn: 0.15, slow: 800 });
+        p.heal(Math.ceil(p.stats.maxHp * 0.04));
+        floatText(scene, t.x, t.y - 22, 'SEIMBANG!', '#c080ff');
+      }
+      p.setData({ light, dark });
+    },
+    // Sayap Senja (Twilight Wings): both wings unfurl at full span and beat once. Each half strikes its own side of
+    // the world: the white wing looses lances of light at every enemy on its side, which pin them where they are; the
+    // black wing hurls hellfire at every enemy on the other, which burns. Each shot is aimed at its target as it flies.
+    skill: ({ p, world, scene, power }) => {
+      const foes = world
+        .targets(p.x, p.y)
+        .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))
+        .slice(0, 8);
+      if (!foes.length) return false;
+      p.lock(520);
+      p.setVelocityX(0);
+      const angel = p.flipX ? 1 : -1;
+      const wg = scene.add.graphics();
+      const wings = scene.add
+        .container(p.x, p.y - 4, [wg])
+        .setDepth(9.5)
+        .setScale(0.3);
+      let flap = 0;
+      const beat = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          wings.setPosition(p.x, p.y - 4);
+          wg.clear();
+          twilightWings(wg, angel, 26, flap);
+        },
+      });
+      scene.tweens.add({ targets: wings, scale: 1, duration: 220, ease: 'Back.Out' });
+      // The beat: wings rise, then sweep down hard.
+      scene.tweens.addCounter({ from: 0, to: 1, delay: 120, duration: 140, onUpdate: (tw) => (flap = -(tw.getValue() ?? 0)) });
+      later(scene, 270, () => {
+        flap = 0.6;
+        scene.cameras.main.shake(120, 0.01);
+        feathers(scene, p.x + angel * 14, p.y - 8, 6, 14, 30);
+        foes.forEach((t, i) => {
+          const side = Math.sign(t.x - p.x) || p.facing;
+          const holy = side === angel;
+          const [ox, oy] = [p.x + side * 22, p.y - 14];
+          const g = scene.add.graphics();
+          if (holy) {
+            // A lance of light: a long white diamond with a gold edge and a pale halo.
+            g.fillStyle(0xffec27, 0.35).fillEllipse(0, 0, 22, 6);
+            g.fillStyle(0xd4a017).fillTriangle(-10, 0, 0, -2.5, 12, 0).fillTriangle(-10, 0, 0, 2.5, 12, 0);
+            g.fillStyle(0xfff1e8).fillTriangle(-8, 0, 0, -1.5, 10, 0).fillTriangle(-8, 0, 0, 1.5, 10, 0);
+          } else {
+            // Hellfire: a crimson flame with a black edge and a yellow-hot heart, trailing backward.
+            g.fillStyle(0x1d0f2e).fillTriangle(-12, 0, 4, -5, 4, 5).fillCircle(4, 0, 5);
+            g.fillStyle(0xff004d).fillTriangle(-10, 0, 4, -4, 4, 4).fillCircle(4, 0, 4);
+            g.fillStyle(0xffa300).fillCircle(5, 0, 2);
+          }
+          const shot = scene.add.container(ox, oy, [g]).setDepth(13).setAlpha(0);
+          later(scene, i * 45, () => {
+            shot.setAlpha(1);
+            scene.tweens.addCounter({
+              from: 0,
+              to: 1,
+              duration: 210,
+              ease: 'Quad.In',
+              onUpdate: (tw) => {
+                const v = tw.getValue() ?? 0;
+                const [tx, ty] = t.active ? [t.x, t.y] : [shot.x, shot.y];
+                const [nx, ny] = [ox + (tx - ox) * v, oy + (ty - oy) * v - Math.sin(v * Math.PI) * 18];
+                shot.setRotation(Phaser.Math.Angle.Between(shot.x, shot.y, nx, ny) || shot.rotation).setPosition(nx, ny);
+                if (!holy && Math.random() < 0.5) {
+                  const e = scene.add.circle(nx, ny, 1, 0xffa300).setDepth(12);
+                  scene.tweens.add({ targets: e, y: ny - 6, alpha: 0, duration: 260, onComplete: () => e.destroy() });
+                }
+              },
+              onComplete: () => {
+                const [x, y] = [shot.x, shot.y];
+                shot.destroy();
+                if (holy) {
+                  glint(scene, x, y);
+                  ring(scene, x, y, 0xffec27, 3, 16, 220, 1);
+                  if (t.active) world.strike(t, 1.6 * power, 'skill', false, { slow: 1100 });
+                } else {
+                  flameTongue(scene, x, y + 6, 16, 420, [0x1d0f2e, 0xff004d, 0xffa300]);
+                  sparks(scene, x, y, [0xff004d, 0xffa300, 0x1d0f2e], 6, 12);
+                  if (t.active) world.strike(t, 1.6 * power, 'skill', false, { burn: 0.35 });
+                }
+              },
+            });
+          });
+        });
+      });
+      later(scene, 650, () => {
+        beat.remove();
+        scene.tweens.add({ targets: wings, scale: 0.3, alpha: 0, duration: 200, onComplete: () => wings.destroy() });
+      });
+    },
+    // Gerbang Surga & Neraka (the Gates of Heaven and Hell): above the arena a gate of light opens in the sky, and below
+    // it the floor splits into a glowing gate of hell. Over every enemy a pillar of light falls from the one while
+    // hellfire erupts from the other, and the two meet in the enemy in a twilight cross that cuts it both ways.
+    fusion: ({ p, world, scene, power }) => {
+      const foes = world.targets(p.x, p.y).slice(0, 8);
+      if (!foes.length) return false;
+      p.invuln(1900);
+      p.lock(1300);
+      p.setVelocity(0, 0);
+      const cam = scene.cameras.main;
+      const gx = W / 2;
+      // The gate of heaven: two pillars, an arch and light pouring out between them.
+      const hg = scene.add.graphics();
+      hg.fillStyle(0xfff1e8, 0.25).fillRect(-26, -16, 52, 32);
+      hg.fillStyle(0xd4a017).fillRect(-30, -18, 6, 36).fillRect(24, -18, 6, 36);
+      hg.fillStyle(0xffec27).fillRect(-29, -18, 2, 36).fillRect(25, -18, 2, 36);
+      hg.lineStyle(4, 0xd4a017).beginPath().arc(0, -18, 27, Math.PI, 0).strokePath();
+      hg.lineStyle(1, 0xfff1e8).beginPath().arc(0, -18, 25, Math.PI, 0).strokePath();
+      const heaven = scene.add.container(gx, 34, [hg]).setDepth(9).setScale(1, 0).setAlpha(0.95);
+      scene.tweens.add({ targets: heaven, scaleY: 1, duration: 350, ease: 'Back.Out' });
+      // The gate of hell: a fissure across the floor, black lips and a crimson glow, widening.
+      const hell = scene.add.graphics().setDepth(9);
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration: 450,
+        onUpdate: (tw) => {
+          const v = tw.getValue() ?? 0;
+          hell.clear();
+          const half = (W / 2) * v;
+          hell.fillStyle(0xff004d, 0.5).fillRect(gx - half, FLOOR_Y - 3, half * 2, 4);
+          hell.fillStyle(0xffa300).fillRect(gx - half, FLOOR_Y - 2, half * 2, 1);
+          hell.lineStyle(1, 0x1d0f2e);
+          for (let x = gx - half; x < gx + half; x += 8) hell.lineBetween(x, FLOOR_Y - 3, x + 4, FLOOR_Y - 5);
+        },
+      });
+      cam.shake(300, 0.01);
+      foes.forEach((t, i) =>
+        later(scene, 550 + i * 120, () => {
+          if (!t.active) return;
+          const [x, y] = [t.x, t.y];
+          // Light from above: a beam from the gate to the enemy.
+          const beam = [scene.add.rectangle(x, 0, 12, y, 0xffec27, 0.35), scene.add.rectangle(x, 0, 4, y, 0xfff1e8)].map((r) =>
+            r.setOrigin(0.5, 0).setDepth(12),
+          );
+          scene.tweens.add({
+            targets: beam,
+            scaleX: 0,
+            alpha: 0,
+            delay: 120,
+            duration: 260,
+            onComplete: () => beam.forEach((r) => r.destroy()),
+          });
+          // Fire from below: a hellfire column from the floor up to the enemy.
+          const h = Math.max(10, FLOOR_Y - y + 10);
+          flameTongue(scene, x, FLOOR_Y, h, 460, [0x1d0f2e, 0xff004d, 0xffa300]);
+          flameTongue(scene, x + 3, FLOOR_Y, h * 0.7, 380, [0x1d0f2e, 0xff004d, 0xffa300]);
+          // They meet: the twilight cross.
+          later(scene, 90, () => {
+            if (i === 0) cam.flash(120, 192, 128, 255);
+            cam.shake(80, 0.01);
+            cutMark(scene, x, y, HOLY, 30, -Math.PI / 4);
+            cutMark(scene, x, y, HELL, 30, Math.PI / 4);
+            ring(scene, x, y, TWILIGHT, 4, 22, 260, 2);
+            if (!t.active) return;
+            world.strike(t, 1 * power, 'skill', false, { slow: 800 });
+            world.strike(t, 0.85 * power, 'skill', true, { burn: 0.3 });
+          });
+        }),
+      );
+      later(scene, 550 + foes.length * 120 + 400, () => {
+        scene.tweens.add({ targets: heaven, scaleY: 0, alpha: 0, duration: 250, onComplete: () => heaven.destroy() });
+        scene.tweens.add({ targets: hell, alpha: 0, duration: 300, onComplete: () => hell.destroy() });
+      });
+    },
+    // Senjakala (Twilight): the sky tears down the middle, dawn gold on one side and the red of hell on the other. He
+    // rises between them as both wings unfold to their full, terrible size, halo blazing and horn burning, while light
+    // falls and embers rise into him. Then, one enemy after another, a lance of light from the white wing and hellfire
+    // from the black wing strike it together. At the end he brings both wings forward in one clap: a twin wave of gold
+    // and crimson with a violet heart sweeps the entire arena ("SENJAKALA!").
+    ult: ({ p, world, scene, power }) => {
+      const foes = world
+        .targets(p.x, p.y)
+        .sort((a, b) => a.x - b.x)
+        .slice(0, 10);
+      if (!foes.length) return false;
+      const cam = scene.cameras.main;
+      const STEP = 170;
+      const CLAP = 1050 + foes.length * STEP + 250;
+      p.invuln(CLAP + 900);
+      p.lock(CLAP + 600);
+      p.setVelocity(0, 0);
+      const home = { x: p.x, y: p.y };
+      const angel = p.flipX ? 1 : -1;
+      // The torn sky: dawn on the angel's side, hell on the demon's, a crackling seam between.
+      const ax = angel < 0 ? 0 : W / 2;
+      const dawn = scene.add
+        .rectangle(ax, 0, W / 2, H, 0xffec27, 0.22)
+        .setOrigin(0)
+        .setDepth(8)
+        .setAlpha(0);
+      const blood = scene.add
+        .rectangle(angel < 0 ? W / 2 : 0, 0, W / 2, H, 0x7a0a1e, 0.45)
+        .setOrigin(0)
+        .setDepth(8)
+        .setAlpha(0);
+      const seam = scene.add
+        .rectangle(W / 2, 0, 2, H, 0xc080ff)
+        .setOrigin(0.5, 0)
+        .setDepth(8.1)
+        .setAlpha(0);
+      scene.tweens.add({ targets: [dawn, blood, seam], alpha: 1, duration: 450 });
+      scene.tweens.add({ targets: seam, scaleX: 2, yoyo: true, repeat: -1, duration: 90 });
+      // He rises (held in place every frame: the player's own update turns gravity back on).
+      const hover = { y: Math.min(home.y, FLOOR_Y - 8) };
+      const hold = scene.time.addEvent({ delay: 16, loop: true, callback: () => p.body.reset(home.x, hover.y) });
+      scene.tweens.add({ targets: hover, y: 76, duration: 700, ease: 'Sine.Out' });
+      // The great wings, beating slowly.
+      const wg = scene.add.graphics();
+      const wings = scene.add
+        .container(home.x, hover.y - 4, [wg])
+        .setDepth(9.5)
+        .setScale(0.4);
+      let t0 = 0;
+      const span = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          t0 += 16;
+          wings.setPosition(p.x, p.y - 4);
+          wg.clear();
+          twilightWings(wg, angel, 34, Math.sin(t0 / 220) * 0.3);
+        },
+      });
+      scene.tweens.add({ targets: wings, scale: 1.3, duration: 700, ease: 'Back.Out' });
+      // Light falls on the dawn side and embers rise on the hell side, all drawn into him.
+      for (let i = 0; i < 30; i++)
+        later(scene, 100 + i * 25, () => {
+          const holy = i % 2 === 0;
+          const sx = (holy ? ax : angel < 0 ? W / 2 : 0) + Phaser.Math.Between(0, W / 2);
+          const m = scene.add.rectangle(sx, holy ? 0 : FLOOR_Y, 1, 3, holy ? 0xfff1e8 : 0xff004d).setDepth(12);
+          scene.tweens.add({ targets: m, x: home.x, y: hover.y, duration: 420, ease: 'Quad.In', onComplete: () => m.destroy() });
+        });
+      later(scene, 850, () => {
+        cam.flash(200, 192, 128, 255);
+        ring(scene, p.x - angel * 0, p.y - 12, 0xffec27, 4, 18, 300, 2);
+        ring(scene, p.x, p.y, 0xff004d, 6, 30, 320, 1);
+      });
+      // The judgement, one enemy at a time: light from the white wing and fire from the black wing together.
+      foes.forEach((t, i) =>
+        later(scene, 1050 + i * STEP, () => {
+          if (!t.active) return;
+          for (const holy of [true, false]) {
+            const side = holy ? angel : -angel;
+            const [ox, oy] = [p.x + side * 40, p.y - 10];
+            const g = scene.add.graphics();
+            if (holy) {
+              g.fillStyle(0xffec27, 0.35).fillEllipse(0, 0, 24, 7);
+              g.fillStyle(0xfff1e8).fillTriangle(-11, 0, 0, -2, 12, 0).fillTriangle(-11, 0, 0, 2, 12, 0);
+            } else {
+              g.fillStyle(0x1d0f2e).fillCircle(0, 0, 6);
+              g.fillStyle(0xff004d).fillCircle(0, 0, 4.5);
+              g.fillStyle(0xffa300).fillCircle(1, 0, 2);
+            }
+            const s = scene.add.container(ox, oy, [g]).setDepth(13);
+            scene.tweens.addCounter({
+              from: 0,
+              to: 1,
+              duration: 150,
+              ease: 'Quad.In',
+              onUpdate: (tw) => {
+                const v = tw.getValue() ?? 0;
+                const [tx, ty] = t.active ? [t.x, t.y] : [s.x, s.y];
+                const [nx, ny] = [ox + (tx - ox) * v, oy + (ty - oy) * v];
+                s.setRotation(Phaser.Math.Angle.Between(s.x, s.y, nx, ny) || s.rotation).setPosition(nx, ny);
+              },
+              onComplete: () => s.destroy(),
+            });
+          }
+          later(scene, 150, () => {
+            if (!t.active) return;
+            cam.shake(90, 0.012);
+            cutMark(scene, t.x, t.y, HOLY, 28, -Math.PI / 4);
+            cutMark(scene, t.x, t.y, HELL, 28, Math.PI / 4);
+            sparks(scene, t.x, t.y, [0xfff1e8, 0xff004d, 0xc080ff], 8, 16);
+            world.strike(t, 0.8 * power, 'ult', false, { slow: 900 });
+            world.strike(t, 0.8 * power, 'ult', false, { burn: 0.3 });
+          });
+        }),
+      );
+      // The clap: the twin wave sweeps the arena.
+      later(scene, CLAP, () => {
+        scene.tweens.add({ targets: wings, scaleX: 0.5, duration: 120, yoyo: true });
+        cam.flash(240, 255, 241, 232);
+        cam.shake(700, 0.032);
+        floatText(scene, W / 2, 46, 'SENJAKALA!', '#c080ff');
+        ring(scene, p.x, p.y, 0xffec27, 10, W, 650, 4);
+        ring(scene, p.x, p.y, 0xff004d, 6, W * 0.9, 600, 3);
+        ring(scene, p.x, p.y, 0xc080ff, 4, W * 0.7, 550, 2);
+        balanceSigil(scene, p.x, p.y, 28);
+        for (const t of world.targets(p.x, p.y)) {
+          later(scene, Phaser.Math.Distance.Between(p.x, p.y, t.x, t.y) * 1.2, () => {
+            if (!t.active) return;
+            sparks(scene, t.x, t.y, [0xffec27, 0xff004d, 0xc080ff], 10, 18);
+            world.strike(t, 2.4 * power, 'ult', true, { burn: 0.25 });
+          });
+        }
+        p.heal(Math.ceil(p.stats.maxHp * 0.1));
+      });
+      later(scene, CLAP + 600, () => {
+        hold.remove();
+        span.remove();
+        scene.tweens.add({ targets: wings, scale: 0.3, alpha: 0, duration: 300, onComplete: () => wings.destroy() });
+        scene.tweens.add({
+          targets: [dawn, blood, seam],
+          alpha: 0,
+          duration: 450,
+          onComplete: () => [dawn, blood, seam].forEach((o) => o.destroy()),
         });
       });
     },

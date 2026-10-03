@@ -50,6 +50,8 @@ export const PALETTE: Record<string, number> = {
   y: 0x7fe6ff,
   // Extra: the Lightning Lord's storm-blue coat.
   z: 0x173a6e,
+  // Extra: the Nephalem's wine-dark (demon half) robe.
+  N: 0x5a1f3a,
 };
 
 export const COLOR = {
@@ -196,7 +198,29 @@ export const SPRITES: Record<string, string[]> = {
     '..............iaa7a..',
     '.................a...',
   ],
-  // Its swing: a gold crescent with a white edge and a spark of cyan at the tip.
+  // Nephalem: the holy blade (white, gold guard) and its twin, the serrated black hellblade with a crimson edge.
+  w_surgaNeraka: ['....a..........', 'ii0ia7777777776', '....a..........'],
+  w_neraka: ['....8...8.8...', '00008h0h0h0h88', '....8..8...8..'],
+  // Their swing: a crescent whose upper half is holy gold and lower half hellfire crimson.
+  slashDual: [
+    '.aa.........',
+    '...aa7......',
+    '.....a77....',
+    '......aa7...',
+    '.......a77..',
+    '........a7..',
+    '........aa7.',
+    '.........a7g',
+    '.........87g',
+    '........887.',
+    '........87..',
+    '.......877..',
+    '......887...',
+    '.....877....',
+    '...887......',
+    '.88.........',
+  ],
+  // Lightning Lord's swing: a gold crescent with a white edge and a spark of cyan at the tip.
   slashStorm: [
     '.aa.........',
     '...aa7......',

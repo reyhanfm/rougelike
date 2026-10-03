@@ -14,6 +14,8 @@ import {
   sparks,
   stormArc,
   thorns,
+  TWILIGHT,
+  twilightWings,
   type SkillCtx,
 } from './skills.ts';
 
@@ -756,6 +758,38 @@ export const DASHES: Record<ClassId, DashStyle> = {
             world.strike(t, 0.3 * power, 'skill', false, { freeze: 250 });
           }
         });
+      });
+    },
+  },
+  nephalem: {
+    name: 'LUNCUR SENJA',
+    desc: 'MELUNCUR DENGAN KEDUA SAYAP: BULU CAHAYA DI ATAS, BARA NERAKA DI BAWAH',
+    speed: 380,
+    vy: -50,
+    ms: 220,
+    tint: TWILIGHT,
+    hit: { mult: 0.6, radius: 16, status: { burn: 0.15 }, cut: TWILIGHT },
+    // He spreads both wings full and glides low across the arena; white feathers peel off above him and crimson embers
+    // fall below, and whoever he passes is cut in a violet cross.
+    start: ({ p, scene }) => {
+      const angel = p.flipX ? 1 : -1;
+      const wg = scene.add.graphics();
+      const wings = scene.add.container(p.x, p.y - 4, [wg]).setDepth(9.5);
+      twilightWings(wg, angel, 18, -0.3);
+      during(scene, 220, 16, () => wings.setPosition(p.x, p.y - 4));
+      scene.tweens.add({ targets: wings, alpha: 0, delay: 220, duration: 200, onComplete: () => wings.destroy() });
+      during(scene, 220, 30, (i) => {
+        const up = scene.add.rectangle(p.x, p.y - 10, 3, 1, 0xfff1e8).setDepth(11);
+        scene.tweens.add({
+          targets: up,
+          y: up.y - 10,
+          x: up.x - p.facing * 10,
+          angle: 180,
+          alpha: 0,
+          duration: 500,
+          onComplete: () => up.destroy(),
+        });
+        if (i % 2) puff(scene, p.x, p.y + 6, 0xff004d, 1.5, -6, 400);
       });
     },
   },

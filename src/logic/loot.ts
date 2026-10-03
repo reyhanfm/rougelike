@@ -27,7 +27,8 @@ export type WeaponId =
   | 'rasengan'
   | 'kusanagi'
   | 'gravitasi'
-  | 'halilintar';
+  | 'halilintar'
+  | 'surgaNeraka';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
@@ -985,6 +986,41 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     skill: { name: 'TOMBAK HALILINTAR', desc: 'TOMBAK PETIR DIBIDIK KE KERUMUNAN, MENANCAP & MELOMPAT KE MUSUH LAIN', cd: 6 },
     fusion: { name: 'MAHKOTA BADAI', desc: 'J+L: MAHKOTA BOLA PETIR MENGORBIT, LALU MENYAMBAR TIAP MUSUH DARI LANGIT', cd: 11 },
     ult: { name: 'PENGHAKIMAN GUNTUR', desc: 'LANGIT BADAI, JARING PETIR MENGIKAT SEMUA MUSUH, LALU SAMBARAN RAKSASA' },
+  },
+  surgaNeraka: {
+    id: 'surgaNeraka',
+    name: 'SURGA & NERAKA',
+    desc: 'PEDANG SUCI & PEDANG NERAKA: TEBASAN EMAS, MERAH, LALU SILANG SENJA',
+    twin: 'w_neraka',
+    dmg: 1,
+    cd: 0.95,
+    crit: 0.08,
+    arc: 'slashDual',
+    arcTint: 0xffffff,
+    cut: 0xc080ff,
+    combo: [
+      // The holy blade (gold cut: CAHAYA), then the hellblade (crimson cut, burns: KEGELAPAN).
+      { anim: 'down', dmg: 1, cd: 0.9, ms: 120, reach: box(24, 22), knockback: 110, cut: 0xffec27 },
+      { anim: 'up', dmg: 1, cd: 0.9, ms: 120, reach: box(24, 24), knockback: 110, cut: 0xff004d, status: { burn: 0.1 } },
+      // Both blades at once in a cross: the twilight cut that feeds both halves.
+      { anim: 'cross', dmg: 1.2, cd: 1.5, ms: 240, reach: box(28, 28), knockback: 220, cut: 0xc080ff },
+    ],
+    air: {
+      // A spin on his wings, both blades out.
+      name: 'TARIAN SAYAP',
+      anim: 'spin',
+      dmg: 1.1,
+      cd: 1,
+      ms: 260,
+      reach: box(22, 22),
+      knockback: 140,
+      hitbox: 'around',
+      hover: 120,
+      cut: 0xc080ff,
+    },
+    skill: { name: 'SAYAP SENJA', desc: 'SAYAP MENGEPAK: TOMBAK CAHAYA KE SISI MALAIKAT, API NERAKA KE SISI IBLIS', cd: 6 },
+    fusion: { name: 'GERBANG SURGA & NERAKA', desc: 'J+L: CAHAYA DARI LANGIT & API DARI BUMI BERTEMU MENYILANG DI TIAP MUSUH', cd: 11 },
+    ult: { name: 'SENJAKALA', desc: 'LANGIT TERBELAH, SAYAP RAKSASA MENGHAKIMI TIAP MUSUH, LALU GELOMBANG SENJA' },
   },
 };
 

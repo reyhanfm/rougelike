@@ -27,7 +27,8 @@ export type ClassId =
   | 'naruto'
   | 'sasuke'
   | 'gravityMaster'
-  | 'lightningLord';
+  | 'lightningLord'
+  | 'nephalem';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -979,6 +980,43 @@ export const CLASSES: Record<ClassId, GameClass> = {
       desc: 'TIAP KILL MENYAMBARKAN PETIR, SKILL +20%',
       apply: (s) => {
         s.killBolt += 1;
+        s.skillPower *= 1.2;
+      },
+    },
+  },
+  nephalem: {
+    id: 'nephalem',
+    name: 'NEPHALEM',
+    weapon: 'surgaNeraka',
+    color: 'N',
+    legs: { kind: 'robe', pant: 'N', boot: '0' },
+    hair: '7',
+    // Split down the middle: on the angel's side white hair, a gold eye and a white robe with gold; on the demon's
+    // side black hair with a horn, a red eye and a wine-dark robe with crimson; a twilight-violet clasp where they meet.
+    head: [
+      '.77.....2.',
+      '.7777ss22.',
+      '7777ssssss',
+      '.07777ss0.',
+      '.0faff8f0.',
+      '.0ffffff0.',
+      '..077NN0..',
+      '.07a7NhN0.',
+      '0f777NNNf0',
+      '0f07aN80f0',
+      '..0agg80..',
+    ],
+    trait: 'DARAH GANDA: HP +10%, CURI NYAWA 3%, KRITIS +5%',
+    apply: (s) => {
+      s.maxHp *= 1.1;
+      s.lifesteal += 0.03;
+      s.critChance += 0.05;
+    },
+    synergy: {
+      name: 'KESEIMBANGAN SEMPURNA',
+      desc: '15% HIT MEMBAKAR, SKILL +20%',
+      apply: (s) => {
+        s.burnChance += 0.15;
         s.skillPower *= 1.2;
       },
     },

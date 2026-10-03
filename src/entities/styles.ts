@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import type { ClassId } from '../logic/classes.ts';
+import type { Player } from './Player.ts';
+import { HELL, HOLY, twilightWings } from './skills.ts';
 
 /**
  * Airborne body motion. flip/backflip: one somersault; roll: two quick ones; spin: a pirouette (turns to face each way);
@@ -27,6 +29,8 @@ export interface MoveStyle {
   hold: { angle: number; dx?: number; dy?: number };
   /** Landing shakes the camera (heavy classes). */
   heavy?: boolean;
+  /** Draws something that is always part of the body (wings, a halo), once per run scene. */
+  attach?(scene: Phaser.Scene, p: Player): void;
 }
 
 export const STYLES: Record<ClassId, MoveStyle> = {
@@ -121,6 +125,45 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     jump: 'lift',
     trail: { shape: 'spark', colors: [0xffec27, 0x7fe6ff] },
     hold: { angle: -30, dx: 1 },
+  },
+  // Nephalem: half angel, half demon. A light, gliding step; white feathers and crimson embers drift from him; he rises
+  // into his jumps on his wings. Small wings (white feathered on the angel's side, black bat wing on the demon's) and a
+  // half halo are always on him; over his head, gold pips count CAHAYA and crimson pips KEGELAPAN.
+  nephalem: {
+    stride: 100,
+    lean: 6,
+    jump: 'lift',
+    trail: { shape: 'flake', colors: [0xfff1e8, 0xff004d] },
+    hold: { angle: 25 },
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(9.6);
+      const draw = () => {
+        g.clear();
+        if (!p.active) return;
+        const angel = p.flipX ? 1 : -1;
+        g.setPosition(p.x, p.y - 4);
+        twilightWings(g, angel, 9, Math.sin(scene.time.now / 240) * 0.25);
+        // The half halo over the angel's half of the head.
+        g.lineStyle(1, HOLY).beginPath();
+        for (let i = 0; i <= 6; i++) {
+          const t = Math.PI / 2 + (i / 6) * Math.PI;
+          const [x, y] = [-angel * Math.cos(t) * 4, Math.sin(t) * 1.3 - 9];
+          if (i) g.lineTo(x, y);
+          else g.moveTo(x, y);
+        }
+        g.strokePath();
+        // The balance: CAHAYA pips on the angel's side, KEGELAPAN pips on the demon's.
+        const light = (p.getData('light') as number | undefined) ?? 0;
+        const dark = (p.getData('dark') as number | undefined) ?? 0;
+        for (let i = 0; i < light; i++) g.fillStyle(HOLY).fillRect(angel * (6 + i * 3) - 1, -13, 2, 2);
+        for (let i = 0; i < dark; i++) g.fillStyle(HELL).fillRect(-angel * (6 + i * 3) - 1, -13, 2, 2);
+      };
+      scene.events.on('update', draw);
+      scene.events.once('shutdown', () => {
+        scene.events.off('update', draw);
+        g.destroy();
+      });
+    },
   },
   jackFrost: { stride: 105, lean: 6, jump: 'spin', trail: { shape: 'flake', colors: [0xc2f0ff, 0xfff1e8] }, hold: { angle: -70, dx: -2 } },
 };

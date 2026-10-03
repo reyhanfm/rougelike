@@ -136,6 +136,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       ult: K.I,
     }) as Keys;
     this.equip(stats, weapon);
+    // Always-on body parts of some classes (Nephalem's wings and half halo).
+    STYLES[skin].attach?.(scene, this);
   }
 
   equip(stats: Derived, weapon: Weapon): void {
