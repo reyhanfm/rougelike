@@ -93,6 +93,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private airSince = 0;
   /** The current 'cross' move already turned into its return cut. */
   private crossed = false;
+  /** Strikes of the current flurry (Move.hits) already started. */
+  private flurry = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -323,6 +325,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.move.anim === 'cross' && !this.crossed && time >= this.swingUntil - this.move.ms / 2) {
       this.crossed = true;
       this.hitThisSwing.clear();
+    }
+    // Flurries: every 1/hits of the move the hitbox may strike everyone again.
+    const hits = this.move.hits ?? 1;
+    if (hits > 1 && time < this.swingUntil) {
+      const k = Math.floor(((time - (this.swingUntil - this.move.ms)) / this.move.ms) * hits);
+      if (k > this.flurry) {
+        this.flurry = k;
+        this.hitThisSwing.clear();
+      }
     }
 
     const attackPressed = Phaser.Input.Keyboard.JustDown(k.attack);
@@ -648,6 +659,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.swingReadyAt = time + this.stats.swingCooldown * m.cd * 1000 * (1 - FURY.step * this.fury);
     this.hitThisSwing.clear();
     this.crossed = false;
+    this.flurry = 0;
     if (m.lunge) {
       this.setVelocityX(this.facing * m.lunge);
       this.lock(m.ms);

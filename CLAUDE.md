@@ -90,7 +90,8 @@ The user wants each character to be **keren**, iconic and unmistakably theirs. W
 ## Gotchas
 
 - Basic combos must not share a skeleton (three melee weapons were all `down, up, overhead`). Give each its own
-  rhythm with the move data (`cross`, `spin`, lunges, negative `knockback` pulls in, `pierce`/`range` on shots) and
+  rhythm with the move data (`cross`, `spin`, lunges, negative `knockback` pulls in, `hits` flurries, `launch`
+  throws enemies up, `pierce`/`range` on shots) and
   per-move effects in `SKILLS[id].onSwing(c, m, step)` / `onHit` (check `p.comboStep`): Heracles' rock wave, the
   Avenger's launcher and dark crescent, Hassan's PENGGAL execution, the Gunners' shotgun pull.
 - Passives: no two classes should share a trigger AND an effect (God Hand blocks weak hits, Itachi swaps with

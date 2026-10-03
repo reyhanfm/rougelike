@@ -382,7 +382,8 @@ for (const cls of CLASS_IDS) {
   const w = WEAPONS[CLASSES[cls].weapon];
   const st = runStats(base, w, [], cls);
   // Ideal full-combo DPS, all projectiles connect; excludes skills, rage and kill effects.
-  const hits = w.combo.reduce((sum, m) => sum + m.dmg * (m.angles ? m.angles.length + st.extraArrows : 1), 0) + st.finisherWave;
+  const hits =
+    w.combo.reduce((sum, m) => sum + m.dmg * (m.hits ?? 1) * (m.angles ? m.angles.length + st.extraArrows : 1), 0) + st.finisherWave;
   const seconds = st.swingCooldown * w.combo.reduce((sum, m) => sum + m.cd, 0);
   const dps = (st.damage * hits * (1 + st.critChance * (st.critMult - 1))) / seconds;
   assert.ok(dps >= 20 && dps <= 38, `${cls}: baseline combo DPS outside budget: ${dps}`);
