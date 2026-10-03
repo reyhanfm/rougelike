@@ -12,7 +12,7 @@ const LAYOUT = `
   <div class="t-pad">
     <button data-key="A" class="left" aria-label="Gerak kiri">&#9664;</button>
     <button data-key="D" class="right" aria-label="Gerak kanan">&#9654;</button>
-    <button data-key="S" class="down" aria-label="Tahan bersama lompat untuk turun platform">TURUN</button>
+    <button data-key="S" class="down" aria-label="Tahan bersama lompat untuk turun platform, bersama serang di udara untuk menukik">TURUN</button>
   </div>
   <div class="t-acts">
     <button data-key="L" class="skill">SKILL</button>
@@ -21,7 +21,7 @@ const LAYOUT = `
     <button data-key="J" class="atk">SERANG</button>
     <button data-key="SPACE" class="jump">LOMPAT</button>
   </div>
-  <p class="t-hint">Tahan TURUN + LOMPAT untuk turun platform</p>
+  <p class="t-hint">TURUN + LOMPAT: turun platform. TURUN + SERANG di udara: menukik</p>
 `;
 
 export function isTouchDevice(): boolean {

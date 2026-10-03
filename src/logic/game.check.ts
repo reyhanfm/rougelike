@@ -183,11 +183,22 @@ for (const w of Object.values(WEAPONS).filter((w) => !w.cast)) {
   for (const m of w.combo) assert.ok(m.anim === 'shoot' ? m.angles?.length : m.reach.w > 0, `${w.id}: move without a hit`);
 }
 
-// Air moves: every weapon has one, and hitboxes sit where the move says.
-for (const w of Object.values(WEAPONS)) assert.ok(w.air.name && (w.air.angles?.length || w.air.reach.w > 0), `${w.id}: no air move`);
-const below = moveHitbox(WEAPONS.tombak.air, 100, 50, 1);
+// Air: every weapon has its own air combo (2-3 moves that each hit and lift, so flyers can be reached; a cast weapon
+// casts instead), and a dive for down + attack that actually goes down; hitboxes sit where the move says.
+for (const w of Object.values(WEAPONS)) {
+  assert.ok(w.cast || (w.air.length >= 2 && w.air.length <= 3), `${w.id}: air combo must have 2-3 moves`);
+  for (const m of w.air) assert.ok(m.angles?.length || m.reach.w > 0, `${w.id}: air move without a hit`);
+  assert.ok(w.cast || w.air.every((m) => (m.hover ?? 0) > 0), `${w.id}: every air-combo move lifts`);
+  assert.ok(w.cast || w.air.every((m) => !m.dive && !m.slam), `${w.id}: the air combo must not dive (that is down + attack)`);
+  assert.ok(w.dive.name && ((w.dive.dive?.vy ?? 0) > 0 || w.dive.bounce), `${w.id}: dive must go down`);
+}
+assert.ok(
+  new Set(Object.values(WEAPONS).map((w) => JSON.stringify(w.air))).size === Object.keys(WEAPONS).length,
+  'air combos are all different',
+);
+const below = moveHitbox(WEAPONS.tombak.dive, 100, 50, 1);
 assert.ok(below.y > 50 && below.x < 100 && below.x + below.w > 100, 'below hitbox must be under the player');
-const around = moveHitbox(WEAPONS.pedang.air, 100, 50, -1);
+const around = moveHitbox(WEAPONS.pedang.air[2], 100, 50, -1);
 assert.ok(
   around.x < 100 && around.x + around.w > 100 && around.y < 50 && around.y + around.h > 50,
   'around hitbox must contain the player',
@@ -347,7 +358,7 @@ assert.ok(gunner.swingCooldown < runStats(base, WEAPONS.senapan, []).swingCooldo
 assert.ok(WEAPONS.senapan.automatic && WEAPONS.senapan.projectile?.texture === 'bullet');
 // Cultivator: flying swords home in; the synergy makes them pierce.
 assert.ok(WEAPONS.pedangTerbang.projectile?.homing && WEAPONS.pedangTerbang.projectile.returning);
-for (const m of [...WEAPONS.pedangTerbang.combo, WEAPONS.pedangTerbang.air])
+for (const m of [...WEAPONS.pedangTerbang.combo, ...WEAPONS.pedangTerbang.air])
   assert.equal(m.angles?.length, 1, 'one sword in flight at a time');
 assert.equal(runStats(base, WEAPONS.pedangTerbang, [], 'cultivator').pierceArrows, 1);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'cultivator').pierceArrows, 0);
@@ -356,7 +367,8 @@ assert.equal(runStats(base, WEAPONS.pedang, [], 'cultivator').regen, 0.5);
 assert.ok(WEAPONS.tongkat.combo.some((m) => m.status?.burn) && WEAPONS.tongkat.combo.some((m) => m.status?.freeze));
 assert.equal(runStats(base, WEAPONS.tongkat, [], 'elementalis').elemental, 1.5);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'elementalis').elemental, 1);
-for (const w of Object.values(WEAPONS)) for (const m of [...w.combo, w.air]) if (m.shot) assert.ok(m.shot in S, `missing ${m.shot}`);
+for (const w of Object.values(WEAPONS))
+  for (const m of [...w.combo, ...w.air, w.dive]) if (m.shot) assert.ok(m.shot in S, `missing ${m.shot}`);
 for (const k of [
   'spider',
   'beetle',
@@ -376,7 +388,7 @@ for (const k of [
   assert.ok(k in S, `missing sprite ${k}`);
 for (const w of Object.values(WEAPONS)) {
   if (w.projectile) assert.ok(w.projectile.texture in S && w.projectile.speed > 0);
-  for (const m of [...w.combo, w.air]) if (m.anim === 'shoot') assert.ok(w.projectile && m.angles?.length);
+  for (const m of [...w.combo, ...w.air, w.dive]) if (m.anim === 'shoot') assert.ok(w.projectile && m.angles?.length);
 }
 for (const cls of CLASS_IDS) {
   const w = WEAPONS[CLASSES[cls].weapon];
@@ -436,7 +448,7 @@ assert.equal(runStats(base, WEAPONS.pedang, [], 'darkAvenger').awakenTime, 1);
 assert.equal(runStats(base, WEAPONS.enamLengan, [], 'ashura').furyMax, 10);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'ashura').furyMax, 6);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').furyMax, 0);
-assert.ok([...WEAPONS.enamLengan.combo, WEAPONS.enamLengan.air].every((m) => (m.extra ?? 0) >= 1));
+assert.ok([...WEAPONS.enamLengan.combo, ...WEAPONS.enamLengan.air, WEAPONS.enamLengan.dive].every((m) => (m.extra ?? 0) >= 1));
 assert.ok(WEAPONS.enamLengan.fist && WEAPONS.enamLengan.combo.every((m) => ['jab', 'hook', 'uppercut'].includes(m.anim)), 'Ashura punches');
 // Antares: fire immune everywhere; the synergy stretches dragon form to 10 s.
 assert.equal(runStats(base, WEAPONS.pedang, [], 'antares').fireImmune, 1);

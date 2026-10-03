@@ -8,7 +8,7 @@ import { sendKey, type KeyName } from './keys.ts';
  * with a per-screen button layout:
  *
  *   play:   stick/D-pad move, A jump, X attack, B/LB dash, Y/LT skill, RB/RT ult, X+Y fusion,
- *           down + A drop through a platform, START pause
+ *           down + A drop through a platform, down + X in the air dive, START pause
  *   paused: START/B resume, SELECT surrender
  *   menus:  stick/D-pad choose, A confirm, B back (class picker), Y reroll, START start/pause
  *   sound (like M): SELECT, or Y in the pause menu (where SELECT surrenders)
