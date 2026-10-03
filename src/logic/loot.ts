@@ -753,21 +753,38 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   gerbangBabilonia: {
     id: 'gerbangBabilonia',
     name: 'GERBANG BABILONIA',
-    desc: 'GERBANG EMAS MENGHADAP MUSUH, MENEMBAKKAN HARTA',
+    desc: 'GERBANG EMAS MENGHADAP MUSUH: 5, 5, LALU 9 HARTA SEKALIGUS',
     projectile: { texture: 'w_pedang', speed: 260, gate: true },
     dmg: 0.8,
     cd: 1.1,
     crit: 0.05,
-    // One gate per angle: 3, 3, then a volley of 6.
+    // One gate per angle: 5, 5, then a volley of 9.
     combo: [
-      { anim: 'shoot', dmg: 0.45, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [-0.06, 0, 0.06] },
-      { anim: 'shoot', dmg: 0.45, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [-0.06, 0, 0.06] },
-      { anim: 'shoot', dmg: 0.35, cd: 1.5, ms: 150, reach: box(0, 0), knockback: 80, angles: [-0.15, -0.09, -0.03, 0.03, 0.09, 0.15] },
+      { anim: 'shoot', dmg: 0.32, cd: 1, ms: 100, reach: box(0, 0), knockback: 50, angles: [-0.1, -0.05, 0, 0.05, 0.1] },
+      { anim: 'shoot', dmg: 0.32, cd: 1, ms: 100, reach: box(0, 0), knockback: 50, angles: [-0.1, -0.05, 0, 0.05, 0.1] },
+      {
+        anim: 'shoot',
+        dmg: 0.26,
+        cd: 1.5,
+        ms: 150,
+        reach: box(0, 0),
+        knockback: 70,
+        angles: [-0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2],
+      },
     ],
     air: [
-      // Gates open around him in the air too, each turned on an enemy: three, then four.
-      { anim: 'shoot', dmg: 0.45, cd: 1, ms: 100, reach: box(0, 0), knockback: 60, angles: [-0.06, 0, 0.06], hover: 50 },
-      { anim: 'shoot', dmg: 0.45, cd: 1.3, ms: 120, reach: box(0, 0), knockback: 60, angles: [-0.1, -0.03, 0.03, 0.1], hover: 50 },
+      // Gates open around him in the air too, each turned on an enemy: four, then six.
+      { anim: 'shoot', dmg: 0.34, cd: 1, ms: 100, reach: box(0, 0), knockback: 50, angles: [-0.08, -0.03, 0.03, 0.08], hover: 50 },
+      {
+        anim: 'shoot',
+        dmg: 0.3,
+        cd: 1.3,
+        ms: 120,
+        reach: box(0, 0),
+        knockback: 50,
+        angles: [-0.12, -0.07, -0.02, 0.02, 0.07, 0.12],
+        hover: 50,
+      },
     ],
     dive: {
       name: 'TURUN TAHTA',
@@ -783,8 +800,8 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0xffec27,
     },
     skill: { name: 'ENKIDU', desc: 'RANTAI LANGIT DARI GERBANG MELILIT & MENGIKAT 3 MUSUH 2 DTK', cd: 6 },
-    fusion: { name: 'GATE OF BABYLON', desc: 'J+L: LANGIT PENUH GERBANG EMAS, HUJAN HARTA KE SEMUA MUSUH', cd: 10 },
-    ult: { name: 'ENUMA ELISH', desc: 'EA BERPUTAR, BADAI RUPTUR MEMBELAH LANGIT & BUMI, SEMUA KENA' },
+    fusion: { name: 'GATE OF BABYLON', desc: 'J+L: 36 GERBANG EMAS MEMENUHI LANGIT, HUJAN 48 HARTA KE SEMUA MUSUH', cd: 10 },
+    ult: { name: 'ENUMA ELISH', desc: 'EA DISAPUKAN SATU PUTARAN PENUH: BADAI RUPTUR MENYAPU SELURUH ARENA, LANGIT ROBEK' },
   },
   shrine: {
     id: 'shrine',
