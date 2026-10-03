@@ -52,6 +52,8 @@ export const PALETTE: Record<string, number> = {
   z: 0x173a6e,
   // Extra: the Nephalem's wine-dark (demon half) robe.
   N: 0x5a1f3a,
+  // Extra: Lumina's pearl-white coat.
+  L: 0xdfe9f5,
 };
 
 export const COLOR = {
@@ -197,6 +199,27 @@ export const SPRITES: Record<string, string[]> = {
     'jjjjjjjjjjjjjji77777a',
     '..............iaa7a..',
     '.................a...',
+  ],
+  // Lumina: Pedang Foton, a blade of solid light (white with a cyan edge) on a gold hilt, sparkling.
+  w_foton: ['....a.....y....', 'i0ia7777777777y', '....a....y.....'],
+  // Its swing: a white crescent with a cyan edge and a gold spark at each tip.
+  slashFoton: [
+    '.a7.........',
+    '...77y......',
+    '.....77y....',
+    '......77y...',
+    '.......77y..',
+    '........7y..',
+    '........77y.',
+    '.........7ya',
+    '.........7y.',
+    '........77y.',
+    '........7y..',
+    '.......77y..',
+    '......77y...',
+    '.....77y....',
+    '...77y......',
+    '.a7.........',
   ],
   // Nephalem: the holy blade (white, gold guard) and its twin, the serrated black hellblade with a crimson edge.
   w_surgaNeraka: ['....a..........', 'ii0ia7777777776', '....a..........'],

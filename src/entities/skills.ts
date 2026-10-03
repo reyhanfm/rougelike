@@ -478,6 +478,43 @@ function bestLine(foes: Phaser.GameObjects.Sprite[], ox: number, oy: number, wid
   return best.a;
 }
 
+/** The visible spectrum, red to violet: what Lumina's light runs through when it is bent or reflected. */
+export const SPECTRUM: readonly number[] = [0xff004d, 0xffa300, 0xffec27, 0x00e436, 0x29adff, 0x2a4bd7, 0x8a3fd1];
+
+/**
+ * Lumina's ray of light from (x, y) along angle `a` for `len` px: a cyan glow, a red fringe on one side and a violet
+ * one on the other (the light split at its edges), and a white-hot core; it fades over `ms`.
+ */
+export function lightRay(scene: Phaser.Scene, x: number, y: number, a: number, len: number, width = 1, ms = 240): void {
+  const [ex, ey] = [x + Math.cos(a) * len, y + Math.sin(a) * len];
+  const [nx, ny] = [-Math.sin(a) * (1 + width), Math.cos(a) * (1 + width)];
+  const g = scene.add.graphics().setDepth(13);
+  g.lineStyle(4 + width * 3, 0x7fe6ff, 0.3).lineBetween(x, y, ex, ey);
+  g.lineStyle(1, 0xff004d, 0.8).lineBetween(x + nx, y + ny, ex + nx, ey + ny);
+  g.lineStyle(1, 0x8a3fd1, 0.8).lineBetween(x - nx, y - ny, ex - nx, ey - ny);
+  g.lineStyle(1 + width, 0xfff1e8).lineBetween(x, y, ex, ey);
+  scene.tweens.add({ targets: g, alpha: 0, duration: ms, ease: 'Quad.In', onComplete: () => g.destroy() });
+}
+
+/** Whether `t` lies within `w` px of the segment from (x, y) along angle `a` for `len` px. */
+export function onLine(x: number, y: number, a: number, len: number, t: { x: number; y: number }, w: number): boolean {
+  const [dx, dy] = [t.x - x, t.y - y];
+  const along = dx * Math.cos(a) + dy * Math.sin(a);
+  return along >= -w && along <= len + w && Math.abs(-dx * Math.sin(a) + dy * Math.cos(a)) <= w;
+}
+
+/** A hexagonal mirror of hard light at the graphics' origin: a pale face, a colored rim and a white glint line. */
+export function hexMirror(g: Phaser.GameObjects.Graphics, r: number, rim: number): void {
+  const pts = Array.from(
+    { length: 6 },
+    (_, i) => new Phaser.Math.Vector2(Math.cos((i / 6) * Math.PI * 2) * r, Math.sin((i / 6) * Math.PI * 2) * r),
+  );
+  g.fillStyle(0xfff1e8, 0.2).fillCircle(0, 0, r + 3);
+  g.fillStyle(0xc2f0ff, 0.6).fillPoints(pts, true);
+  g.lineStyle(1, rim).strokePoints(pts, true);
+  g.lineStyle(1, 0xffffff).lineBetween(-r * 0.4, -r * 0.5, r * 0.1, r * 0.5);
+}
+
 /** A boulder ripped from the ground at (x0, FLOOR_Y) and hurled in an arc onto `t`; `onHit` runs if it lands. */
 function hurlRock(scene: Phaser.Scene, x0: number, t: Phaser.GameObjects.Sprite, onHit: () => void): void {
   const r = scene.add
@@ -10112,6 +10149,348 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           alpha: 0,
           duration: 450,
           onComplete: () => [dawn, blood, seam].forEach((o) => o.destroy()),
+        });
+      });
+    },
+  },
+  // Lumina, master of light. Her light is white-hot with a cyan glow and a thin spectrum fringe; when it is bent or
+  // reflected it runs through the colors of the rainbow.
+  foton: {
+    // The finisher's rising cut throws a ray of light at the nearest enemy ahead (air too, within ±0.9 rad): a
+    // white core in a cyan glow with a red and a violet fringe, the light split at its edges.
+    onSwing: ({ p, world, scene, power }, _m, step) => {
+      if (step !== 2) return;
+      const f = p.facing;
+      const [ox, oy] = [p.x + f * 8, p.y - 4];
+      const ahead = world
+        .targets(ox, oy)
+        .find((t) => Math.abs(Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(ox, oy, t.x, t.y) - (f > 0 ? 0 : Math.PI))) < 0.9);
+      const a = ahead ? Phaser.Math.Angle.Between(ox, oy, ahead.x, ahead.y) : f > 0 ? -0.15 : Math.PI + 0.15;
+      later(scene, 90, () => {
+        lightRay(scene, ox, oy, a, 320, 1, 260);
+        for (const t of world.targets(ox, oy))
+          if (onLine(ox, oy, a, 320, t, 10)) world.strike(t, 0.8 * power, 'proc', false, { freeze: 200 }, 80);
+      });
+    },
+    // Tombak Matahari (Sun Spear): she lands where a pillar of sunlight falls; on impact the light runs out along the
+    // floor both ways in eight rays, scorching whatever stands on them.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      const pillar = [
+        scene.add.rectangle(x, 0, 30, gy, 0xffec27, 0.3),
+        scene.add.rectangle(x, 0, 12, gy, 0xfff1e8, 0.8),
+        scene.add.rectangle(x, 0, 3, gy, 0xffffff),
+      ].map((r) => r.setOrigin(0.5, 0).setDepth(12));
+      scene.tweens.add({
+        targets: pillar,
+        scaleX: 0,
+        alpha: 0,
+        delay: 120,
+        duration: 300,
+        onComplete: () => pillar.forEach((r) => r.destroy()),
+      });
+      ring(scene, x, gy - 2, 0xffec27, 4, 40, 300, 2);
+      const rays = scene.add.graphics().setDepth(11);
+      for (let i = 0; i < 8; i++) {
+        const s = i % 2 ? 1 : -1;
+        const len = 30 + Math.floor(i / 2) * 22;
+        const y = gy - 1 - Math.floor(i / 2) * 2;
+        rays.lineStyle(2, i % 4 < 2 ? 0xffec27 : 0xc2f0ff).lineBetween(x, y, x + s * len, y);
+      }
+      scene.tweens.add({ targets: rays, alpha: 0, delay: 200, duration: 300, onComplete: () => rays.destroy() });
+      for (const t of world.targets(x, gy))
+        if (Math.abs(t.x - x) < 100 && t.y > gy - 28) world.strike(t, 0.7 * power, 'proc', false, { burn: 0.15 }, 60);
+    },
+    // Jaring Cermin (Mirror Lattice): hexagonal mirrors of hard light flicker into being beside every enemy (and her
+    // KRISTAL CAHAYA join them as extra mirrors). She fires one laser from her palm; it strikes the first mirror and
+    // reflects to the next, and the next, a geometric web drawn across the arena, each reflection shifting one step
+    // down the spectrum: red, orange, yellow, green, blue, indigo, violet. Every enemy a segment crosses is struck and
+    // blinded (frozen a moment). Then the whole lattice flares white and fades.
+    skill: ({ p, world, scene, power }) => {
+      const foes = world.targets(p.x, p.y).slice(0, 7);
+      if (!foes.length) return false;
+      p.lock(360);
+      p.setVelocityX(0);
+      // A tour through the enemies, nearest next each time, then any crystals. Each enemy's mirror follows it until
+      // the laser gets there, so a moving enemy (a bat) cannot slip out of its own reflection.
+      const order: Phaser.GameObjects.Sprite[] = [];
+      let from = { x: p.x, y: p.y - 6 };
+      const left = [...foes];
+      while (left.length) {
+        left.sort(
+          (a, b) => Phaser.Math.Distance.Between(from.x, from.y, a.x, a.y) - Phaser.Math.Distance.Between(from.x, from.y, b.x, b.y),
+        );
+        const t = left.shift()!;
+        order.push(t);
+        from = t;
+      }
+      const crystals = ((p.getData('passive') as { crystals?: { x: number; y: number }[] } | undefined)?.crystals ?? []).splice(0);
+      const nodes: { t?: Phaser.GameObjects.Sprite; x: number; y: number }[] = [
+        ...order.map((t) => ({ t, x: t.x, y: t.y - 4 })),
+        ...crystals.map((c) => ({ x: c.x, y: c.y })),
+      ];
+      // The mirrors appear first.
+      const mirrors = nodes.map((n, i) => {
+        const g = scene.add.graphics();
+        hexMirror(g, 6, SPECTRUM[i % SPECTRUM.length]);
+        const m = scene.add
+          .container(n.x, n.y, [g])
+          .setDepth(13)
+          .setScale(0)
+          .setRotation(i * 0.4);
+        scene.tweens.add({ targets: m, scale: 1, delay: i * 30, duration: 140, ease: 'Back.Out' });
+        return m;
+      });
+      const track = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () =>
+          nodes.forEach((n, i) => {
+            if (!n.t?.active) return;
+            [n.x, n.y] = [n.t.x, n.t.y - 4];
+            mirrors[i].setPosition(n.x, n.y);
+          }),
+      });
+      glint(scene, p.x + p.facing * 6, p.y - 6);
+      const web = scene.add.graphics().setDepth(12);
+      const segs: { x0: number; y0: number; x1: number; y1: number; c: number }[] = [];
+      let prev = { x: p.x + p.facing * 6, y: p.y - 6 };
+      const struck = new Map<Phaser.GameObjects.GameObject, number>();
+      nodes.forEach((n, i) =>
+        later(scene, 280 + i * 75, () => {
+          // The laser reaches this mirror: it stops following its enemy here.
+          const at = { x: n.x, y: n.y };
+          n.t = undefined;
+          const c = SPECTRUM[i % SPECTRUM.length];
+          segs.push({ x0: prev.x, y0: prev.y, x1: at.x, y1: at.y, c });
+          web.clear();
+          for (const sg of segs) {
+            web.lineStyle(6, sg.c, 0.3).lineBetween(sg.x0, sg.y0, sg.x1, sg.y1);
+            web.lineStyle(3, sg.c).lineBetween(sg.x0, sg.y0, sg.x1, sg.y1);
+            web.lineStyle(1, 0xfff1e8).lineBetween(sg.x0, sg.y0, sg.x1, sg.y1);
+          }
+          glint(scene, at.x, at.y);
+          sparks(scene, at.x, at.y, [c, 0xfff1e8], 5, 10);
+          scene.cameras.main.shake(50, 0.005);
+          const a = Phaser.Math.Angle.Between(prev.x, prev.y, at.x, at.y);
+          const len = Phaser.Math.Distance.Between(prev.x, prev.y, at.x, at.y);
+          // At most two strikes per enemy, however many segments (crystal mirrors add more) cross it.
+          for (const t of world.targets(at.x, at.y)) {
+            if (!onLine(prev.x, prev.y, a, len + 6, t, 12) || (struck.get(t) ?? 0) >= 2) continue;
+            struck.set(t, (struck.get(t) ?? 0) + 1);
+            world.strike(t, 0.9 * power, 'skill', false, { freeze: 350 }, 60);
+          }
+          prev = at;
+        }),
+      );
+      later(scene, 280 + nodes.length * 75 + 120, () => {
+        track.remove();
+        // The lattice flares white, then fades with its mirrors.
+        for (const s of segs) web.lineStyle(2, 0xffffff).lineBetween(s.x0, s.y0, s.x1, s.y1);
+        scene.tweens.add({
+          targets: [web, ...mirrors],
+          alpha: 0,
+          duration: 350,
+          onComplete: () => [web, ...mirrors].forEach((o) => o.destroy()),
+        });
+      });
+    },
+    // Tirai Aurora (Aurora Curtain): she raises both hands and the night sky answers. Three curtains of aurora (green,
+    // cyan and violet), rippling bands of light with bright vertical streaks, unroll from the top of the sky and drift
+    // down through the whole height of the arena, one after another; whatever they pass through is struck and held
+    // spellbound (slowed). When the last has reached the floor, their light gathers on every enemy and bursts.
+    fusion: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
+      p.lock(1500);
+      p.invuln(1800);
+      p.setVelocity(0, 0);
+      const night = scene.add.rectangle(0, 0, W, H, 0x05102a, 0.55).setOrigin(0).setDepth(8).setAlpha(0);
+      scene.tweens.add({ targets: night, alpha: 1, duration: 300 });
+      glint(scene, p.x - 4, p.y - 10);
+      glint(scene, p.x + 4, p.y - 10);
+      const AURORA = [
+        { body: 0x00e436, lit: 0xb4f080 },
+        { body: 0x29adff, lit: 0xc2f0ff },
+        { body: 0x8a3fd1, lit: 0xc080ff },
+      ];
+      const DROP = 1000;
+      const g = scene.add.graphics().setDepth(12);
+      const base = AURORA.map(() => ({ y: -40 }));
+      const hit = AURORA.map(() => new Set<Phaser.GameObjects.GameObject>());
+      const top = (i: number, x: number, t: number) => base[i].y + Math.sin(x * 0.035 + t / 260 + i * 2) * 10;
+      const tall = (i: number, x: number, t: number) => 22 + Math.sin(x * 0.05 - t / 300 + i) * 8;
+      const draw = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          const t = scene.time.now;
+          g.clear();
+          AURORA.forEach((c, i) => {
+            if (base[i].y < -35) return;
+            for (let x = 0; x < W; x += 3) {
+              const y0 = top(i, x, t);
+              const h = tall(i, x, t);
+              g.fillStyle(c.body, 0.18).fillRect(x, y0, 3, h);
+              g.fillStyle(c.body, 0.35).fillRect(x, y0 + h * 0.15, 3, h * 0.5);
+              if ((x / 3 + Math.floor(t / 90)) % 4 === 0) g.fillStyle(c.lit, 0.55).fillRect(x, y0, 1, h * 0.8);
+            }
+            // The bright lower hem of the curtain.
+            for (let x = 0; x < W; x += 3) g.fillStyle(c.lit, 0.5).fillRect(x, top(i, x, t) + tall(i, x, t) - 2, 3, 1);
+          });
+          // Whatever a curtain passes through is struck once by it.
+          for (const e of world.targets(p.x, p.y))
+            AURORA.forEach((_, i) => {
+              if (hit[i].has(e) || base[i].y < -35) return;
+              const y0 = top(i, e.x, t);
+              if (e.y < y0 || e.y > y0 + tall(i, e.x, t)) return;
+              hit[i].add(e);
+              sparks(scene, e.x, e.y, [AURORA[i].body, AURORA[i].lit, 0xfff1e8], 6, 12);
+              world.strike(e, 0.6 * power, 'skill', false, { slow: 1400 }, 0);
+            });
+        },
+      });
+      AURORA.forEach((_, i) =>
+        scene.tweens.add({
+          targets: base[i],
+          y: { from: -34, to: FLOOR_Y + 4 },
+          delay: 200 + i * 220,
+          duration: DROP,
+          ease: 'Sine.InOut',
+        }),
+      );
+      later(scene, 200 + 2 * 220 + DROP + 60, () => {
+        draw.remove();
+        scene.tweens.add({ targets: g, alpha: 0, duration: 300, onComplete: () => g.destroy() });
+        scene.cameras.main.shake(260, 0.016);
+        world.targets(p.x, p.y).forEach((t, i) => {
+          const c = AURORA[i % 3];
+          ring(scene, t.x, t.y, c.body, 2, 22, 280, 2);
+          ring(scene, t.x, t.y, c.lit, 2, 14, 220, 1);
+          glint(scene, t.x, t.y);
+          world.strike(t, 0.6 * power, 'skill', true);
+        });
+        scene.tweens.add({ targets: night, alpha: 0, delay: 200, duration: 400, onComplete: () => night.destroy() });
+      });
+    },
+    // Fajar Semesta (Dawn of the Universe): Lumina draws every light in the world into herself. The arena goes black;
+    // streams of light pour from every corner into her and she rises, the only thing shining. A great lens of light
+    // forms in the sky above, and the sun's light falls through it into a white-hot focal point that she drags onto
+    // each enemy in turn, a narrowing cone of light setting each one ablaze. Then the lens cracks and gives way to the
+    // dawn: the horizon blazes gold, rays of light fan up across the sky and everything is struck at once ("FAJAR!").
+    ult: ({ p, world, scene, power }) => {
+      const foes = world
+        .targets(p.x, p.y)
+        .sort((a, b) => a.x - b.x)
+        .slice(0, 10);
+      if (!foes.length) return false;
+      const cam = scene.cameras.main;
+      const STEP = 170;
+      const DAWN = 1000 + foes.length * STEP + 200;
+      p.invuln(DAWN + 900);
+      p.lock(DAWN + 600);
+      p.setVelocity(0, 0);
+      const home = { x: p.x, y: p.y };
+      // Every light drains into her.
+      const black = scene.add.rectangle(0, 0, W, H, 0x000000, 0.9).setOrigin(0).setDepth(8).setAlpha(0);
+      scene.tweens.add({ targets: black, alpha: 1, duration: 450 });
+      const hover = { y: Math.min(home.y, FLOOR_Y - 8) };
+      const hold = scene.time.addEvent({ delay: 16, loop: true, callback: () => p.body.reset(home.x, hover.y) });
+      scene.tweens.add({ targets: hover, y: 96, duration: 700, ease: 'Sine.Out' });
+      for (let i = 0; i < 36; i++)
+        later(scene, 80 + i * 20, () => {
+          const [sx, sy] = i % 2 ? [Phaser.Math.Between(0, W), i % 4 ? 0 : FLOOR_Y] : [i % 4 ? 0 : W, Phaser.Math.Between(0, FLOOR_Y)];
+          const m = scene.add.rectangle(sx, sy, 2, 2, SPECTRUM[i % SPECTRUM.length]).setDepth(12);
+          scene.tweens.add({ targets: m, x: home.x, y: hover.y, duration: 380, ease: 'Quad.In', onComplete: () => m.destroy() });
+        });
+      const aura = scene.add.circle(home.x, hover.y, 10, 0xfff1e8, 0.35).setDepth(9.5);
+      scene.tweens.add({ targets: aura, radius: 18, yoyo: true, repeat: -1, duration: 240 });
+      const follow = scene.time.addEvent({ delay: 16, loop: true, callback: () => aura.setPosition(p.x, p.y) });
+      // The lens: a wide disc of light glass with a gold rim and a bright highlight, the sun burning behind it.
+      const lx = W / 2;
+      const ly = 30;
+      const lg = scene.add.graphics();
+      lg.fillStyle(0xffec27, 0.25).fillCircle(0, -14, 26);
+      lg.fillStyle(0xfff1e8, 0.5).fillCircle(0, -14, 14);
+      lg.fillStyle(0xc2f0ff, 0.35).fillEllipse(0, 0, 90, 18);
+      lg.lineStyle(2, 0xd4a017).strokeEllipse(0, 0, 90, 18);
+      lg.lineStyle(1, 0xfff1e8, 0.9)
+        .beginPath()
+        .arc(-10, -2, 30, Math.PI * 1.1, Math.PI * 1.6)
+        .strokePath();
+      const lens = scene.add.container(lx, ly, [lg]).setDepth(9).setScale(0, 1);
+      later(scene, 820, () => {
+        cam.flash(160, 255, 241, 232);
+        scene.tweens.add({ targets: lens, scaleX: 1, duration: 260, ease: 'Back.Out' });
+      });
+      // The focal point dragged from enemy to enemy: a cone from the lens' rim narrowing to a white star.
+      const cone = scene.add.graphics().setDepth(12);
+      const focus = { x: lx, y: ly + 40 };
+      const shine = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          cone.clear();
+          if (lens.scaleX < 0.9) return;
+          cone.fillStyle(0xffec27, 0.18).fillTriangle(lx - 44, ly + 4, lx + 44, ly + 4, focus.x, focus.y);
+          cone.fillStyle(0xfff1e8, 0.35).fillTriangle(lx - 20, ly + 6, lx + 20, ly + 6, focus.x, focus.y);
+          cone.fillStyle(0xffffff).fillCircle(focus.x, focus.y, 3);
+          cone
+            .lineStyle(1, 0xffffff)
+            .lineBetween(focus.x - 7, focus.y, focus.x + 7, focus.y)
+            .lineBetween(focus.x, focus.y - 7, focus.x, focus.y + 7);
+        },
+      });
+      foes.forEach((t, i) =>
+        later(scene, 1000 + i * STEP, () => {
+          if (!t.active) return;
+          scene.tweens.add({ targets: focus, x: t.x, y: t.y, duration: 90, ease: 'Quad.Out' });
+          later(scene, 90, () => {
+            if (!t.active) return;
+            cam.shake(80, 0.01);
+            ring(scene, t.x, t.y, 0xffec27, 3, 18, 220, 2);
+            flameTongue(scene, t.x, t.y + 6, 14, 380, [0xffa300, 0xffec27, 0xfff1e8]);
+            world.strike(t, 1.1 * power, 'ult', false, { burn: 0.3 }, 0);
+          });
+        }),
+      );
+      // The dawn.
+      later(scene, DAWN, () => {
+        shine.remove();
+        cone.destroy();
+        follow.remove();
+        aura.destroy();
+        // The lens cracks and its shards fall.
+        for (let i = 0; i < 14; i++) {
+          const s = scene.add
+            .triangle(lx + Phaser.Math.Between(-44, 44), ly + Phaser.Math.Between(-6, 6), 0, 0, 6, 1, 2, 7, i % 2 ? 0xc2f0ff : 0xfff1e8)
+            .setDepth(12);
+          scene.tweens.add({ targets: s, y: s.y + 90, angle: 300, alpha: 0, duration: 700, onComplete: () => s.destroy() });
+        }
+        lens.destroy();
+        // The horizon blazes: bands of gold to white rising from the floor, and god-rays fanning up across the sky.
+        const dawn = scene.add.graphics().setDepth(8.5);
+        const bands = [0x7a2230, 0xab5236, 0xffa300, 0xffec27, 0xfff1e8];
+        bands.forEach((c, i) => dawn.fillStyle(c, 0.5).fillRect(0, FLOOR_Y - 60 + i * 12, W, 70 - i * 12));
+        for (let k = 0; k < 14; k++) {
+          const a = Math.PI + (k / 13) * Math.PI;
+          dawn
+            .fillStyle(k % 2 ? 0xffec27 : 0xfff1e8, 0.22)
+            .fillTriangle(W / 2 - 4, FLOOR_Y, W / 2 + 4, FLOOR_Y, W / 2 + Math.cos(a - 0.04) * 400, FLOOR_Y + Math.sin(a - 0.04) * 400);
+        }
+        dawn.setAlpha(0);
+        scene.tweens.add({ targets: dawn, alpha: 1, duration: 160 });
+        scene.tweens.add({ targets: black, alpha: 0, duration: 260 });
+        cam.flash(280, 255, 236, 39);
+        cam.shake(600, 0.03);
+        floatText(scene, W / 2, 44, 'FAJAR!', '#ffec27');
+        for (const t of world.targets(p.x, p.y)) {
+          sparks(scene, t.x, t.y, [0xffec27, 0xfff1e8, 0xffa300], 12, 22);
+          glint(scene, t.x, t.y);
+          world.strike(t, 2.5 * power, 'ult', true);
+        }
+        later(scene, 600, () => {
+          hold.remove();
+          scene.tweens.add({ targets: dawn, alpha: 0, duration: 500, onComplete: () => dawn.destroy() });
+          black.destroy();
         });
       });
     },

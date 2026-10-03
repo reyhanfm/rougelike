@@ -21,6 +21,8 @@ import {
   stormArc,
   thorns,
   whileAlive,
+  hexMirror,
+  lightRay,
 } from './skills.ts';
 
 export interface PassiveCtx {
@@ -117,6 +119,9 @@ function smoke(scene: Phaser.Scene, x: number, y: number, n: number, colors: num
     });
   }
 }
+
+/** Lumina's floating light crystals (also read by Jaring Cermin as extra mirrors). */
+const crystalState = () => ({ hits: 0, crystals: [] as { x: number; y: number; born: number; next: number }[] });
 
 export const PASSIVES: Record<ClassId, Passive> = {
   // SELUBUNG ANGIN (Invisible Air): the wind wrapped around Excalibur. As Artoria runs it winds tighter around the
@@ -1128,6 +1133,43 @@ export const PASSIVES: Record<ClassId, Passive> = {
         knockback: 20,
         status: holy ? { slow: 500 } : { burn: 0.1 },
       });
+    },
+  },
+
+  // KRISTAL CAHAYA: every third hit (and every critical one) leaves a hexagonal crystal of hard light floating above
+  // the enemy (at most four, each lasting 8 s). The crystals bob in the air and each fires a ray of light at the
+  // nearest enemy every 0.9 s. They are also the extra mirrors of Jaring Cermin, which uses them up
+  // (SKILLS.foton.skill reads `crystals` from this passive's state).
+  lumina: {
+    onHit: ({ p, scene }, t, h) => {
+      const s = state(p, crystalState);
+      if (++s.hits % 3 && !h.crit) return;
+      if (s.crystals.length >= 4) s.crystals.shift();
+      const x = Phaser.Math.Clamp(t.x + Phaser.Math.Between(-18, 18), 10, W - 10);
+      const y = Math.max(20, head(t) - Phaser.Math.Between(10, 22));
+      s.crystals.push({ x, y, born: scene.time.now, next: scene.time.now + 500 });
+      glint(scene, x, y);
+      ring(scene, x, y, 0xc2f0ff, 2, 12, 200, 1);
+    },
+    tick: (c, time) => {
+      const s = state(c.p, crystalState);
+      s.crystals = s.crystals.filter((k) => time - k.born < 8000);
+      const g = overlay(c, 12);
+      g.clear();
+      for (const k of s.crystals) {
+        const by = k.y + Math.sin(time / 300 + k.born) * 2;
+        g.save();
+        g.translateCanvas(k.x, by);
+        hexMirror(g, 4, 0x29adff);
+        g.restore();
+        if (time < k.next) continue;
+        k.next = time + 900;
+        const t = c.world.targets(k.x, by).find((e) => dist(e, { x: k.x, y: by }) < 150);
+        if (!t) continue;
+        const a = Phaser.Math.Angle.Between(k.x, by, t.x, t.y);
+        lightRay(c.scene, k.x, by, a, dist(t, { x: k.x, y: by }), 0, 140);
+        c.world.strike(t, 0.35, 'proc', false, undefined, 20);
+      }
     },
   },
 };

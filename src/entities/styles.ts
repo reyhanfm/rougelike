@@ -165,6 +165,9 @@ export const STYLES: Record<ClassId, MoveStyle> = {
       });
     },
   },
+  // Lumina: a light, quick stride, sparks of white, cyan and gold at her heels; she spins up into her jumps; the blade
+  // of light held low and level.
+  lumina: { stride: 85, lean: 10, jump: 'spin', trail: { shape: 'spark', colors: [0xfff1e8, 0x7fe6ff, 0xffec27] }, hold: { angle: 10 } },
   jackFrost: { stride: 105, lean: 6, jump: 'spin', trail: { shape: 'flake', colors: [0xc2f0ff, 0xfff1e8] }, hold: { angle: -70, dx: -2 } },
 };
 

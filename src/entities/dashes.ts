@@ -17,6 +17,7 @@ import {
   HOLY,
   HELL,
   type SkillCtx,
+  SPECTRUM,
 } from './skills.ts';
 
 /** A class's dash (K): its own movement plus its own hit. ctx.power is stats.dashPower. */
@@ -822,6 +823,23 @@ export const DASHES: Record<ClassId, DashStyle> = {
         feathers(scene, x, y - 6, 3, 10, 12);
         world.area(x, y, 26, 1 * power, 140, 'skill', { burn: 0.1, slow: 500 });
       });
+    },
+  },
+  lumina: {
+    name: 'LANGKAH FOTON',
+    desc: 'MELESAT SECEPAT CAHAYA, BAYANGAN PELANGI TERTINGGAL, MUSUH DI JALUR TERSILAU',
+    speed: 620,
+    ms: 140,
+    cd: 0.9,
+    tint: 0xfff1e8,
+    hit: { mult: 0.7, radius: 14, status: { freeze: 250 }, cut: 0xc2f0ff },
+    // She becomes light: a flash where she stood, then a chain of afterimages that runs through the spectrum, red to
+    // violet, as she crosses the arena, and a spark where she stops.
+    start: ({ p, scene }) => {
+      glint(scene, p.x, p.y - 4);
+      ring(scene, p.x, p.y, 0xfff1e8, 2, 16, 180, 1);
+      during(scene, 140, 20, (i) => afterimage(scene, p, p.x, p.y, 0.55, SPECTRUM[i % SPECTRUM.length]));
+      later(scene, 140, () => sparks(scene, p.x, p.y, [0xfff1e8, 0x7fe6ff, 0xffec27], 6, 10));
     },
   },
 };

@@ -28,7 +28,8 @@ export type WeaponId =
   | 'kusanagi'
   | 'gravitasi'
   | 'halilintar'
-  | 'surgaNeraka';
+  | 'surgaNeraka'
+  | 'foton';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
@@ -1370,6 +1371,48 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     skill: { name: 'SAYAP SENJA', desc: 'SAYAP MENGEPAK: TOMBAK CAHAYA KE SISI MALAIKAT, API NERAKA KE SISI IBLIS', cd: 6 },
     fusion: { name: 'GERBANG SURGA & NERAKA', desc: 'J+L: CAHAYA DARI LANGIT & API DARI BUMI BERTEMU MENYILANG DI TIAP MUSUH', cd: 11 },
     ult: { name: 'SENJAKALA', desc: 'LANGIT TERBELAH, SAYAP RAKSASA MENGHAKIMI TIAP MUSUH, LALU GELOMBANG SENJA' },
+  },
+  foton: {
+    id: 'foton',
+    name: 'PEDANG FOTON',
+    desc: 'PEDANG CAHAYA PADAT: TUSUKAN SECEPAT CAHAYA, PUSARAN, LALU SINAR',
+    dmg: 1,
+    cd: 0.95,
+    crit: 0.1,
+    arc: 'slashFoton',
+    arcTint: 0xffffff,
+    cut: 0xc2f0ff,
+    combo: [
+      // A thrust at the speed of light: she is already through, a white streak behind her.
+      { anim: 'thrust', dmg: 1, cd: 0.9, ms: 110, reach: box(30, 12), knockback: 80, lunge: 320, trail: 0xfff1e8, cut: 0xc2f0ff },
+      // A whirl of light blades all around her, four cuts in one turn.
+      { anim: 'spin', dmg: 0.35, cd: 1, ms: 220, reach: box(30, 26), knockback: 40, hitbox: 'around', hits: 4, cut: 0xffec27 },
+      // A rising cut that throws its target up and fires a ray of light (SKILLS.foton.onSwing).
+      { anim: 'up', dmg: 1.2, cd: 1.5, ms: 200, reach: box(26, 30), knockback: 60, launch: 220, cut: 0xffffff },
+    ],
+    air: [
+      // In the air: a falling cut of light, then a whirl that lifts her.
+      { anim: 'down', dmg: 0.9, cd: 1, ms: 120, reach: box(24, 24), knockback: 100, hover: 70, cut: 0xc2f0ff },
+      { anim: 'spin', dmg: 0.4, cd: 1.2, ms: 240, reach: box(28, 28), knockback: 50, hitbox: 'around', hover: 90, hits: 3, cut: 0xffec27 },
+    ],
+    dive: {
+      // She falls as a spear of sunlight (SKILLS.foton.onDiveLand: a sun pillar and rays along the floor).
+      name: 'TOMBAK MATAHARI',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 800,
+      reach: box(14, 18),
+      knockback: 150,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 520 },
+      slam: 34,
+      trail: 0xffec27,
+      cut: 0xffec27,
+    },
+    skill: { name: 'JARING CERMIN', desc: 'CERMIN CAHAYA DI TIAP MUSUH, LASER MEMANTUL BERWARNA PELANGI', cd: 6 },
+    fusion: { name: 'TIRAI AURORA', desc: 'J+L: TIGA TIRAI AURORA TURUN MENYAPU SELURUH ARENA, LALU MELEDAK', cd: 10 },
+    ult: { name: 'FAJAR SEMESTA', desc: 'SEMUA CAHAYA DISERAP, LENSA RAKSASA MEMBAKAR TIAP MUSUH, LALU FAJAR' },
   },
 };
 

@@ -11,7 +11,7 @@ import { playMusic, sfx, toggleSound } from '../audio.ts';
 import type { RunData } from './RunScene.ts';
 
 const ROW_Y = 20;
-const ROW_H = 9;
+const ROW_H = 8;
 const COLS = 3;
 const CELL_W = 105;
 
@@ -47,20 +47,20 @@ export class ClassScene extends Phaser.Scene {
       const c = CLASSES[id];
       const x = (i % COLS) * CELL_W + 3;
       const y = ROW_Y + Math.floor(i / COLS) * ROW_H;
-      this.add.rectangle(x + 51, y + 4.5, 102, 9, 0x1d2b53, 0.7);
+      this.add.rectangle(x + 51, y + 4, 102, 8, 0x1d2b53, 0.7);
       this.markers.push(
         this.add
-          .rectangle(x + 51, y + 4.5, 102, 9)
+          .rectangle(x + 51, y + 4, 102, 8)
           .setStrokeStyle(1, 0xffec27)
           .setDepth(101),
       );
       this.add
-        .image(x + 8, y + 4.5, `hero_idle_${id}`)
-        .setScale(0.6)
+        .image(x + 8, y + 4, `hero_idle_${id}`)
+        .setScale(0.55)
         .setDepth(100);
-      this.names.push(text(this, x + 16, y + 1, c.name, COLOR.text, 7));
+      this.names.push(text(this, x + 16, y + 0.5, c.name, COLOR.text, 7));
       this.add
-        .zone(x + 51, y + 4.5, 102, 9)
+        .zone(x + 51, y + 4, 102, 8)
         .setDepth(110)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => {
