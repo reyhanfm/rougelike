@@ -48,6 +48,10 @@ export const PALETTE: Record<string, number> = {
   x: 0x241a3d,
   // Extra: King Hassan's azure flame (Azrael's fuller, the glow in his skull's sockets).
   y: 0x7fe6ff,
+  // Extra: the Lightning Lord's storm-blue coat.
+  z: 0x173a6e,
+  // Extra: the Nephalem's wine-dark (demon half) robe.
+  N: 0x5a1f3a,
 };
 
 export const COLOR = {
@@ -186,6 +190,55 @@ export const SPRITES: Record<string, string[]> = {
   // Gravity Master: a black scepter crowned by a tiny singularity in a violet ring; his gravity orb.
   w_gravitasi: ['.........g0g.', 'xxxxxxxxg000g', '.........g0g.'],
   gravOrb: ['.ggg.', 'g000g', 'g070g', 'g000g', '.ggg.'],
+  // Lightning Lord: Vajra Badai, a dark halberd with a gold guard and a lightning-gold head with a white-hot edge.
+  w_halilintar: [
+    '.................a...',
+    '..............iaa7a..',
+    'jjjjjjjjjjjjjji77777a',
+    '..............iaa7a..',
+    '.................a...',
+  ],
+  // Nephalem: the holy blade (white, gold guard) and its twin, the serrated black hellblade with a crimson edge.
+  w_surgaNeraka: ['....a..........', 'ii0ia7777777776', '....a..........'],
+  w_neraka: ['....8...8.8...', '00008h0h0h0h88', '....8..8...8..'],
+  // Their swing: a crescent whose upper half is holy gold and lower half hellfire crimson.
+  slashDual: [
+    '.aa.........',
+    '...aa7......',
+    '.....a77....',
+    '......aa7...',
+    '.......a77..',
+    '........a7..',
+    '........aa7.',
+    '.........a7g',
+    '.........87g',
+    '........887.',
+    '........87..',
+    '.......877..',
+    '......887...',
+    '.....877....',
+    '...887......',
+    '.88.........',
+  ],
+  // Lightning Lord's swing: a gold crescent with a white edge and a spark of cyan at the tip.
+  slashStorm: [
+    '.aa.........',
+    '...aa7......',
+    '.....a77....',
+    '......aa7...',
+    '.......a77..',
+    '........a7..',
+    '........aa7.',
+    '.........a7y',
+    '.........a7.',
+    '........aa7.',
+    '........a7..',
+    '.......a77..',
+    '......aa7...',
+    '.....a77....',
+    '...aa7......',
+    '.aa.........',
+  ],
   // Chidori cut: a jagged arc of lightning.
   slashBolt: [
     '.7............',

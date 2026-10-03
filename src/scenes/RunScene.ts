@@ -4,6 +4,7 @@ import { Boss } from '../entities/Boss.ts';
 import { INTROS, invasionBanner } from '../entities/invasions.ts';
 import { createEnemy, Enemy } from '../entities/Enemy.ts';
 import { Player } from '../entities/Player.ts';
+import { SKILLS } from '../entities/skills.ts';
 import { padConnected } from '../gamepad.ts';
 import { duckMusic, playMusic, sfx, soundLabel, stopMusic, toggleSound } from '../audio.ts';
 import { COLOR } from '../gfx/sprites.ts';
@@ -709,6 +710,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.player.hitThisSwing.add(t);
       this.attack(t, move.dmg, 'basic', move.knockback);
       this.applyStatus(t, move.status);
+      // The weapon's own on-hit mechanic (Lightning Lord's STATIK).
+      if (t.active) SKILLS[this.weaponId].onHit?.({ p: this.player, world: this, scene: this, power: this.stats.skillPower }, t);
       // Ashura phantom arms: golden fists fly in from beside the player, each a follow-up hit for 40%.
       for (let i = 1; i <= (move.extra ?? 0); i++) this.phantomFist(t, move.dmg * 0.4, 70 * i);
       if (move.anim === 'overhead') this.cameras.main.shake(80, 0.008);

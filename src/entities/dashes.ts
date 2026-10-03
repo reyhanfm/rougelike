@@ -2,7 +2,22 @@ import Phaser from 'phaser';
 import { FLOOR_Y, W, cutMark, floatText } from '../gfx/ui.ts';
 import type { ClassId } from '../logic/classes.ts';
 import type { Status } from '../logic/loot.ts';
-import { afterimage, bladeLine, flameTongue, explosion, feathers, glint, ring, rocks, sparks, thorns, type SkillCtx } from './skills.ts';
+import {
+  afterimage,
+  bladeLine,
+  flameTongue,
+  explosion,
+  feathers,
+  glint,
+  ring,
+  rocks,
+  sparks,
+  stormArc,
+  thorns,
+  TWILIGHT,
+  twilightWings,
+  type SkillCtx,
+} from './skills.ts';
 
 /** A class's dash (K): its own movement plus its own hit. ctx.power is stats.dashPower. */
 export interface DashStyle {
@@ -713,6 +728,68 @@ export const DASHES: Record<ClassId, DashStyle> = {
         });
         const halo = scene.add.ellipse(p.x, p.y, 18, 5).setStrokeStyle(1, 0x8a3fd1).setDepth(10);
         scene.tweens.add({ targets: halo, scale: 1.6, alpha: 0, duration: 250, onComplete: () => halo.destroy() });
+      });
+    },
+  },
+  lightningLord: {
+    name: 'LANGKAH KILAT',
+    desc: 'MENJADI KILAT: MELESAT RENDAH, JEJAK PETIR MENYETRUM MUSUH DI JALUR',
+    speed: 560,
+    ms: 130,
+    cd: 0.9,
+    tint: 0xffec27,
+    hit: { mult: 0.6, radius: 14, status: { freeze: 300 }, cut: 0xffec27 },
+    // He becomes the lightning: a thunderclap where he stood, then he is simply further on, a gold bolt laid along the
+    // ground behind him. The path stays charged for a heartbeat and zaps whatever is still standing on it.
+    start: ({ p, world, scene, power }) => {
+      const { x, y } = p;
+      ring(scene, x, y, 0xffec27, 4, 22, 220, 2);
+      sparks(scene, x, y, [0xffec27, 0x7fe6ff, 0xfff1e8], 8, 14);
+      glint(scene, x, y - 4);
+      later(scene, 130, () => {
+        const [ex, ey] = [p.x, p.y];
+        stormArc(scene, x, y + 2, ex, ey + 2, 420, 2, 3);
+        const lo = Math.min(x, ex);
+        const hi = Math.max(x, ex);
+        later(scene, 160, () => {
+          for (const t of world.targets(ex, ey)) {
+            if (t.x < lo - 6 || t.x > hi + 6 || Math.abs(t.y - y) > 18) continue;
+            sparks(scene, t.x, t.y, [0xffec27, 0x7fe6ff], 5, 10);
+            world.strike(t, 0.3 * power, 'skill', false, { freeze: 250 });
+          }
+        });
+      });
+    },
+  },
+  nephalem: {
+    name: 'LUNCUR SENJA',
+    desc: 'MELUNCUR DENGAN KEDUA SAYAP: BULU CAHAYA DI ATAS, BARA NERAKA DI BAWAH',
+    speed: 380,
+    vy: -50,
+    ms: 220,
+    tint: TWILIGHT,
+    hit: { mult: 0.6, radius: 16, status: { burn: 0.15 }, cut: TWILIGHT },
+    // He spreads both wings full and glides low across the arena; white feathers peel off above him and crimson embers
+    // fall below, and whoever he passes is cut in a violet cross.
+    start: ({ p, scene }) => {
+      const angel = p.flipX ? 1 : -1;
+      const wg = scene.add.graphics();
+      const wings = scene.add.container(p.x, p.y - 4, [wg]).setDepth(9.5);
+      twilightWings(wg, angel, 18, -0.3);
+      during(scene, 220, 16, () => wings.setPosition(p.x, p.y - 4));
+      scene.tweens.add({ targets: wings, alpha: 0, delay: 220, duration: 200, onComplete: () => wings.destroy() });
+      during(scene, 220, 30, (i) => {
+        const up = scene.add.rectangle(p.x, p.y - 10, 3, 1, 0xfff1e8).setDepth(11);
+        scene.tweens.add({
+          targets: up,
+          y: up.y - 10,
+          x: up.x - p.facing * 10,
+          angle: 180,
+          alpha: 0,
+          duration: 500,
+          onComplete: () => up.destroy(),
+        });
+        if (i % 2) puff(scene, p.x, p.y + 6, 0xff004d, 1.5, -6, 400);
       });
     },
   },
