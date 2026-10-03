@@ -111,7 +111,7 @@ export function explosion(scene: Phaser.Scene, x: number, y: number, r: number):
 }
 
 /** A soul-light wisp that flies from (x, y) into the player. */
-function soulTo(scene: Phaser.Scene, x: number, y: number, p: Player, color: number): void {
+export function soulTo(scene: Phaser.Scene, x: number, y: number, p: Player, color: number): void {
   const w = scene.add.rectangle(x, y, 2, 2, color).setDepth(14);
   const cx = (x + p.x) / 2;
   const cy = Math.min(y, p.y) - 30;
@@ -128,13 +128,13 @@ function soulTo(scene: Phaser.Scene, x: number, y: number, p: Player, color: num
 }
 
 /** Point `t` (0..1) along the quadratic curve from (x0, y0) bent toward (cx, cy) to (x1, y1). */
-function bez(x0: number, y0: number, cx: number, cy: number, x1: number, y1: number, t: number): [number, number] {
+export function bez(x0: number, y0: number, cx: number, cy: number, x1: number, y1: number, t: number): [number, number] {
   const u = 1 - t;
   return [u * u * x0 + 2 * u * t * cx + t * t * x1, u * u * y0 + 2 * u * t * cy + t * t * y1];
 }
 
 /** Calls `fn` every `ms` while `obj` is alive (for projectile trails). */
-function whileAlive(scene: Phaser.Scene, obj: Phaser.GameObjects.GameObject, ms: number, fn: (k: number) => void): void {
+export function whileAlive(scene: Phaser.Scene, obj: Phaser.GameObjects.GameObject, ms: number, fn: (k: number) => void): void {
   let k = 0;
   const ev = scene.time.addEvent({ delay: ms, loop: true, callback: () => (obj.active ? fn(k++) : ev.remove()) });
 }
@@ -173,7 +173,7 @@ export function bladeLine(scene: Phaser.Scene, x1: number, y1: number, x2: numbe
 }
 
 /** Leaves bursting from (x, y), tumbling as they fall (Mokuton hits). */
-function leafBurst(scene: Phaser.Scene, x: number, y: number, n: number): void {
+export function leafBurst(scene: Phaser.Scene, x: number, y: number, n: number): void {
   for (let i = 0; i < n; i++) {
     const leaf = scene.add.rectangle(x, y, 2, 1, i % 3 ? 0x00e436 : 0x008751).setDepth(14);
     const a = Math.random() * Math.PI * 2;
@@ -258,7 +258,7 @@ function tree(scene: Phaser.Scene, x: number, h: number, ms: number, lean: numbe
 }
 
 /** A forked lightning bolt from (x0, y0) to (x1, y1): a wide colored glow under a white core, gone in a flicker. */
-function bolt(scene: Phaser.Scene, x0: number, y0: number, x1: number, y1: number, color = 0xffec27): void {
+export function bolt(scene: Phaser.Scene, x0: number, y0: number, x1: number, y1: number, color = 0xffec27): void {
   const g = scene.add.graphics().setDepth(14);
   const pts: [number, number][] = [[x0, y0]];
   for (let i = 1; i < 8; i++) pts.push([x0 + ((x1 - x0) * i) / 8 + Phaser.Math.Between(-6, 6), y0 + ((y1 - y0) * i) / 8]);
@@ -487,7 +487,7 @@ export function flameTongue(scene: Phaser.Scene, x: number, y: number, h: number
  * Azrael drawn large: the hilt at the returned container's origin, the blade `len` px long pointing up (rotate the
  * container to swing it). Black outline, steel body with a lit edge, the azure fuller, a halo of blue fire behind.
  */
-function azraelBlade(scene: Phaser.Scene, x: number, y: number, len: number): Phaser.GameObjects.Container {
+export function azraelBlade(scene: Phaser.Scene, x: number, y: number, len: number): Phaser.GameObjects.Container {
   const g = scene.add.graphics();
   g.fillStyle(0x29adff, 0.3).fillRect(-7, -len - 4, 14, len + 2);
   g.fillStyle(0x000000).fillCircle(0, 12, 3).fillRect(-2, 2, 4, 9).fillRect(-10, -2, 20, 4);
@@ -503,7 +503,7 @@ function azraelBlade(scene: Phaser.Scene, x: number, y: number, len: number): Ph
 }
 
 /** The evening bell, a bronze bell hung by its crown at (x, y): returned as a container so it swings about the crown. */
-function eveningBell(scene: Phaser.Scene, x: number, y: number, scale = 1): Phaser.GameObjects.Container {
+export function eveningBell(scene: Phaser.Scene, x: number, y: number, scale = 1): Phaser.GameObjects.Container {
   const shape = (k: number) =>
     [
       [-5, 3],

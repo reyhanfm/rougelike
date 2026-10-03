@@ -243,6 +243,13 @@ assert.ok(god.damageTaken < 0.75, 'set bonus stacks with its items');
 const { CLASSES, CLASS_IDS, hasSynergy } = await import('./classes.ts');
 assert.equal(new Set(CLASS_IDS.map((c) => CLASSES[c].color)).size, CLASS_IDS.length, 'each class has its own color');
 for (const c of CLASS_IDS) assert.ok(CLASSES[c].weapon in WEAPONS && CLASSES[c].color in PALETTE_CHECK, `${c}: bad weapon/color`);
+// Passive skills: every class has its own (behavior in entities/passives.ts, a Record over ClassId), short UPPERCASE text.
+assert.equal(new Set(CLASS_IDS.map((c) => CLASSES[c].passive.name)).size, CLASS_IDS.length, 'each class has its own passive');
+for (const c of CLASS_IDS) {
+  const ps = CLASSES[c].passive;
+  assert.ok(ps.name.length <= 20 && ps.desc.length <= 90, `${c}: passive text too long`);
+  assert.equal(ps.name + ps.desc, (ps.name + ps.desc).toUpperCase(), `${c}: passive text is uppercase`);
+}
 assert.ok(hasSynergy('berserker', 'kapak') && !hasSynergy('berserker', 'pedang'));
 assert.equal(runStats(base, WEAPONS.kapak, [], 'berserker').lifesteal, 0.04);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').lifesteal, 0);
