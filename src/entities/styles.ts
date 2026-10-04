@@ -168,6 +168,52 @@ export const STYLES: Record<ClassId, MoveStyle> = {
   // Lumina: a light, quick stride, sparks of white, cyan and gold at her heels; she spins up into her jumps; the blade
   // of light held low and level.
   lumina: { stride: 85, lean: 10, jump: 'spin', trail: { shape: 'spark', colors: [0xfff1e8, 0x7fe6ff, 0xffec27] }, hold: { angle: 10 } },
+  // Surya: a stately, heavy stride, embers rise from his armor, the greatsword on his shoulder, and a sun-disc halo
+  // turning behind his head wherever he goes.
+  surya: {
+    stride: 125,
+    lean: 2,
+    jump: 'arch',
+    trail: { shape: 'wisp', colors: [0xff004d, 0xffa300, 0xffec27] },
+    hold: { angle: -60, dx: -1, dy: -2 },
+    heavy: true,
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(9.4);
+      const draw = () => {
+        g.clear();
+        if (!p.active) return;
+        g.setPosition(p.x, p.y - 6);
+        const t = scene.time.now / 900;
+        for (let i = 0; i < 10; i++) {
+          const a = t + (i / 10) * Math.PI * 2;
+          const l = i % 2 ? 11 : 14;
+          g.fillStyle(i % 2 ? 0xffa300 : 0xffec27).fillTriangle(
+            Math.cos(a - 0.14) * 8,
+            Math.sin(a - 0.14) * 8,
+            Math.cos(a + 0.14) * 8,
+            Math.sin(a + 0.14) * 8,
+            Math.cos(a) * l,
+            Math.sin(a) * l,
+          );
+        }
+        g.lineStyle(1, 0xff8a1f).strokeCircle(0, 0, 8);
+      };
+      scene.events.on('update', draw);
+      scene.events.once('shutdown', () => {
+        scene.events.off('update', draw);
+        g.destroy();
+      });
+    },
+  },
+  // Candra: a calm, gliding stride, pale motes of moonlight at his heels, a backflip into every jump as if gravity
+  // barely held him, the glaive held level behind, its crescent forward.
+  candra: {
+    stride: 135,
+    lean: 3,
+    jump: 'backflip',
+    trail: { shape: 'spark', colors: [0xc2d4ff, 0xfff1e8, 0x9fb4ff] },
+    hold: { angle: 15, dx: -3 },
+  },
   jackFrost: { stride: 105, lean: 6, jump: 'spin', trail: { shape: 'flake', colors: [0xc2f0ff, 0xfff1e8] }, hold: { angle: -70, dx: -2 } },
 };
 

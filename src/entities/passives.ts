@@ -23,6 +23,7 @@ import {
   whileAlive,
   hexMirror,
   lightRay,
+  moonPhase,
 } from './skills.ts';
 
 export interface PassiveCtx {
@@ -725,28 +726,31 @@ export const PASSIVES: Record<ClassId, Passive> = {
     },
   },
 
-  // DISMANTLE: Sukuna does not need to look. Every 2 s an unseen Kai opens a cut on some enemy anywhere on the field;
-  // every third is Hachi, a crossed cleave that cuts deeper.
+  // DISMANTLE: Sukuna does not need to look. Every 1.3 s two unseen Kai open cuts on enemies anywhere on the field;
+  // every third volley is Hachi, a crossed cleave that cuts deeper and sprays blood that heals him.
   sukuna: {
     tick: ({ p, world, scene }, time) => {
-      const s = state(p, () => ({ next: time + 2000, n: 0 }));
+      const s = state(p, () => ({ next: time + 1300, n: 0 }));
       if (time < s.next) return;
       const foes = world.targets(p.x, p.y);
       if (!foes.length) return;
-      s.next = time + 2000;
+      s.next = time + 1300;
       s.n++;
-      const t = Phaser.Math.RND.pick(foes);
-      if (s.n % 3) {
-        cutMark(scene, t.x, t.y, 0xfff1e8, 26);
-        sparks(scene, t.x, t.y, [0xff004d, 0xfff1e8], 5, 12);
-        world.strike(t, 0.7, 'proc', false);
-        return;
+      const picks = Phaser.Math.RND.shuffle([...foes]).slice(0, 2);
+      for (const t of picks) {
+        if (s.n % 3) {
+          cutMark(scene, t.x, t.y, 0xfff1e8, 26);
+          sparks(scene, t.x, t.y, [0xff004d, 0xfff1e8], 5, 12);
+          world.strike(t, 0.9, 'proc', false);
+          continue;
+        }
+        cutMark(scene, t.x, t.y, 0xff004d, 34, 0.8);
+        later(scene, 70, () => cutMark(scene, t.x, t.y, 0xff004d, 34, -0.8));
+        later(scene, 70, () => t.active && world.strike(t, 1.8, 'proc', true));
+        sparks(scene, t.x, t.y, [0xff004d, 0x7e2553, 0xfff1e8], 12, 20);
+        floatText(scene, t.x, t.y - 22, 'HACHI', '#ff004d');
+        p.heal(1);
       }
-      cutMark(scene, t.x, t.y, 0xff004d, 32, 0.8);
-      later(scene, 70, () => cutMark(scene, t.x, t.y, 0xff004d, 32, -0.8));
-      later(scene, 70, () => t.active && world.strike(t, 1.3, 'proc', true));
-      sparks(scene, t.x, t.y, [0xff004d, 0x7e2553, 0xfff1e8], 10, 18);
-      floatText(scene, t.x, t.y - 22, 'HACHI', '#ff004d');
     },
   },
 
@@ -1170,6 +1174,75 @@ export const PASSIVES: Record<ClassId, Passive> = {
         lightRay(c.scene, k.x, by, a, dist(t, { x: k.x, y: by }), 0, 140);
         c.world.strike(t, 0.35, 'proc', false, undefined, 20);
       }
+    },
+  },
+
+  // KORONA: a ring of living flame circles Surya, six flares chasing each other. Whatever comes within reach of it
+  // burns (a pulse every 0.45 s), and when something dies near him the corona flares out in a burst that scorches
+  // everything around the body.
+  surya: {
+    tick: (c, time) => {
+      const { p, world, scene } = c;
+      const g = overlay(c, 11);
+      g.clear();
+      g.setPosition(p.x, p.y - 2);
+      g.lineStyle(1, 0xff8a1f, 0.3).strokeCircle(0, 0, 22);
+      for (let i = 0; i < 6; i++) {
+        const a = time / 350 + (i / 6) * Math.PI * 2;
+        const [x, y] = [Math.cos(a) * 22, Math.sin(a) * 20];
+        g.fillStyle(0xff004d, 0.5).fillCircle(x, y, 3);
+        g.fillStyle(0xffa300).fillCircle(x, y, 2);
+        g.fillStyle(0xffec27).fillCircle(x, y, 1);
+      }
+      const s = state(p, () => ({ next: 0 }));
+      if (time < s.next) return;
+      s.next = time + 450;
+      for (const t of world.targets(p.x, p.y)) {
+        if (dist(t, p) > 30) continue;
+        sparks(scene, t.x, t.y, [0xffa300, 0xffec27], 3, 8);
+        world.strike(t, 0.35, 'proc', false, { burn: 0.1 }, 0);
+      }
+    },
+    onKill: ({ p, world, scene }, t) => {
+      // Kills the burst itself causes must not burst again (area -> kill -> onKill -> area ...).
+      if (dist(t, p) > 70 || p.getData('koronaBurst')) return;
+      p.setData('koronaBurst', true);
+      ring(scene, p.x, p.y, 0xffec27, 8, 46, 320, 2);
+      ring(scene, p.x, p.y, 0xff8a1f, 4, 34, 260, 1);
+      sparks(scene, p.x, p.y, [0xffec27, 0xffa300, 0xff004d], 10, 30);
+      world.area(p.x, p.y, 40, 0.8, 120, 'proc', { burn: 0.15 });
+      p.setData('koronaBurst', false);
+    },
+  },
+
+  // FASE BULAN: a small moon floats over Candra's head and waxes with the fight, one phase every two hits: new,
+  // crescent, half, gibbous, full. At the full moon (PURNAMA) its gravity takes hold: everything near him is lifted
+  // off its feet and slowed, and the moon stays full, glowing, until his skill spends it (SKILLS.sabitCandra.skill
+  // reads and resets p.getData('moon') and grows with it).
+  candra: {
+    onHit: ({ p, world, scene }, _t, h) => {
+      // Only his own blows wax it: the skill's crescents must not refill the moon they just spent.
+      if (h.source !== 'basic') return;
+      const s = state(p, () => ({ hits: 0 }));
+      const phase = (p.getData('moon') as number | undefined) ?? 0;
+      if (++s.hits % 2 || phase >= 4) return;
+      p.setData('moon', phase + 1);
+      sparks(scene, p.x, p.y - 22, [0xfff1e8, 0x9fb4ff], 4, 8);
+      if (phase + 1 < 4) return;
+      floatText(scene, p.x, p.y - 34, 'PURNAMA', '#c2d4ff');
+      ring(scene, p.x, p.y - 22, 0xfff1e8, 4, 20, 300, 1);
+      ring(scene, p.x, p.y, 0x9fb4ff, 10, 70, 450, 2);
+      world.pull(p.x, p.y - 40, 70, 130);
+      for (const t of world.targets(p.x, p.y)) if (dist(t, p) < 70) world.afflict(t, { slow: 1500 });
+    },
+    tick: (c, time) => {
+      const phase = (c.p.getData('moon') as number | undefined) ?? 0;
+      const g = overlay(c, 12);
+      g.clear();
+      g.setPosition(c.p.x, c.p.y - 22 + Math.sin(time / 300));
+      moonPhase(g, 4, phase / 4);
+      // The full moon breathes a soft halo.
+      if (phase >= 4) g.lineStyle(1, 0xc2d4ff, 0.4 + Math.sin(time / 150) * 0.3).strokeCircle(0, 0, 7);
     },
   },
 };

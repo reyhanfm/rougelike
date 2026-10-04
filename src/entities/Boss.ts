@@ -586,18 +586,20 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         // Expansive Truth-Seeking Ball: a giant black ball falls on the player's spot; get out from under it.
         const x = Phaser.Math.Clamp(target.x - 36, 0, W - 72);
         this.arena.zone(x, 0, 72, FLOOR_Y, 1000, Math.round(this.damage * 1.5), 0x8a3fd1);
-        const ball = this.scene.add
+        // Keep the scene: the boss may be dead (and its own `scene` cleared) before the ball lands.
+        const scene = this.scene;
+        const ball = scene.add
           .image(x + 36, -30, 'gudodama')
           .setScale(6)
           .setDepth(12);
-        this.scene.tweens.add({
+        scene.tweens.add({
           targets: ball,
           y: FLOOR_Y - 26,
           duration: 1000,
           ease: 'Quad.In',
           onComplete: () => {
-            this.scene.cameras.main.shake(300, 0.02);
-            this.scene.tweens.add({ targets: ball, alpha: 0, scale: 8, duration: 250, onComplete: () => ball.destroy() });
+            scene.cameras.main.shake(300, 0.02);
+            scene.tweens.add({ targets: ball, alpha: 0, scale: 8, duration: 250, onComplete: () => ball.destroy() });
           },
         });
         break;
@@ -635,7 +637,14 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private teleport(): void {
     const px = this.arena.player.x;
     const x = Phaser.Math.Clamp(px + (px > W / 2 ? -1 : 1) * Phaser.Math.Between(60, 110), 20, W - 20);
-    this.scene.tweens.add({ targets: this, alpha: 0, duration: 120, yoyo: true, onYoyo: () => this.body.reset(x, this.kind === 'kaguya' ? 90 : 50) });
+    this.scene.tweens.add({
+      targets: this,
+      alpha: 0,
+      duration: 120,
+      yoyo: true,
+      // The boss may die mid-blink; its body is gone by then.
+      onYoyo: () => this.active && this.body.reset(x, this.kind === 'kaguya' ? 90 : 50),
+    });
   }
 
   private enter(mode: Mode, time: number): void {

@@ -308,21 +308,23 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (!this.cleared) this.passive.tick?.(this.pctx, time, delta);
     if (!this.cleared && this.player.tickDebuffs(time) && this.player.hp <= 0) return this.playerDown();
     this.regenerate(delta);
-    // Copy: a burn tick may kill (and remove) an enemy mid-loop.
+    // Copy: a burn tick may kill (and remove) an enemy mid-loop, and that kill can chain (an onKill burst, a boss
+    // falling and clearing its summons) into enemies further down the list, so skip anything already gone.
     for (const e of [...this.enemies.getChildren()] as Enemy[]) {
-      if (this.statusTick(e, time)) continue;
+      if (!e.active || this.statusTick(e, time)) continue;
       e.tick(time);
-      this.eliteAct(e, time);
+      if (e.active) this.eliteAct(e, time);
     }
-    for (const b of [...this.bosses]) if (!this.statusTick(b, time)) b.tick(time);
+    for (const b of [...this.bosses]) if (b.active && !this.statusTick(b, time)) b.tick(time);
     if (this.player.swinging) this.swordHits();
-    for (const h of this.hazards.getChildren() as Phaser.Physics.Arcade.Image[]) {
+    for (const h of [...this.hazards.getChildren()] as Phaser.Physics.Arcade.Image[]) {
       const landed = h.texture.key !== 'wave' && h.y > FLOOR_Y;
       if (landed && h.texture.key === 'bomb') this.explode(h.x, h.getData('dmg') as number);
       if (landed) burst(this, h.x, FLOOR_Y, h.texture.key === 'meteor' ? 0xffa300 : 0x00e436, 5);
       if (landed || h.x < -10 || h.x > W + 10 || h.y > H + 10 || h.y < -40) h.destroy();
     }
-    for (const s of this.shots.getChildren() as Phaser.Physics.Arcade.Image[]) {
+    for (const s of [...this.shots.getChildren()] as Phaser.Physics.Arcade.Image[]) {
+      if (!s.active) continue;
       if ((s.getData('shot') as ShotSpec).spin) s.rotation += delta * 0.03;
       if ((s.getData('shot') as ShotSpec).returning) {
         this.boomerang(s, delta);
@@ -559,7 +561,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const ring = this.add.circle(x, y, 4).setStrokeStyle(1, 0xfff1e8).setDepth(12);
     this.tweens.add({ targets: ring, radius, alpha: 0, duration: 200, onComplete: () => ring.destroy() });
     for (const t of this.hittables()) {
-      if (Phaser.Math.Distance.Between(x, y, t.x, t.y) > radius) continue;
+      // An earlier hit in this blast may have killed it (or chained into it).
+      if (!t.active || Phaser.Math.Distance.Between(x, y, t.x, t.y) > radius) continue;
       this.attack(t, mult, source, knockback, false, x, y);
       this.applyStatus(t, status);
     }
@@ -726,7 +729,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const box = this.player.swingHitbox();
     const move = this.player.move;
     for (const t of this.hittables()) {
-      if (this.player.hitThisSwing.has(t)) continue;
+      if (!t.active || this.player.hitThisSwing.has(t)) continue;
       const b = t.body as Phaser.Physics.Arcade.Body;
       if (!Phaser.Geom.Intersects.RectangleToRectangle(box, new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height))) continue;
       this.player.hitThisSwing.add(t);
@@ -766,6 +769,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     fromX = this.player.x,
     fromY = this.player.y,
   ): void {
+    if (!t.active) return;
     const st = this.stats;
     if (source !== 'ult' && t instanceof Enemy && t.blocks(fromX, fromY)) {
       mult *= 0.2;
@@ -861,6 +865,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   /** Returns true when this killed the target. */
   private damage(t: Hittable, dmg: number, color: string, knockback: number): boolean {
+    // Dead (or dying: see setActive below) targets take no more hits, so nothing dies twice.
+    if (!t.active) return false;
     t.hp -= dmg;
     sfx('hit');
     floatText(this, t.x, t.y - 10, `${dmg}`, color);
@@ -876,6 +882,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (!(t instanceof Boss) && knockback)
       t.knockback(Math.sign(t.x - this.player.x) || this.player.facing, t.getData('elite') ? knockback * 0.3 : knockback);
     if (t.hp > 0) return false;
+    // Out of play from here on: kill effects below (onKill bursts, kill bolts) must not find and hit it again.
+    t.setActive(false);
     sfx(t instanceof Boss ? 'bossKill' : 'kill');
     const souls =
       t instanceof Boss

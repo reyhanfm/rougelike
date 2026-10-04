@@ -14,6 +14,7 @@ import {
   sparks,
   stormArc,
   thorns,
+  FIRE,
   HOLY,
   HELL,
   type SkillCtx,
@@ -480,16 +481,19 @@ export const DASHES: Record<ClassId, DashStyle> = {
   },
   sukuna: {
     name: 'LANGKAH RAJA',
-    desc: 'DASH MENEBAS, MELEPAS TEBASAN KAI',
+    desc: 'DASH MENEBAS, 2 TEBASAN KAI (LURUS & NAIK)',
     speed: 320,
     ms: 160,
     tint: 0xff004d,
-    hit: { mult: 0.7, radius: 14, cut: 0xff004d },
-    // The King walks through: a flick of the hand sends Kai ahead, cleaves criss-cross the air he passed.
+    hit: { mult: 1, radius: 16, cut: 0xff004d },
+    // The King walks through: a flick of the hand sends Kai ahead (and one angled up for flyers), cleaves
+    // criss-cross the air he passed.
     start: ({ p, world, scene, power }) => {
       const fromX = p.x;
       const y = p.y;
-      world.shot({ x: p.x, y: p.y, vx: p.facing * 280, vy: 0, texture: 'kai', mult: 0.6 * power, source: 'skill', pierce: true });
+      world.shot({ x: p.x, y: p.y, vx: p.facing * 320, vy: 0, texture: 'kai', mult: 0.9 * power, source: 'skill', pierce: true });
+      world.shot({ x: p.x, y: p.y, vx: p.facing * 260, vy: -150, texture: 'kai', mult: 0.7 * power, source: 'skill', pierce: true });
+      during(scene, 160, 30, () => afterimage(scene, p, p.x, p.y, 0.4, 0xff004d));
       later(scene, 160, () => {
         for (let i = 0; i < 4; i++) cutMark(scene, Phaser.Math.Linear(fromX, p.x, (i + 0.5) / 4), y, 0xff004d, 20, i % 2 ? 0.8 : -0.8);
       });
@@ -840,6 +844,55 @@ export const DASHES: Record<ClassId, DashStyle> = {
       ring(scene, p.x, p.y, 0xfff1e8, 2, 16, 180, 1);
       during(scene, 140, 20, (i) => afterimage(scene, p, p.x, p.y, 0.55, SPECTRUM[i % SPECTRUM.length]));
       later(scene, 140, () => sparks(scene, p.x, p.y, [0xfff1e8, 0x7fe6ff, 0xffec27], 6, 10));
+    },
+  },
+  surya: {
+    name: 'LANGKAH FAJAR',
+    desc: 'MENERJANG SEPERTI KOMET, JALUR API MEMBARA DI BELAKANG',
+    speed: 400,
+    ms: 150,
+    cd: 0.9,
+    tint: 0xffa300,
+    hit: { mult: 0.8, radius: 16, status: { burn: 0.15 }, cut: 0xffa300 },
+    // He charges as a comet: a flash of dawn at the kick-off, afterimages in sun-orange, and tongues of flame left
+    // burning along the path he crossed.
+    start: ({ p, scene }) => {
+      glint(scene, p.x, p.y - 4);
+      ring(scene, p.x, p.y, 0xffec27, 2, 18, 200, 2);
+      during(scene, 150, 25, (i) => {
+        afterimage(scene, p, p.x, p.y, 0.5, i % 2 ? 0xffa300 : 0xffec27);
+        flameTongue(scene, p.x, p.y + 6, 11, 450, FIRE);
+      });
+      later(scene, 150, () => sparks(scene, p.x, p.y, [0xffec27, 0xffa300, 0xff004d], 8, 14));
+    },
+  },
+  candra: {
+    name: 'LOMPATAN BULAN',
+    desc: 'LOMPATAN MELENGKUNG SEPERTI DI BULAN, JALUR PERAK MEMPERLAMBAT MUSUH',
+    speed: 230,
+    vy: -270,
+    gravity: true,
+    ms: 380,
+    tint: 0x9fb4ff,
+    hit: { mult: 0.7, radius: 16, status: { slow: 700 }, cut: 0xc2d4ff },
+    // Gravity lets go of him: he arcs over the field in one slow, high bound like a man on the moon, and the arc he
+    // draws hangs behind him as a silver crescent of light; where he comes down, a ring of moonlight spreads.
+    start: ({ p, scene }) => {
+      const pts: Phaser.Math.Vector2[] = [new Phaser.Math.Vector2(p.x, p.y)];
+      const arc = scene.add.graphics().setDepth(11);
+      during(scene, 380, 30, () => {
+        pts.push(new Phaser.Math.Vector2(p.x, p.y));
+        arc.clear();
+        arc.lineStyle(5, 0x9fb4ff, 0.3).strokePoints(pts);
+        arc.lineStyle(2, 0xc2d4ff, 0.8).strokePoints(pts);
+        arc.lineStyle(1, 0xfff1e8).strokePoints(pts);
+        if (pts.length % 3 === 0) sparks(scene, p.x, p.y, [0xfff1e8, 0x9fb4ff], 2, 8);
+      });
+      scene.tweens.add({ targets: arc, alpha: 0, delay: 380, duration: 400, onComplete: () => arc.destroy() });
+      later(scene, 380, () => {
+        ring(scene, p.x, p.y + 6, 0xc2d4ff, 4, 28, 320, 1);
+        glint(scene, p.x, p.y - 4);
+      });
     },
   },
 };

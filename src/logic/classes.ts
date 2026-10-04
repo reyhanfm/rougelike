@@ -29,7 +29,9 @@ export type ClassId =
   | 'gravityMaster'
   | 'lightningLord'
   | 'nephalem'
-  | 'lumina';
+  | 'lumina'
+  | 'surya'
+  | 'candra';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -619,12 +621,12 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '0f0cccc0f0',
       '..022220..',
     ],
-    passive: { name: 'DISMANTLE', desc: 'TIAP 2 DTK KAI TAK TERLIHAT MENEBAS MUSUH ACAK; TIAP KETIGA, HACHI' },
-    trait: 'RAJA KUTUKAN: DAMAGE +15%, PULIH 1 HP/DTK, KRITIS +5%',
+    passive: { name: 'DISMANTLE', desc: 'TIAP 1.3 DTK KAI TAK TERLIHAT MENEBAS 2 MUSUH; TIAP KETIGA, HACHI + DARAH' },
+    trait: 'RAJA KUTUKAN: DAMAGE +25%, PULIH 2 HP/DTK, KRITIS +8%',
     apply: (s) => {
-      s.damage *= 1.15;
-      s.regen += 1;
-      s.critChance += 0.05;
+      s.damage *= 1.25;
+      s.regen += 2;
+      s.critChance += 0.08;
     },
     synergy: {
       name: 'KAI & HACHI',
@@ -1084,6 +1086,82 @@ export const CLASSES: Record<ClassId, GameClass> = {
       desc: 'KRITIS +8%, SKILL +20%',
       apply: (s) => {
         s.critChance += 0.08;
+        s.skillPower *= 1.2;
+      },
+    },
+  },
+  surya: {
+    id: 'surya',
+    name: 'SURYA',
+    weapon: 'pedangSurya',
+    color: 'S',
+    legs: { kind: 'armor', pant: 'i', boot: 'S' },
+    hair: 'S',
+    // Surya, the Solar Knight: a golden helm with a plume of living flame, eyes lit like two small suns, gold plate
+    // over a sun-orange surcoat, and a sun-disc halo burning behind him.
+    head: [
+      '...SaaS...',
+      '.0SSaaSS0.',
+      '.0iiiiii0.',
+      '.0ia00ai0.',
+      '.0faffaf0.',
+      '.0ffffff0.',
+      '..0iiii0..',
+      '.0iSiiSi0.',
+      '0fiSaaSif0',
+      '0f0iSSi0f0',
+      '..0aSSa0..',
+    ],
+    passive: { name: 'KORONA', desc: 'CINCIN API MENGELILINGI; MUSUH DEKAT TERBAKAR, TIAP KILL MELEDAKKAN KORONA' },
+    trait: 'BERKAT MATAHARI: DAMAGE +10%, DAMAGE DITERIMA -10%, HP MAKS +15%',
+    apply: (s) => {
+      s.damage *= 1.1;
+      s.damageTaken *= 0.9;
+      s.maxHp *= 1.15;
+    },
+    synergy: {
+      name: 'MAHKOTA SURYA',
+      desc: 'SKILL +25%, DAMAGE +5%',
+      apply: (s) => {
+        s.skillPower *= 1.25;
+        s.damage *= 1.05;
+      },
+    },
+  },
+  candra: {
+    id: 'candra',
+    name: 'CANDRA',
+    weapon: 'sabitCandra',
+    color: 'M',
+    legs: { kind: 'robe', pant: 'M', boot: 'd' },
+    hair: 'M',
+    // Candra, the Moon Knight: a crescent crest over a lunar hood, a white mask with black eye slits, a pale cloak
+    // with a white crescent on the chest, a silver belt.
+    head: [
+      '...7..7...',
+      '..077770..',
+      '.0MMMMMM0.',
+      '.0M7777M0.',
+      '.0M0770M0.',
+      '.0MM77MM0.',
+      '..0M77M0..',
+      '.0M7MM7M0.',
+      '0fM7MM7Mf0',
+      '0f0MMMM0f0',
+      '..0d77d0..',
+    ],
+    passive: { name: 'FASE BULAN', desc: 'BULAN DI ATAS KEPALA MEMBESAR TIAP 2 HIT; PURNAMA MENARIK GRAVITASI, SKILL MAKIN KUAT' },
+    trait: 'GRAVITASI BULAN: +1 LOMPAT UDARA, KRITIS +6%, DAMAGE +8%',
+    apply: (s) => {
+      s.extraJumps += 1;
+      s.critChance += 0.06;
+      s.damage *= 1.08;
+    },
+    synergy: {
+      name: 'MALAM PURNAMA',
+      desc: 'KRITIS +6%, SKILL +20%',
+      apply: (s) => {
+        s.critChance += 0.06;
         s.skillPower *= 1.2;
       },
     },

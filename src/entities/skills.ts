@@ -1081,6 +1081,117 @@ function nemeanLion(scene: Phaser.Scene, x: number, y: number, f: number): Phase
   return scene.add.container(x, y, [g]).setScale(f, 1).setDepth(12);
 }
 
+/** The sun: twelve rays, a red corona, an orange limb, a gold body and a white-hot core, drawn about the container's origin so it can turn and scale there. */
+function sunDisc(scene: Phaser.Scene, x: number, y: number, r: number): Phaser.GameObjects.Container {
+  const g = scene.add.graphics();
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const l = i % 2 ? r * 1.7 : r * 2.2;
+    g.fillStyle(i % 2 ? 0xffa300 : 0xffec27, 0.85).fillTriangle(
+      Math.cos(a - 0.16) * r,
+      Math.sin(a - 0.16) * r,
+      Math.cos(a + 0.16) * r,
+      Math.sin(a + 0.16) * r,
+      Math.cos(a) * l,
+      Math.sin(a) * l,
+    );
+  }
+  g.fillStyle(0xff004d, 0.35).fillCircle(0, 0, r * 1.35);
+  g.fillStyle(0xff8a1f).fillCircle(0, 0, r * 1.1);
+  g.lineStyle(1, 0x7e2553).strokeCircle(0, 0, r * 1.1);
+  g.fillStyle(0xffec27).fillCircle(0, 0, r * 0.85);
+  g.fillStyle(0xfff1e8).fillCircle(0, 0, r * 0.5);
+  return scene.add.container(x, y, [g]).setDepth(12);
+}
+
+/** A straight beam of sunfire (red glow, orange, gold, white core) that fades. */
+function solarBeam(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number, ms = 260): void {
+  const g = scene.add.graphics().setDepth(14);
+  for (const [w, c, a] of [
+    [8, 0xff004d, 0.35],
+    [5, 0xffa300, 0.8],
+    [3, 0xffec27, 1],
+    [1, 0xfff1e8, 1],
+  ] as const)
+    g.lineStyle(w, c, a).lineBetween(x1, y1, x2, y2);
+  scene.tweens.add({ targets: g, alpha: 0, duration: ms, onComplete: () => g.destroy() });
+}
+
+/** A solar prominence: a curved tongue of fire arching from the sun at (x1, y1) down onto (x2, y2). */
+function prominence(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number): void {
+  const [dx, dy] = [x2 - x1, y2 - y1];
+  const len = Math.hypot(dx, dy) || 1;
+  const bulge = (x2 >= x1 ? -1 : 1) * Phaser.Math.Between(14, 26);
+  const pts = Array.from({ length: 11 }, (_, i) => {
+    const k = i / 10;
+    const o = Math.sin(k * Math.PI) * bulge;
+    return new Phaser.Math.Vector2(x1 + dx * k - (dy / len) * o, y1 + dy * k + (dx / len) * o);
+  });
+  const g = scene.add.graphics().setDepth(14);
+  for (const [w, c, a] of [
+    [7, 0xff004d, 0.4],
+    [4, 0xffa300, 0.85],
+    [2, 0xffec27, 1],
+    [1, 0xfff1e8, 1],
+  ] as const)
+    g.lineStyle(w, c, a).strokePoints(pts);
+  scene.tweens.add({ targets: g, alpha: 0, delay: 90, duration: 300, onComplete: () => g.destroy() });
+}
+
+/** Points of a crescent of radius r bulging toward +x; k is how far the inner curve reaches (0: half disc, 1: none). */
+function crescentPts(r: number, k: number): Phaser.Math.Vector2[] {
+  const pts: Phaser.Math.Vector2[] = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = -Math.PI / 2 + (i / 12) * Math.PI;
+    pts.push(new Phaser.Math.Vector2(Math.cos(t) * r, Math.sin(t) * r));
+  }
+  for (let i = 12; i >= 0; i--) {
+    const t = -Math.PI / 2 + (i / 12) * Math.PI;
+    pts.push(new Phaser.Math.Vector2(Math.cos(t) * r * k, Math.sin(t) * r * 0.95));
+  }
+  return pts;
+}
+
+/** A blade of moonlight: a crescent with a lunar glow, a dark outline, a pale body and a white edge; turn the container to aim it. */
+export function moonCrescent(scene: Phaser.Scene, x: number, y: number, r: number): Phaser.GameObjects.Container {
+  const g = scene.add.graphics();
+  g.fillStyle(0x9fb4ff, 0.3).fillPoints(crescentPts(r * 1.25, 0.2), true);
+  g.fillStyle(0x1d2b53).fillPoints(crescentPts(r + 1, 0.4), true);
+  g.fillStyle(0xc2d4ff).fillPoints(crescentPts(r, 0.45), true);
+  g.fillStyle(0xfff1e8).fillPoints(crescentPts(r * 0.92, 0.75), true);
+  return scene.add.container(x, y, [g]).setDepth(13);
+}
+
+/**
+ * The moon in a phase, drawn into `g` about (0, 0): `lit` 0 is the new moon (a dark disc), 0.5 the half moon, 1 the
+ * full moon. The lit part lies between the right limb and the terminator, an ellipse that sweeps from right to left.
+ */
+export function moonPhase(g: Phaser.GameObjects.Graphics, r: number, lit: number): void {
+  const s = 1 - 2 * Phaser.Math.Clamp(lit, 0, 1);
+  if (lit >= 1) g.fillStyle(0x9fb4ff, 0.25).fillCircle(0, 0, r * 1.5);
+  g.fillStyle(0x1d2b53, 0.9).fillCircle(0, 0, r);
+  const pts: Phaser.Math.Vector2[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const t = -Math.PI / 2 + (i / 16) * Math.PI;
+    pts.push(new Phaser.Math.Vector2(Math.cos(t) * r, Math.sin(t) * r));
+  }
+  for (let i = 16; i >= 0; i--) {
+    const t = -Math.PI / 2 + (i / 16) * Math.PI;
+    pts.push(new Phaser.Math.Vector2(Math.cos(t) * r * s, Math.sin(t) * r));
+  }
+  if (lit > 0) g.fillStyle(0xe6ecff).fillPoints(pts, true);
+  // Seas and craters, only where the light falls.
+  for (const [cx, cy, cr] of [
+    [0.35, -0.25, 0.22],
+    [0.1, 0.35, 0.16],
+    [-0.4, 0.1, 0.18],
+  ] as const) {
+    const [x, y] = [cx * r, cy * r];
+    if (lit > 0 && x > s * Math.sqrt(Math.max(0, r * r - y * y))) g.fillStyle(0xc2d4ff).fillCircle(x, y, cr * r);
+  }
+  g.lineStyle(1, 0x83769c).strokeCircle(0, 0, r);
+}
+
 export const SKILLS: Record<WeaponId, WeaponSkills> = {
   pedang: {
     // Mana Burst Jatuh lands in a flare of prana: two blades of Invisible Air skim out along the floor both ways.
@@ -6008,8 +6119,36 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           },
           onComplete: () => {
             arrow.destroy();
-            explosion(scene, tx, ty, 30);
+            explosion(scene, tx, ty, 44);
             ring(scene, tx, ty, FIRE[1], 6, 50, 350, 3);
+            // Impact: one flash, a sky scorched dark, rolling shockwaves along the floor and a rain of embers.
+            scene.cameras.main.flash(160, 255, 163, 0);
+            floatText(scene, Phaser.Math.Clamp(tx, 40, W - 40), 40, 'FUGA!', '#ffa300');
+            const scorch = scene.add.rectangle(0, 0, W, FLOOR_Y, 0x2a0800, 0.55).setOrigin(0).setDepth(4).setAlpha(0);
+            scene.tweens.add({ targets: scorch, alpha: 1, duration: 120, yoyo: true, hold: 500, onComplete: () => scorch.destroy() });
+            ring(scene, tx, ty, 0xfff1e8, 4, 70, 300, 2);
+            ring(scene, tx, ty, FIRE[0], 10, 90, 500, 2);
+            for (const s of [-1, 1])
+              for (let i = 0; i < 8; i++)
+                later(scene, i * 35, () => {
+                  const wx = tx + s * (10 + i * 14);
+                  flameTongue(scene, wx, FLOOR_Y, 18 - i, 450, FIRE);
+                  sparks(scene, wx, FLOOR_Y - 4, [FIRE[1], FIRE[2]], 3, 12);
+                });
+            for (let i = 0; i < 40; i++)
+              later(scene, i * 18, () => {
+                const e = scene.add.rectangle(tx + Phaser.Math.Between(-60, 60), 0, 2, 2, FIRE[i % 3]).setDepth(13);
+                scene.tweens.add({
+                  targets: e,
+                  y: FLOOR_Y,
+                  x: e.x + Phaser.Math.Between(-20, 20),
+                  duration: Phaser.Math.Between(400, 800),
+                  alpha: 0,
+                  onComplete: () => e.destroy(),
+                });
+              });
+            // The wave rolls out along the floor and burns everything it touches, flyers low and high.
+            world.area(tx, FLOOR_Y - 10, 110, 1.5 * power, 260, 'skill', { burn: 0.8 });
             // The pillar of fire: floor to sky through the impact, layered red to white, then it narrows away.
             const pillar = (
               [
@@ -6034,10 +6173,30 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               later(scene, 150 + Math.abs(i) * 50, () => flameTongue(scene, tx + i * 9, FLOOR_Y, 12, 700, FIRE));
             rocks(scene, tx, FLOOR_Y - 2, 6);
             scene.cameras.main.shake(220, 0.018);
-            world.area(tx, ty, 34, 3.5 * power, 220, 'skill', { burn: 0.6 });
+            world.area(tx, ty, 38, 5 * power, 220, 'skill', { burn: 0.8 });
             for (const o of world.targets(tx, ty))
-              if (Math.abs(o.x - tx) < 12 && Phaser.Math.Distance.Between(o.x, o.y, tx, ty) >= 34)
-                world.strike(o, 1.2 * power, 'skill', false, { burn: 0.6 });
+              if (Math.abs(o.x - tx) < 12 && Phaser.Math.Distance.Between(o.x, o.y, tx, ty) >= 38)
+                world.strike(o, 1.8 * power, 'skill', false, { burn: 0.8 });
+            // The fire does not stop at one pillar: two more erupt to either side, each a step further out.
+            for (const s of [-1, 1])
+              later(scene, 220, () => {
+                const px = Phaser.Math.Clamp(tx + s * 46, 8, W - 8);
+                const col = scene.add.rectangle(px, FLOOR_Y, 14, FLOOR_Y, FIRE[1], 0.7).setOrigin(0.5, 1).setScale(1, 0).setDepth(12);
+                const core = scene.add.rectangle(px, FLOOR_Y, 5, FLOOR_Y, 0xfff1e8, 0.9).setOrigin(0.5, 1).setScale(1, 0).setDepth(12);
+                scene.tweens.add({ targets: [col, core], scaleY: 1, duration: 110, ease: 'Quad.Out' });
+                scene.tweens.add({
+                  targets: [col, core],
+                  scaleX: 0,
+                  alpha: 0,
+                  delay: 250,
+                  duration: 300,
+                  onComplete: () => [col, core].forEach((r) => r.destroy()),
+                });
+                for (let i = 0; i < 5; i++)
+                  later(scene, i * 40, () => flameTongue(scene, px + Phaser.Math.Between(-5, 5), FLOOR_Y - i * 24, 12, 300, FIRE));
+                rocks(scene, px, FLOOR_Y - 2, 3);
+                world.area(px, FLOOR_Y - 40, 30, 2 * power, 160, 'skill', { burn: 0.6 });
+              });
           },
         });
       });
@@ -6116,7 +6275,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           for (const e of world.targets(x, y)) {
             if (across(x, y, a, e)) {
               cutMark(scene, e.x, e.y, 0xff004d, 40, a);
-              world.strike(e, 7 * power, 'skill', true);
+              world.strike(e, 10 * power, 'skill', true);
               continue;
             }
             // The fracture leaves the cut at the point nearest the enemy and zigzags to it.
@@ -6138,7 +6297,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               }
               scene.tweens.add({ targets: crack, alpha: 0, delay: 200, duration: 250, onComplete: () => crack.destroy() });
               cutMark(scene, e.x, e.y, 0xff004d, 26, Phaser.Math.Angle.Between(fx, fy, e.x, e.y) + Math.PI / 2);
-              world.strike(e, 2.5 * power, 'skill', true);
+              world.strike(e, 3.5 * power, 'skill', true);
             });
           }
           scene.tweens.add({ targets: dark, alpha: 0, delay: 500, duration: 400, onComplete: () => dark.destroy() });
@@ -6207,9 +6366,16 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         later(scene, 900 + w * 180, () => {
           for (const t of world.targets(p.x, p.y)) {
             cutMark(scene, t.x, t.y, 0xff004d, 22);
-            world.strike(t, 0.3 * power, 'ult', false);
+            world.strike(t, 0.45 * power, 'ult', false);
           }
           cam.shake(60, 0.006);
+        });
+      // Blood rains upward from the pool and falls back over the whole domain.
+      for (let i = 0; i < 60; i++)
+        later(scene, 500 + i * 40, () => {
+          const x = Phaser.Math.Between(0, W);
+          const d = scene.add.rectangle(x, 0, 1, Phaser.Math.Between(4, 8), i % 3 ? 0xb3122e : 0xff004d).setDepth(13);
+          scene.tweens.add({ targets: d, y: FLOOR_Y, duration: 450, ease: 'Quad.In', onComplete: () => d.destroy() });
         });
       // Cleave, one enemy at a time: a heavy cross and a spray of blood.
       later(scene, 1000, () =>
@@ -6222,7 +6388,7 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               cutMark(scene, t.x, t.y, 0xff004d, 36, 0.8);
               cutMark(scene, t.x, t.y, 0xff004d, 36, -0.8);
               sparks(scene, t.x, t.y, [0xff004d, 0xb3122e, 0xfff1e8], 10, 20);
-              world.strike(t, 1.5 * power, 'ult', true);
+              world.strike(t, 2.2 * power, 'ult', true);
             }),
           ),
       );
@@ -6232,11 +6398,30 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         cam.flash(200, 255, 0, 77);
         cam.shake(450, 0.025);
         floatText(scene, W / 2, 48, 'TERBELAH!', '#ff004d');
+        // A giant X splits the whole arena corner to corner.
+        for (const a of [0.5, -0.5]) {
+          const glow = scene.add
+            .rectangle(W / 2, FLOOR_Y / 2, W * 1.6, 14, 0xff004d, 0.6)
+            .setRotation(a)
+            .setDepth(15);
+          const edge = scene.add
+            .rectangle(W / 2, FLOOR_Y / 2, W * 1.6, 3, 0xfff1e8)
+            .setRotation(a)
+            .setDepth(15);
+          scene.tweens.add({
+            targets: [glow, edge],
+            scaleY: 0,
+            alpha: 0,
+            delay: 150,
+            duration: 450,
+            onComplete: () => [glow, edge].forEach((r) => r.destroy()),
+          });
+        }
         for (const t of world.targets(p.x, p.y)) {
           cutMark(scene, t.x, t.y, 0xfff1e8, 50, Math.PI / 2);
           cutMark(scene, t.x, t.y, 0xff004d, 44, 0);
           sparks(scene, t.x, t.y, [0xff004d, 0xb3122e], 14, 30);
-          world.strike(t, 3 * power, 'ult', true);
+          world.strike(t, 5 * power, 'ult', true);
         }
         scene.tweens.add({ targets: shrine, scaleY: 0, delay: 250, duration: 350, ease: 'Quad.In' });
         scene.tweens.add({ targets: domain, alpha: 0, delay: 300, duration: 500, onComplete: () => domain.forEach((o) => o.destroy()) });
@@ -10966,6 +11151,565 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
             for (const t of world.targets(bx, by)) world.strike(t, 0.6 * power, 'ult', false, { slow: 1200 }, 120);
           });
         scene.tweens.add({ targets: dark, alpha: 0, delay: 600, duration: 600, onComplete: () => dark.destroy() });
+      });
+    },
+  },
+  // Surya, the Solar Knight. His fire is the sun's: gold-white at the core, orange, a red rim, and rays.
+  pedangSurya: {
+    // The finisher's whirl throws two waves of fire out to either side along the floor.
+    onSwing: ({ p, world, scene, power }, _m, step) => {
+      if (step !== 2) return;
+      ring(scene, p.x, p.y, 0xffec27, 6, 34, 260, 2);
+      ring(scene, p.x, p.y, 0xff8a1f, 4, 26, 200, 1);
+      sparks(scene, p.x, p.y, [0xffec27, 0xffa300, 0xff004d], 8, 22);
+      for (const s of [-1, 1])
+        world.shot({
+          x: p.x + s * 8,
+          y: p.y,
+          vx: s * 230,
+          vy: 0,
+          texture: 'fireball',
+          mult: 0.7 * power,
+          source: 'skill',
+          pierce: true,
+          status: { burn: 0.15 },
+        });
+    },
+    // Meteor Surya: he lands as a falling star; a crater of flame opens around him and tongues of fire fan out.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      explosion(scene, x, gy - 6, 26);
+      ring(scene, x, gy - 2, 0xffec27, 4, 48, 320, 2);
+      rocks(scene, x, gy - 2, 5);
+      for (let i = -4; i <= 4; i++)
+        later(scene, Math.abs(i) * 40, () => flameTongue(scene, x + i * 10, gy, 15 - Math.abs(i) * 1.5, 500, FIRE));
+      world.area(x, gy - 6, 46, 0.9 * power, 160, 'proc', { burn: 0.3 });
+    },
+    // Surya Terbit (Sunrise): a sun climbs out of the floor ahead of him and into the sky, the arena warming to dawn;
+    // from its height it pours a beam of fire onto each of the five nearest enemies, in the air or on the ground, one
+    // after another, each burning where it lands.
+    skill: ({ p, world, scene, power }) => {
+      const foes = world.targets(p.x, p.y).slice(0, 5);
+      if (!foes.length) return false;
+      p.lock(700);
+      p.setVelocityX(0);
+      const sx = Phaser.Math.Clamp(p.x + p.facing * 24, 26, W - 26);
+      glint(scene, p.x + p.facing * 6, p.y - 2);
+      const dawn = scene.add.rectangle(0, 0, W, FLOOR_Y, 0xff8a1f, 0.22).setOrigin(0).setDepth(4).setAlpha(0);
+      scene.tweens.add({ targets: dawn, alpha: 1, duration: 350, hold: 550, yoyo: true, onComplete: () => dawn.destroy() });
+      const sun = sunDisc(scene, sx, FLOOR_Y, 9).setScale(0.3);
+      scene.tweens.add({ targets: sun, y: 34, scale: 1, duration: 450, ease: 'Quad.Out' });
+      scene.tweens.add({ targets: sun, angle: 120, duration: 1300 });
+      ring(scene, sx, FLOOR_Y - 2, 0xffec27, 4, 30, 350, 2);
+      for (let i = -2; i <= 2; i++) flameTongue(scene, sx + i * 8, FLOOR_Y, 14, 400, FIRE);
+      foes.forEach((t, i) =>
+        later(scene, 560 + i * 110, () => {
+          if (!t.active) return;
+          solarBeam(scene, sun.x, sun.y, t.x, t.y);
+          ring(scene, t.x, t.y, 0xffec27, 3, 22, 260, 2);
+          explosion(scene, t.x, t.y, 14);
+          flameTongue(scene, t.x, t.y + 8, 16, 420, FIRE);
+          scene.cameras.main.shake(70, 0.006);
+          world.strike(t, 2.2 * power, 'skill', false, { burn: 0.4 }, 120);
+        }),
+      );
+      later(scene, 760 + foes.length * 110, () =>
+        scene.tweens.add({ targets: sun, alpha: 0, scale: 0.4, duration: 300, onComplete: () => sun.destroy() }),
+      );
+    },
+    // Gerhana (Eclipse): the arena goes dark and a sun hangs in the sky; a black moon slides across it until only the
+    // corona is left, flaring in pulses. At totality a point of white-hot light breaks at the moon's edge, the diamond
+    // ring, and the sun's fire pours from it onto every enemy at once.
+    fusion: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
+      const cam = scene.cameras.main;
+      p.invuln(1800);
+      p.lock(1500);
+      p.setVelocity(0, 0);
+      const [cx, cy] = [W / 2, 36];
+      const dark = scene.add.rectangle(0, 0, W, FLOOR_Y, 0x05000a, 0.8).setOrigin(0).setDepth(4).setAlpha(0);
+      scene.tweens.add({ targets: dark, alpha: 1, duration: 600 });
+      const sun = sunDisc(scene, cx, cy, 14).setAlpha(0).setScale(0.5);
+      scene.tweens.add({ targets: sun, alpha: 1, scale: 1, duration: 400 });
+      scene.tweens.add({ targets: sun, angle: 40, duration: 1300 });
+      const moon = scene.add
+        .circle(cx - 60, cy, 15, 0x05000a)
+        .setStrokeStyle(1, 0x3a0010)
+        .setDepth(12.5);
+      scene.tweens.add({ targets: moon, x: cx, delay: 250, duration: 750, ease: 'Sine.InOut' });
+      later(scene, 900, () => {
+        for (let k = 0; k < 3; k++) later(scene, k * 120, () => ring(scene, cx, cy, 0xffec27, 16, 46, 300, 2));
+        cam.shake(120, 0.006);
+      });
+      later(scene, 1150, () => {
+        cam.flash(220, 255, 236, 39);
+        cam.shake(500, 0.03);
+        floatText(scene, W / 2, 64, 'GERHANA!', '#ffec27');
+        const gem = scene.add.circle(cx + 14, cy - 6, 3, 0xffffff).setDepth(13);
+        scene.tweens.add({ targets: gem, scale: 4, alpha: 0, duration: 400, onComplete: () => gem.destroy() });
+        ring(scene, cx, cy, 0xfff1e8, 10, 60, 400, 2);
+        ring(scene, cx, cy, 0xffa300, 6, 80, 500, 2);
+        for (const t of world.targets(p.x, p.y)) {
+          solarBeam(scene, cx + 14, cy - 6, t.x, t.y, 380);
+          explosion(scene, t.x, t.y, 16);
+          sparks(scene, t.x, t.y, [0xffec27, 0xffa300, 0xff004d], 10, 20);
+          world.strike(t, 5 * power, 'skill', true, { burn: 0.5 }, 160);
+        }
+        scene.tweens.add({ targets: dark, alpha: 0, delay: 300, duration: 500, onComplete: () => dark.destroy() });
+        scene.tweens.add({
+          targets: [sun, moon],
+          alpha: 0,
+          delay: 300,
+          duration: 400,
+          onComplete: () => [sun, moon].forEach((o) => o.destroy()),
+        });
+      });
+    },
+    // Solaris: the sun itself comes down. The sky burns orange and the floor glows as a vast sun descends over the
+    // arena, turning slowly; it lashes out with prominences, one at a time, each arching down to an enemy and
+    // burning it. Then it gathers, swells, and drops: the arena goes white, rings and cracks of molten light run out
+    // from where it lands, and everything is struck at once.
+    ult: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
+      const cam = scene.cameras.main;
+      p.invuln(3900);
+      p.lock(3500);
+      p.setVelocity(0, 0);
+      glint(scene, p.x, p.y - 2);
+      ring(scene, p.x, p.y, 0xffec27, 4, 40, 400, 2);
+      const sky = scene.add.rectangle(0, 0, W, FLOOR_Y, 0xff5a1f, 0.5).setOrigin(0).setDepth(4).setAlpha(0);
+      const heat = scene.add
+        .rectangle(0, FLOOR_Y - 14, W, 14, 0xffa300, 0.35)
+        .setOrigin(0)
+        .setDepth(4.05)
+        .setAlpha(0);
+      scene.tweens.add({ targets: [sky, heat], alpha: 1, duration: 700 });
+      const sun = sunDisc(scene, W / 2, -30, 26)
+        .setScale(0.5)
+        .setDepth(5);
+      scene.tweens.add({ targets: sun, y: 50, scale: 1, duration: 1000, ease: 'Quad.Out' });
+      scene.tweens.add({ targets: sun, angle: 360, duration: 3200 });
+      later(scene, 300, () => cam.shake(600, 0.006));
+      // Embers lift off the glowing floor the whole time.
+      for (let i = 0; i < 50; i++)
+        later(scene, 400 + i * 50, () => {
+          const e = scene.add.rectangle(Phaser.Math.Between(0, W), FLOOR_Y, 1, 2, FIRE[i % 3]).setDepth(13);
+          scene.tweens.add({
+            targets: e,
+            y: Phaser.Math.Between(30, 110),
+            x: e.x + Phaser.Math.Between(-12, 12),
+            alpha: 0,
+            duration: 800,
+            onComplete: () => e.destroy(),
+          });
+        });
+      world
+        .targets(p.x, p.y)
+        .slice(0, 10)
+        .forEach((t, i) =>
+          later(scene, 1100 + i * 170, () => {
+            if (!t.active) return;
+            prominence(scene, sun.x, sun.y, t.x, t.y);
+            sparks(scene, t.x, t.y, [0xffec27, 0xffa300, 0xff004d], 10, 18);
+            flameTongue(scene, t.x, t.y + 8, 16, 420, FIRE);
+            cam.shake(70, 0.007);
+            world.strike(t, 2.4 * power, 'ult', false, { burn: 0.5 }, 100);
+          }),
+        );
+      // It gathers and swells, then drops.
+      later(scene, 2900, () => {
+        glint(scene, p.x, p.y - 2);
+        scene.tweens.add({ targets: sun, scale: 1.7, duration: 250 });
+      });
+      later(scene, 3150, () => scene.tweens.add({ targets: sun, y: FLOOR_Y - 14, scale: 3.2, duration: 330, ease: 'Quad.In' }));
+      later(scene, 3480, () => {
+        cam.flash(300, 255, 255, 255);
+        cam.shake(700, 0.04);
+        floatText(scene, W / 2, 48, 'SOLARIS!', '#ffec27');
+        const white = scene.add.rectangle(0, 0, W, H, 0xfff1e8).setOrigin(0).setDepth(15);
+        scene.tweens.add({ targets: white, alpha: 0, duration: 450, onComplete: () => white.destroy() });
+        for (let k = 0; k < 4; k++)
+          later(scene, k * 90, () => ring(scene, W / 2, FLOOR_Y - 10, k % 2 ? 0xffa300 : 0xffec27, 10, 150 + k * 40, 500, 3));
+        // Cracks of molten light run out along the floor from the impact.
+        const cracks = scene.add.graphics().setDepth(12);
+        for (const s of [-1, 1]) {
+          let [x, y] = [W / 2, FLOOR_Y - 1];
+          while (x > -10 && x < W + 10) {
+            const [nx, ny] = [x + s * Phaser.Math.Between(10, 20), FLOOR_Y - Phaser.Math.Between(0, 6)];
+            cracks.lineStyle(3, 0xff004d, 0.6).lineBetween(x, y, nx, ny);
+            cracks.lineStyle(1, 0xffec27).lineBetween(x, y, nx, ny);
+            [x, y] = [nx, ny];
+          }
+        }
+        scene.tweens.add({ targets: cracks, alpha: 0, delay: 500, duration: 500, onComplete: () => cracks.destroy() });
+        for (let x = 20; x < W; x += 40) later(scene, Math.abs(x - W / 2) * 1.2, () => explosion(scene, x, FLOOR_Y - 6, 22));
+        for (const t of world.targets(p.x, p.y)) {
+          sparks(scene, t.x, t.y, [0xffec27, 0xffa300, 0xff004d], 14, 30);
+          world.strike(t, 7 * power, 'ult', true, { burn: 0.8 }, 260);
+        }
+        scene.tweens.add({ targets: sun, alpha: 0, duration: 300, onComplete: () => sun.destroy() });
+        scene.tweens.add({
+          targets: [sky, heat],
+          alpha: 0,
+          delay: 300,
+          duration: 600,
+          onComplete: () => [sky, heat].forEach((o) => o.destroy()),
+        });
+      });
+    },
+  },
+  // Candra, the Moon Knight. His light is cold and pale: white steel, a periwinkle glow, the dark blue of the night
+  // sky as outline. His shape is the crescent; his power waxes and wanes with the phase of the moon over his head
+  // (PASSIVES.candra keeps it in p.getData('moon'), 0 = new moon .. 4 = full moon).
+  sabitCandra: {
+    // The finisher's thrust lets the crescent go: two moon blades fly out, one level and one rising for flyers.
+    onSwing: ({ p, world, power }, _m, step) => {
+      if (step !== 2) return;
+      const f = p.facing;
+      for (const [vx, vy] of [
+        [260, 0],
+        [220, -150],
+      ])
+        world.shot({
+          x: p.x + f * 8,
+          y: p.y,
+          vx: f * vx,
+          vy,
+          texture: 'sabitBulan',
+          mult: 0.6 * power,
+          source: 'skill',
+          pierce: true,
+          status: { slow: 500 },
+        });
+    },
+    // Bulan Terbenam (Moonset): he comes down like the moon sinking under the horizon, and two crescents run out
+    // from his feet along the floor, one each way, cutting and slowing whatever stands on it.
+    onDiveLand: ({ world, scene, power }, x, gy) => {
+      ring(scene, x, gy - 2, 0xc2d4ff, 4, 36, 300, 2);
+      sparks(scene, x, gy - 4, [0xfff1e8, 0x9fb4ff], 8, 16);
+      for (const s of [-1, 1]) {
+        const blade = moonCrescent(scene, x, gy - 8, 8).setRotation(s > 0 ? 0 : Math.PI);
+        const hit = new Set<Phaser.GameObjects.GameObject>();
+        scene.tweens.addCounter({
+          from: 0,
+          to: 130,
+          duration: 450,
+          ease: 'Quad.Out',
+          onUpdate: (tw) => {
+            blade.x = x + s * (tw.getValue() ?? 0);
+            for (const t of world.targets(blade.x, blade.y)) {
+              if (hit.has(t) || Math.abs(t.x - blade.x) > 12 || t.y < gy - 32) continue;
+              hit.add(t);
+              cutMark(scene, t.x, t.y, 0xc2d4ff, 18);
+              world.strike(t, 0.7 * power, 'proc', false, { slow: 600 }, 60);
+            }
+          },
+          onComplete: () => scene.tweens.add({ targets: blade, alpha: 0, scaleY: 0, duration: 160, onComplete: () => blade.destroy() }),
+        });
+      }
+    },
+    // Sabit Candra: he spins the glaive and lets its crescents go, as many as the moon over his head has phases
+    // (one at the new moon, four at the full). Each flies its own great elliptical loop around the arena, alternating
+    // clockwise and counter-clockwise, from the floor up into the sky where the flyers are and back to where he
+    // stands, cutting and slowing everything it passes. At the full moon the moon itself comes down too: it drops onto
+    // the thickest crowd and bursts (PURNAMA!). Casting spends the moon: it is new again.
+    skill: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
+      const phase = (p.getData('moon') as number | undefined) ?? 0;
+      p.setData('moon', 0);
+      const full = phase >= 4;
+      const f = p.facing;
+      const [ox, oy] = [p.x, p.y - 4];
+      p.lock(320);
+      p.setVelocityX(0);
+      glint(scene, ox + f * 6, oy);
+      ring(scene, ox, oy, 0x9fb4ff, 4, 26, 260, 1);
+      for (let i = 0; i < Math.max(1, phase); i++) {
+        // Tall loops whose center sits well above him, so the top of each reaches the flyers (the first ~80 px up,
+        // the fourth near the ceiling); each starts at his hand, on the lower part of its ellipse. They go out ahead
+        // and behind in turn, each wide enough to reach the wall on its side, so two crescents cover the arena.
+        const side = i % 2 ? -f : f;
+        const rx = Math.max(50, (side > 0 ? W - ox : ox) * (0.5 + (i >> 1) * 0.08));
+        const ry = 50 + i * 12;
+        const a0 = side > 0 ? Math.PI - Math.asin(0.6) : Math.asin(0.6);
+        const cx = ox - Math.cos(a0) * rx;
+        const cy = oy - Math.sin(a0) * ry;
+        const turn = (i % 2 ? -1 : 1) * Math.PI * 2;
+        const blade = moonCrescent(scene, ox, oy, 7);
+        const trail = scene.add.graphics().setDepth(12);
+        const hit = new Set<Phaser.GameObjects.GameObject>();
+        let last = { x: ox, y: oy };
+        // The crescent swerves off its orbit toward an uncut enemy close to it, then drifts back onto the loop.
+        const off = { x: 0, y: 0 };
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          delay: i * 90,
+          duration: 950 + i * 120,
+          ease: 'Sine.InOut',
+          onUpdate: (tw) => {
+            const k = tw.getValue() ?? 0;
+            const a = a0 + turn * k;
+            const [px, py] = [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry];
+            const lure = world.targets(px, py).find((t) => !hit.has(t) && Phaser.Math.Distance.Between(px, py, t.x, t.y) < 40);
+            off.x = Phaser.Math.Linear(off.x, lure ? lure.x - px : 0, lure ? 0.35 : 0.15);
+            off.y = Phaser.Math.Linear(off.y, lure ? lure.y - py : 0, lure ? 0.35 : 0.15);
+            const [x, y] = [px + off.x, Phaser.Math.Clamp(py + off.y, 6, FLOOR_Y - 4)];
+            const heading = Math.atan2(y - last.y, x - last.x);
+            blade.setPosition(x, y).setRotation(k * 24);
+            trail.lineStyle(4, 0x9fb4ff, 0.25).lineBetween(last.x, last.y, x, y);
+            trail.lineStyle(1, 0xfff1e8, 0.8).lineBetween(last.x, last.y, x, y);
+            last = { x, y };
+            for (const t of world.targets(x, y)) {
+              if (hit.has(t) || Phaser.Math.Distance.Between(x, y, t.x, t.y) > 15) continue;
+              hit.add(t);
+              cutMark(scene, t.x, t.y, 0xc2d4ff, 22, heading);
+              sparks(scene, t.x, t.y, [0xfff1e8, 0xc2d4ff, 0x9fb4ff], 6, 14);
+              world.strike(t, (full ? 2.2 : 1.6) * power, 'skill', false, { slow: 900 }, 80);
+            }
+          },
+          onComplete: () => {
+            ring(scene, blade.x, blade.y, 0xc2d4ff, 3, 16, 200, 1);
+            blade.destroy();
+            scene.tweens.add({ targets: trail, alpha: 0, duration: 300, onComplete: () => trail.destroy() });
+          },
+        });
+      }
+      if (!full) return;
+      // Purnama: the moon falls on the thickest crowd.
+      later(scene, 350, () => {
+        const foes = world.targets(ox, oy);
+        if (!foes.length) return;
+        const near = (e: Phaser.GameObjects.Sprite) => foes.filter((o) => Phaser.Math.Distance.Between(e.x, e.y, o.x, o.y) < 44).length;
+        const mark = foes.reduce((b, e) => (near(e) > near(b) ? e : b));
+        const [tx, ty] = [mark.x, Math.min(mark.y, FLOOR_Y - 12)];
+        const mg = scene.add.graphics();
+        moonPhase(mg, 14, 1);
+        const moon = scene.add.container(tx, -20, [mg]).setDepth(13);
+        scene.tweens.add({
+          targets: moon,
+          y: ty,
+          angle: 90,
+          duration: 380,
+          ease: 'Quad.In',
+          onComplete: () => {
+            scene.cameras.main.flash(140, 194, 212, 255);
+            scene.cameras.main.shake(300, 0.022);
+            floatText(scene, Phaser.Math.Clamp(tx, 40, W - 40), ty - 30, 'PURNAMA!', '#c2d4ff');
+            ring(scene, tx, ty, 0xfff1e8, 10, 56, 380, 2);
+            ring(scene, tx, ty, 0x9fb4ff, 6, 70, 480, 2);
+            rocks(scene, tx, FLOOR_Y - 2, 6);
+            sparks(scene, tx, ty, [0xfff1e8, 0xc2d4ff, 0x9fb4ff], 16, 36);
+            world.area(tx, ty, 44, 3 * power, 220, 'skill', { slow: 1500 });
+            scene.tweens.add({ targets: moon, scale: 2.2, alpha: 0, duration: 300, onComplete: () => moon.destroy() });
+          },
+        });
+      });
+    },
+    // Pasang Bulan (Moon Tide): night falls and a full moon rises over the arena; a silver tide floods the floor and
+    // the moon's pull draws the water and every enemy up toward the sky, flyers and walkers alike, motes of light
+    // rising with them. Then the moon lets go: the tide crashes down (SURUT!), hurling everything to the floor.
+    fusion: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
+      const cam = scene.cameras.main;
+      p.invuln(1900);
+      p.lock(1600);
+      p.setVelocity(0, 0);
+      const [mx, my] = [W / 2, 30];
+      const night = scene.add.rectangle(0, 0, W, FLOOR_Y, 0x0a1030, 0.55).setOrigin(0).setDepth(4).setAlpha(0);
+      scene.tweens.add({ targets: night, alpha: 1, duration: 400 });
+      const mg = scene.add.graphics();
+      moonPhase(mg, 16, 1);
+      const moon = scene.add.container(mx, -20, [mg]).setDepth(5);
+      scene.tweens.add({ targets: moon, y: my, duration: 600, ease: 'Quad.Out' });
+      // The tide rises with the moon, a sheet of water with a moving silver crest.
+      // Behind the player (10) so he stands in the tide rather than under it.
+      const water = scene.add.graphics().setDepth(9);
+      const drawWater = (h: number, t: number) => {
+        water.clear();
+        water.fillStyle(0x29adff, 0.22).fillRect(0, FLOOR_Y - h, W, h + 12);
+        const crest = Array.from({ length: 33 }, (_, i) => new Phaser.Math.Vector2(i * 10, FLOOR_Y - h + Math.sin(i * 0.8 + t / 90) * 2));
+        water.lineStyle(2, 0x9fb4ff, 0.6).strokePoints(crest);
+        water.lineStyle(1, 0xfff1e8).strokePoints(crest);
+      };
+      scene.tweens.addCounter({
+        from: 0,
+        to: 28,
+        duration: 1100,
+        ease: 'Sine.Out',
+        onUpdate: (tw) => drawWater(tw.getValue() ?? 0, scene.time.now),
+      });
+      // The pull: everything is lifted toward the moon.
+      for (let k = 0; k < 6; k++)
+        later(scene, 200 + k * 150, () => {
+          world.pull(mx, my + 14, 400, 170);
+          for (let i = 0; i < 6; i++) {
+            const m = scene.add.rectangle(Phaser.Math.Between(0, W), FLOOR_Y - 4, 1, 3, i % 2 ? 0xfff1e8 : 0x9fb4ff).setDepth(12);
+            scene.tweens.add({ targets: m, y: my + 20, alpha: 0, duration: 600, onComplete: () => m.destroy() });
+          }
+          if (k === 0) ring(scene, mx, my, 0xc2d4ff, 18, 50, 400, 2);
+        });
+      // The crash.
+      later(scene, 1200, () => {
+        cam.flash(150, 159, 180, 255);
+        cam.shake(500, 0.03);
+        floatText(scene, W / 2, 64, 'SURUT!', '#9fb4ff');
+        world.slam(mx, FLOOR_Y, 400, 460);
+        for (const t of world.targets(mx, my)) {
+          sparks(scene, t.x, t.y, [0x29adff, 0x9fb4ff, 0xfff1e8], 8, 16);
+          world.strike(t, 4.5 * power, 'skill', false, { slow: 1200 }, 0);
+        }
+        for (let x = 4; x < W; x += 12) {
+          const d = scene.add.rectangle(x, FLOOR_Y - 20, 2, 4, x % 24 ? 0x29adff : 0xfff1e8).setDepth(12);
+          scene.tweens.add({
+            targets: d,
+            y: d.y - Phaser.Math.Between(10, 30),
+            alpha: 0,
+            yoyo: false,
+            duration: 450,
+            onComplete: () => d.destroy(),
+          });
+        }
+        scene.tweens.addCounter({
+          from: 28,
+          to: 0,
+          duration: 500,
+          ease: 'Quad.In',
+          onUpdate: (tw) => drawWater(tw.getValue() ?? 0, scene.time.now),
+          onComplete: () => water.destroy(),
+        });
+        scene.tweens.add({
+          targets: [night, moon],
+          alpha: 0,
+          delay: 200,
+          duration: 500,
+          onComplete: () => [night, moon].forEach((o) => o.destroy()),
+        });
+      });
+    },
+    // Malam Seribu Bulan (Night of a Thousand Moons): night falls over the whole arena and the stars come out; a vast
+    // moon rises with its reflection trembling on the floor, and it runs through all its phases, new to full. At every
+    // phase a crescent breaks off it and falls on an enemy. At the full moon it sets: it sinks to meet its own
+    // reflection, and as they touch a giant crescent sweeps across the whole arena (TERBENAM!), striking everything.
+    ult: ({ p, world, scene, power }) => {
+      if (!world.targets(p.x, p.y).length) return false;
+      const cam = scene.cameras.main;
+      p.invuln(4000);
+      p.lock(3600);
+      p.setVelocity(0, 0);
+      glint(scene, p.x, p.y - 4);
+      ring(scene, p.x, p.y, 0x9fb4ff, 4, 40, 400, 2);
+      const night = scene.add.rectangle(0, 0, W, FLOOR_Y, 0x05081a, 0.88).setOrigin(0).setDepth(4).setAlpha(0);
+      const sheen = scene.add
+        .rectangle(0, FLOOR_Y, W, H - FLOOR_Y, 0x1d2b53, 0.8)
+        .setOrigin(0)
+        .setDepth(4.05)
+        .setAlpha(0);
+      scene.tweens.add({ targets: [night, sheen], alpha: 1, duration: 500 });
+      const stars = Array.from({ length: 40 }, () =>
+        scene.add
+          .rectangle(Phaser.Math.Between(0, W), Phaser.Math.Between(4, FLOOR_Y - 30), 1, 1, 0xfff1e8)
+          .setDepth(4.1)
+          .setAlpha(0),
+      );
+      stars.forEach((s, i) =>
+        scene.tweens.add({ targets: s, alpha: { from: 0, to: 1 }, delay: 200 + i * 15, duration: 400, yoyo: true, repeat: 3 }),
+      );
+      const mg = scene.add.graphics();
+      const rg = scene.add.graphics();
+      const moon = scene.add
+        .container(W / 2, 44, [mg])
+        .setDepth(5)
+        .setScale(0);
+      const reflection = scene.add
+        .container(W / 2, FLOOR_Y + 8, [rg])
+        .setDepth(4.1)
+        .setScale(1, 0)
+        .setAlpha(0.5);
+      const draw = (lit: number) => {
+        mg.clear();
+        rg.clear();
+        moonPhase(mg, 22, lit);
+        moonPhase(rg, 22, lit);
+      };
+      draw(0);
+      scene.tweens.add({ targets: moon, scale: 1, duration: 500, ease: 'Back.Out' });
+      scene.tweens.add({ targets: reflection, scaleY: -0.3, duration: 500 });
+      // The moon waxes, new to full.
+      scene.tweens.addCounter({ from: 0, to: 1, delay: 500, duration: 2100, onUpdate: (tw) => draw(tw.getValue() ?? 0) });
+      later(scene, 300, () => cam.shake(400, 0.005));
+      // A crescent falls from each phase onto an enemy.
+      for (let i = 0; i < 8; i++)
+        later(scene, 700 + i * 240, () => {
+          const foes = world.targets(moon.x, moon.y);
+          const t = foes[i % Math.max(1, foes.length)];
+          if (!t) return;
+          const blade = moonCrescent(scene, moon.x, moon.y, 9).setRotation(Phaser.Math.Angle.Between(moon.x, moon.y, t.x, t.y));
+          scene.tweens.add({
+            targets: blade,
+            x: t.x,
+            y: t.y,
+            duration: 170,
+            ease: 'Quad.In',
+            onComplete: () => {
+              blade.destroy();
+              if (!t.active) return;
+              cutMark(scene, t.x, t.y, 0xc2d4ff, 28, blade.rotation + Math.PI / 2);
+              sparks(scene, t.x, t.y, [0xfff1e8, 0xc2d4ff, 0x9fb4ff], 10, 18);
+              ring(scene, t.x, t.y, 0x9fb4ff, 3, 20, 240, 1);
+              cam.shake(70, 0.007);
+              world.strike(t, 2 * power, 'ult', false, { slow: 800 }, 80);
+            },
+          });
+        });
+      // Full: it glows, then sets to meet its reflection.
+      later(scene, 2650, () => {
+        ring(scene, moon.x, moon.y, 0xfff1e8, 22, 60, 400, 2);
+        ring(scene, moon.x, moon.y, 0x9fb4ff, 22, 80, 500, 1);
+      });
+      later(scene, 2900, () => {
+        scene.tweens.add({ targets: moon, y: FLOOR_Y - 14, scale: 1.4, duration: 420, ease: 'Quad.In' });
+        scene.tweens.add({ targets: reflection, scaleY: -0.9, alpha: 0.8, duration: 420, ease: 'Quad.In' });
+      });
+      later(scene, 3330, () => {
+        cam.flash(250, 194, 212, 255);
+        cam.shake(600, 0.035);
+        // Once the crescent has passed: pale text on its pale body would not read.
+        later(scene, 360, () => floatText(scene, W / 2, 48, 'TERBENAM!', '#c2d4ff'));
+        // The great crescent sweeps the whole arena, left to right, floor to sky.
+        const big = moonCrescent(scene, -70, FLOOR_Y / 2 + 6, 80).setDepth(15);
+        scene.tweens.add({
+          targets: big,
+          x: W + 90,
+          duration: 380,
+          ease: 'Quad.InOut',
+          onComplete: () => big.destroy(),
+        });
+        const seam = scene.add
+          .rectangle(0, FLOOR_Y - 14, W, 2, 0xfff1e8)
+          .setOrigin(0, 0.5)
+          .setDepth(15);
+        scene.tweens.add({ targets: seam, scaleY: 0, alpha: 0, delay: 200, duration: 400, onComplete: () => seam.destroy() });
+        for (const t of world.targets(p.x, p.y)) {
+          later(scene, Phaser.Math.Clamp(t.x, 0, W) * 1.1, () => {
+            if (!t.active) return;
+            cutMark(scene, t.x, t.y, 0xfff1e8, 44, Math.PI / 2);
+            sparks(scene, t.x, t.y, [0xfff1e8, 0xc2d4ff], 12, 26);
+          });
+          world.strike(t, 6 * power, 'ult', true, { slow: 1500 }, 200);
+        }
+        scene.tweens.add({
+          targets: [moon, reflection],
+          alpha: 0,
+          duration: 300,
+          onComplete: () => [moon, reflection].forEach((o) => o.destroy()),
+        });
+        scene.tweens.add({
+          targets: [night, sheen, ...stars],
+          alpha: 0,
+          delay: 300,
+          duration: 600,
+          onComplete: () => [night, sheen, ...stars].forEach((o) => o.destroy()),
+        });
       });
     },
   },

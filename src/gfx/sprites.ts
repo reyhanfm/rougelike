@@ -54,6 +54,10 @@ export const PALETTE: Record<string, number> = {
   N: 0x5a1f3a,
   // Extra: Lumina's pearl-white coat.
   L: 0xdfe9f5,
+  // Extra: the Solar Knight's sun-orange (plume, surcoat, armor trim).
+  S: 0xff8a1f,
+  // Extra: the Moon Knight's lunar periwinkle (hood, cloak, the glow of his crescents).
+  M: 0x9fb4ff,
 };
 
 export const COLOR = {
@@ -200,6 +204,31 @@ export const SPRITES: Record<string, string[]> = {
     '..............iaa7a..',
     '.................a...',
   ],
+  // Candra: Sabit Candra, a long glaive whose head is a crescent moon of white steel.
+  w_sabitCandra: ['...........77..', '............7M.', '0dddddddddd6d7M', '............7M.', '...........77..'],
+  // A thrown crescent: white steel with a lunar edge, bulging forward.
+  sabitBulan: ['.77...', '..77..', '...7M.', '...7M.', '...7M.', '...7M.', '...7M.', '..77..', '.77...'],
+  // Its swing: a thin crescent, silver with a lunar edge and a grey trail.
+  slashCandra: [
+    '.d7.........',
+    '...77M......',
+    '.....77M....',
+    '......77M...',
+    '.......77M..',
+    '........7M..',
+    '........77M.',
+    '.........7Md',
+    '.........7M.',
+    '........77M.',
+    '........7M..',
+    '.......77M..',
+    '......77M...',
+    '.....77M....',
+    '...77M......',
+    '.d7.........',
+  ],
+  // Surya: Bilah Surya, a broad golden greatsword, its edge burning orange.
+  w_pedangSurya: ['....i.....S....', 'ii0iaaa7777777S', '....i.....S....'],
   // Lumina: Pedang Foton, a blade of solid light (white with a cyan edge) on a gold hilt, sparkling.
   w_foton: ['....a.....y....', 'i0ia7777777777y', '....a....y.....'],
   // Its swing: a white crescent with a cyan edge and a gold spark at each tip.

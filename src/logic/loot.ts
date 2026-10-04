@@ -29,7 +29,9 @@ export type WeaponId =
   | 'gravitasi'
   | 'halilintar'
   | 'surgaNeraka'
-  | 'foton';
+  | 'foton'
+  | 'pedangSurya'
+  | 'sabitCandra';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
@@ -659,7 +661,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0x8a3fd1,
     },
     skill: { name: 'PERJANJIAN GELAP', desc: 'BAYAR 8% HP: PEDANG BAYANGAN RAKSASA MEMBELAH SETENGAH LINGKARAN, HP KEMBALI X2', cd: 5 },
-    fusion: { name: 'GERHANA', desc: 'J+L: BULAN HITAM, TANAH TERBELAH, TOMBAK GELAP JATUH (X2 AVENGER)', cd: 10 },
+    fusion: { name: 'GERHANA TOTAL', desc: 'J+L: BULAN HITAM, TANAH TERBELAH, TOMBAK GELAP JATUH (X2 AVENGER)', cd: 10 },
     // Never cast: the Dark Avenger awakens instead of using an ult.
     ult: { name: 'MODE AVENGER', desc: 'OTOMATIS SAAT METER PENUH' },
   },
@@ -808,10 +810,10 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     id: 'shrine',
     name: 'SHRINE',
     desc: 'KAI: TEBASAN TERBANG MENEMBUS, FINISHER HACHI',
-    projectile: { texture: 'kai', speed: 320, pierce: true },
-    dmg: 0.9,
+    projectile: { texture: 'kai', speed: 360, pierce: true },
+    dmg: 0.95,
     cd: 0.9,
-    crit: 0.05,
+    crit: 0.1,
     combo: [
       { anim: 'shoot', dmg: 1, cd: 1, ms: 90, reach: box(0, 0), knockback: 60, angles: [0] },
       { anim: 'shoot', dmg: 1, cd: 1, ms: 90, reach: box(0, 0), knockback: 60, angles: [0] },
@@ -837,7 +839,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       slam: 28,
       cut: 0xff004d,
     },
-    skill: { name: 'FUGA', desc: 'BUSUR API: PANAH API MELEDAK JADI PILAR API, MEMBAKAR', cd: 7 },
+    skill: { name: 'FUGA', desc: 'BUSUR API: PANAH API MELEDAK JADI PILAR API + 2 PILAR SUSULAN, MEMBAKAR', cd: 7 },
     fusion: { name: 'WORLD CUTTING SLASH', desc: 'J+L: MANTRA, LALU DUNIA TERBELAH DI GARIS PALING BANYAK MUSUH', cd: 12 },
     ult: { name: 'MALEVOLENT SHRINE', desc: 'DOMAIN: KUIL MUNCUL, KAI & HACHI PASTI KENA SEMUA MUSUH DI ARENA' },
   },
@@ -1413,6 +1415,122 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     skill: { name: 'JARING CERMIN', desc: 'CERMIN CAHAYA DI TIAP MUSUH, LASER MEMANTUL BERWARNA PELANGI', cd: 6 },
     fusion: { name: 'TIRAI AURORA', desc: 'J+L: TIGA TIRAI AURORA TURUN MENYAPU SELURUH ARENA, LALU MELEDAK', cd: 10 },
     ult: { name: 'FAJAR SEMESTA', desc: 'SEMUA CAHAYA DISERAP, LENSA RAKSASA MEMBAKAR TIAP MUSUH, LALU FAJAR' },
+  },
+  pedangSurya: {
+    id: 'pedangSurya',
+    name: 'BILAH SURYA',
+    desc: 'PEDANG EMAS MEMBARA: TEBASAN BERAT, TUSUKAN API, PUSARAN KORONA',
+    dmg: 1,
+    cd: 0.95,
+    crit: 0.08,
+    arc: 'slashWide',
+    arcTint: 0xffa300,
+    cut: 0xffa300,
+    combo: [
+      // A heavy overhead cut that carries him a step forward, sparks of gold at the edge.
+      { anim: 'overhead', dmg: 1, cd: 1, ms: 130, reach: box(30, 22), knockback: 90, lunge: 120, cut: 0xffec27 },
+      // A thrust that trails fire.
+      {
+        anim: 'thrust',
+        dmg: 1.1,
+        cd: 1,
+        ms: 120,
+        reach: box(34, 12),
+        knockback: 100,
+        lunge: 260,
+        trail: 0xffa300,
+        cut: 0xffa300,
+        status: { burn: 0.1 },
+      },
+      // The finisher spins a ring of corona around him and flings two waves of fire out to both sides (onSwing).
+      {
+        anim: 'spin',
+        dmg: 0.5,
+        cd: 1.5,
+        ms: 240,
+        reach: box(34, 28),
+        knockback: 200,
+        hitbox: 'around',
+        hits: 3,
+        cut: 0xff004d,
+        status: { burn: 0.15 },
+      },
+    ],
+    air: [
+      { anim: 'down', dmg: 1, cd: 1, ms: 120, reach: box(26, 26), knockback: 100, hover: 60, cut: 0xffec27 },
+      {
+        anim: 'spin',
+        dmg: 0.4,
+        cd: 1.2,
+        ms: 240,
+        reach: box(30, 30),
+        knockback: 60,
+        hitbox: 'around',
+        hover: 80,
+        hits: 3,
+        cut: 0xffa300,
+        status: { burn: 0.1 },
+      },
+    ],
+    dive: {
+      // He falls as a meteor (SKILLS.pedangSurya.onDiveLand: a crater of flame and a ring of fire).
+      name: 'METEOR SURYA',
+      anim: 'plunge',
+      dmg: 1.4,
+      cd: 1.2,
+      ms: 800,
+      reach: box(14, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 540 },
+      slam: 36,
+      trail: 0xffa300,
+      cut: 0xff004d,
+    },
+    skill: { name: 'SURYA TERBIT', desc: 'MATAHARI TERBIT DI LANGIT, MEMANCARKAN SINAR API KE LIMA MUSUH', cd: 6 },
+    fusion: { name: 'CINCIN BERLIAN', desc: 'J+L: BULAN MENUTUP MATAHARI, LALU CINCIN BERLIAN MELEDAK KE SEMUA MUSUH', cd: 11 },
+    ult: { name: 'SOLARIS', desc: 'MATAHARI TURUN KE ARENA, LIDAH API MENYAMBAR TIAP MUSUH, LALU JATUH MENGHANCURKAN' },
+  },
+  sabitCandra: {
+    id: 'sabitCandra',
+    name: 'SABIT CANDRA',
+    desc: 'GLAIVE BULAN SABIT: SAPUAN SILANG, AYUNAN PENGANGKAT, LALU LEMPAR SABIT',
+    dmg: 1,
+    cd: 0.95,
+    crit: 0.08,
+    arc: 'slashCandra',
+    arcTint: 0xffffff,
+    cut: 0xc2d4ff,
+    combo: [
+      // A crossing sweep of the glaive, both blades of the crescent cutting in turn.
+      { anim: 'cross', dmg: 0.9, cd: 1, ms: 180, reach: box(30, 24), knockback: 60, lunge: 80, cut: 0xc2d4ff },
+      // A rising cut under the moon's pull: the enemy floats up as if gravity were a sixth of itself.
+      { anim: 'up', dmg: 1, cd: 1, ms: 170, reach: box(26, 30), knockback: 40, launch: 200, cut: 0xfff1e8 },
+      // A thrust that lets the crescent go: two moon blades fly out, level and rising (SKILLS.sabitCandra.onSwing).
+      { anim: 'thrust', dmg: 1.3, cd: 1.5, ms: 150, reach: box(32, 14), knockback: 140, lunge: 200, cut: 0x9fb4ff },
+    ],
+    air: [
+      { anim: 'down', dmg: 0.9, cd: 1, ms: 130, reach: box(26, 26), knockback: 90, hover: 70, cut: 0xc2d4ff },
+      { anim: 'cross', dmg: 0.8, cd: 1.2, ms: 190, reach: box(30, 28), knockback: 70, hover: 80, cut: 0x9fb4ff },
+    ],
+    dive: {
+      // He falls like a moon setting (SKILLS.sabitCandra.onDiveLand: two crescents run out along the floor).
+      name: 'BULAN TERBENAM',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 850,
+      reach: box(14, 18),
+      knockback: 150,
+      hitbox: 'below',
+      dive: { vx: 30, vy: 460 },
+      slam: 30,
+      trail: 0x9fb4ff,
+      cut: 0xfff1e8,
+    },
+    skill: { name: 'SABIT CANDRA', desc: 'SABIT BERPUTAR MENGELILINGI ARENA, JUMLAH = FASE BULAN; PURNAMA MENJATUHKAN BULAN', cd: 5 },
+    fusion: { name: 'PASANG BULAN', desc: 'J+L: BULAN MENGANGKAT SEMUA MUSUH KE LANGIT, LALU AIR PASANG MENGHEMPAS MEREKA', cd: 11 },
+    ult: { name: 'MALAM SERIBU BULAN', desc: 'MALAM TURUN, BULAN RAKSASA BERGANTI FASE, TIAP FASE MENJATUHKAN SABIT, LALU TERBENAM' },
   },
 };
 

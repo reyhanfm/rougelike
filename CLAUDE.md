@@ -107,7 +107,12 @@ The user wants each character to be **keren**, iconic and unmistakably theirs. W
 - Depths: background props 2–5, player ~10, effects 11–15, HUD above. Dark overlays at depth 8.
 - Shared VFX helpers in `skills.ts`: `ring`, `sparks`, `thorns`, `rocks`, `explosion`, `glint`, `afterimage`,
   `bladeLine`, `leafBurst`, `vine`, `tree`, `bolt` (lightning), `stormArc` (layered gold lightning), `twilightWings`, `balanceSigil`, `lightRay`, `hexMirror`, `hurlRock`, `feathers`, `flameTongue`, `azraelBlade`,
-  `eveningBell`; `cutMark`, `floatText`, `burst` in `gfx/ui.ts`. Reuse them.
+  `eveningBell`, `moonCrescent` (crescent blade container), `moonPhase` (moon in any phase, new to full); `cutMark`,
+  `floatText`, `burst` in `gfx/ui.ts`. Reuse them.
+- An enemy can die in the middle of any loop (an `onKill` burst, a boss falling clears its summons). `RunScene`
+  marks it `setActive(false)` before kill effects run and every hit path skips inactive targets: keep checking
+  `t.active` in deferred callbacks, and never let an `onKill` that deals damage re-trigger itself (see KORONA).
+- Passive `onHit` also fires for `'skill'`/`'ult'` hits; filter on `h.source` when only basic blows should count.
 - Editing a file while the dev server runs triggers an HMR full reload of the page.
 - Never run `prettier --write src` (it reformats `Boss.ts`, which has pre-existing style differences); format only
   the files you touched.
@@ -169,3 +174,8 @@ Dark Avenger shadow-pool slide + eruption, Antares half-dragon fire charge, Naru
 duplicated his passive), Nephalem split light/hellfire paths closing in a cross. Buffs: Cultivator (swords no longer return
 and block the next attack: 1/2/3-sword volleys, 4 guard swords that also cut projectiles), Gravity Master (Gravity Order
 is map-wide x10/x100/x1000 crush, six-planet Orbit Planet, Black Hole with jets, torn floor, black beat and white hole).
+Sukuna buff (stronger trait, DISMANTLE twice as often, Fuga side pillars and floor fire wave, Kai aimed at the nearest
+enemy ahead). Surya (new class, Solar Knight: KORONA flame ring, sun-disc halo `attach`, Surya Terbit, Cincin Berlian
+eclipse, Solaris falling sun; `sunDisc`, `solarBeam`, `prominence`). Candra (new class, Moon Knight: FASE BULAN moon
+over his head waxes every 2 basic hits and powers Sabit Candra's 1-4 looping crescents + falling full moon, Pasang
+Bulan tide lift and crash, Malam Seribu Bulan phase-cycling moon with floor reflection and arena-wide crescent).

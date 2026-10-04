@@ -713,7 +713,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const gate = projectile?.gate;
     // Gate of Babylon: the volley's gates are spread over the nearest enemies (aimed gates, not homing treasures).
     const foes = gate ? this.world.targets(this.x, this.y) : [];
-    for (const [i, a] of (projectile ? [...(m.angles ?? []), ...extra] : []).entries()) {
+    // Sukuna's Kai is aimed at fire time: the nearest enemy ahead (flyers too) within ~60 degrees.
+    const mark =
+      this.weapon.id === 'shrine'
+        ? this.world
+            .targets(this.x, this.y)
+            .filter((t) => this.facing * (t.x - this.x) > 4 && Math.abs(t.y - this.y) < Math.abs(t.x - this.x) * 1.7 + 10)
+            .sort(
+              (u, v) => Phaser.Math.Distance.Between(this.x, this.y, u.x, u.y) - Phaser.Math.Distance.Between(this.x, this.y, v.x, v.y),
+            )[0]
+        : undefined;
+    const aimed = mark ? Math.atan2(mark.y - this.y, Math.abs(mark.x - this.x)) : 0;
+    for (const [i, a0] of (projectile ? [...(m.angles ?? []), ...extra] : []).entries()) {
+      const a = mark ? aimed : a0;
       if (gate) {
         this.openGate(i, a, m, foes[i % Math.max(1, foes.length)]);
         continue;
