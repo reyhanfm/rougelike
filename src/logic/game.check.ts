@@ -130,7 +130,8 @@ assert.equal(stacked.damage, Math.round(base.damage * 1.15));
 assert.equal(stacked.maxHp, base.maxHp + 30);
 assert.equal(stacked.extraJumps, 1);
 assert.equal(stacked.thorns, 8);
-assert.equal(runStats(maxed, WEAPONS.belati, ['mata', 'mataDewa', 'tulang']).critChance, 0.9);
+// Items stop crit at 50%; the weapon's own crit comes on top.
+assert.equal(runStats(maxed, WEAPONS.belati, ['mata', 'mataDewa', 'tulang']).critChance, 0.5 + WEAPONS.belati.crit);
 
 // Sets: every item has exactly one partner; the bonus needs both.
 const paired = PAIRS.flatMap((x) => [...x.items]);
@@ -244,9 +245,9 @@ const god = runStats(base, WEAPONS.pedang, [
   'cermin',
   'sisik',
 ]);
-assert.equal(god.critMult, 3);
+assert.equal(god.critMult, 2.5, 'items cap the crit multiplier');
 assert.equal(god.maxHp, base.maxHp + 100);
-assert.equal(god.regen, 2);
+assert.equal(god.regen, 1, 'soulslike: items cap regen at 1 HP/s');
 assert.equal(god.extraJumps, 3);
 assert.ok(god.damageTaken < 0.75, 'set bonus stacks with its items');
 
@@ -561,4 +562,63 @@ assert.equal(runStats(base, WEAPONS.pedang, [], 'samurai').dashCrit, 0);
 const soldierSave = { ...defaultSave(), cls: 'gunners' as const };
 writeSave(soldierSave);
 assert.deepEqual(loadSave(), soldierSave);
+// Soulslike balance: items add up (never compound) and are capped, relic slots hold MAX_ITEMS, enemies keep pace.
+{
+  const { MAX_ITEMS, takeItem, ITEM_IDS } = await import('./loot.ts');
+  const { bossBite, ELITE } = await import('./stages.ts');
+  const w = WEAPONS.pedang;
+  const dps = (s: typeof base) => (s.damage * (1 + s.critChance * (s.critMult - 1)) * (1 + 0.5 * s.echo)) / s.swingCooldown;
+  const ehp = (s: typeof base) => s.maxHp / s.damageTaken;
+  const fresh = runStats(base, w, []);
+  const allItems = runStats(base, w, ITEM_IDS);
+  assert.ok(dps(allItems) <= 20 * dps(fresh), `all items: DPS x${dps(allItems) / dps(fresh)}`);
+  assert.ok(ehp(allItems) <= 4 * ehp(fresh), `all items: effective HP x${ehp(allItems) / ehp(fresh)}`);
+  assert.ok(allItems.damageTaken >= 0.65 && allItems.dodge <= 0.15 && allItems.lifesteal <= 0.05 && allItems.regen <= 1);
+  assert.ok(allItems.healOnKill <= 5 && allItems.echo <= 0.4 && allItems.skillCdMult >= 0.5 && allItems.ultGainMult <= 2);
+  assert.ok(allItems.iframes <= 1000 && allItems.critMult <= 2.5);
+  // Additive: +15% and +50% make +65%, not x1.725; a speed-up and a curse partly cancel.
+  assert.equal(runStats(base, w, ['batu', 'pedangDewa']).damage, Math.round(base.damage * 1.65));
+  assert.ok(Math.abs(runStats(base, w, ['perisai', 'tengkorak']).damageTaken - 1 / (1 + 1 / 0.85 - 1 + 1 / 1.15 - 1)) < 1e-9);
+  // Class traits above an item cap keep their value (Hashirama heals 2/s); items just add nothing more.
+  assert.equal(runStats(base, w, ['hatiDewa'], 'hashirama').regen, 2);
+  // Pickup order still does not matter.
+  const mix = ['tengkorak', 'perisai', 'mahkota', 'jam', 'kristal', 'sarung', 'palu', 'jubahDewa'] as const;
+  assert.deepEqual(runStats(base, w, mix, 'ksatria'), runStats(base, w, [...mix].reverse(), 'ksatria'));
+  // Reference 8-item builds: a wall of HP/defense, and a glass cannon.
+  const tank = runStats(base, w, ['hatiDewa', 'naga', 'jangkar', 'mahkota', 'perisai', 'sabuk', 'cincin', 'aegis']);
+  const glass = runStats(base, w, ['pedangDewa', 'mataDewa', 'tanduk', 'tengkorak', 'keris', 'gema', 'jantung', 'roti']);
+  const share = (dmg: number, s: typeof base) => (dmg * s.damageTaken) / s.maxHp;
+  for (const round of [10, 20, 30]) {
+    const c = roundConfig(round);
+    const hit = share(c.enemyDamage, tank);
+    assert.ok(hit >= 0.11 && hit <= 0.2, `round ${round}: a normal hit costs the tank ${hit}`);
+    assert.ok(share(c.enemyDamage, glass) < 0.5, `round ${round}: the glass cannon survives two normal hits`);
+    // Boss light (shockwave x0.7) and heavy (pillars x1.4) hits: flat + bite of max HP, so HP stacking never trivialises.
+    const boss = (s: typeof base) => c.bossDamage + bossBite(c.bossTier) * s.maxHp;
+    const light = share(0.7 * boss(tank), tank);
+    const heavy = share(1.4 * boss(tank), tank);
+    assert.ok(light >= 0.15 && light <= 0.21, `round ${round}: boss light hit on the tank ${light}`);
+    assert.ok(heavy >= 0.3 && heavy <= 0.41, `round ${round}: boss heavy hit on the tank ${heavy}`);
+    assert.ok(share(ELITE.dmg * c.enemyDamage + ELITE.bite * tank.maxHp, tank) < 0.4, `round ${round}: elite touch`);
+    // Enemies stay tough: a normal one takes several basic hits even from the damage build.
+    assert.ok(c.enemyHp >= 4 * glass.damage, `round ${round}: enemy HP vs damage build`);
+  }
+  // Round 1 stays fair for a fresh hero: several hits to die, the first boss eases its bite in.
+  assert.ok(share(roundConfig(1).enemyDamage, fresh) <= 0.15 && bossBite(1) < bossBite(2));
+  // Relic slots: free slots just add; with all full a new item needs an owned one to discard (replaced in place).
+  const eight = ITEM_IDS.slice(0, MAX_ITEMS);
+  assert.equal(MAX_ITEMS, 8);
+  assert.deepEqual(takeItem(eight.slice(0, 7), 'phoenix'), [...eight.slice(0, 7), 'phoenix']);
+  assert.equal(takeItem(eight, 'phoenix'), undefined, 'full: a slot must be freed');
+  assert.equal(takeItem(eight, 'phoenix', MAX_ITEMS), undefined);
+  assert.equal(takeItem(eight.slice(0, 3), eight[0]), undefined, 'items stay unique');
+  const swapped = takeItem(eight, 'phoenix', 2)!;
+  assert.equal(swapped.length, MAX_ITEMS);
+  assert.ok(swapped[2] === 'phoenix' && !swapped.includes(eight[2]));
+  // The discarded item goes back to the pool: it can be rolled again.
+  assert.ok(
+    Array.from({ length: 200 }, () => rollRewards(1, swapped)).some((r) => r.some((x) => x.type === 'item' && x.id === eight[2])),
+    'a discarded item may come back',
+  );
+}
 console.log('game.check ok');

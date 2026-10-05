@@ -21,7 +21,7 @@ const LAYOUT = `
     <button data-key="J" class="atk">SERANG</button>
     <button data-key="SPACE" class="jump">LOMPAT</button>
   </div>
-  <p class="t-hint">TURUN + LOMPAT: turun platform. TURUN + SERANG di udara: menukik</p>
+  <p class="t-hint">TAHAN SERANG: serangan tahan. TURUN + LOMPAT: turun platform. TURUN + SERANG di udara: menukik</p>
 `;
 
 export function isTouchDevice(): boolean {

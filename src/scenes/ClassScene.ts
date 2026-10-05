@@ -4,6 +4,7 @@ import { text, W } from '../gfx/ui.ts';
 import { CLASS_IDS, CLASSES } from '../logic/classes.ts';
 import { WEAPONS, type WeaponId } from '../logic/loot.ts';
 import { DASHES } from '../entities/dashes.ts';
+import { CHARGED } from '../entities/charged/index.ts';
 import { loadSave, writeSave } from '../logic/save.ts';
 import { isTouchDevice } from '../touch.ts';
 import { onPadChange, padConnected } from '../gamepad.ts';
@@ -11,9 +12,11 @@ import { playMusic, sfx, toggleSound } from '../audio.ts';
 import type { RunData } from './RunScene.ts';
 
 const ROW_Y = 20;
-const ROW_H = 8;
+const ROW_H = 7;
 const COLS = 3;
 const CELL_W = 105;
+/** The class info starts right under the grid. */
+const INFO_Y = ROW_Y + Math.ceil(CLASS_IDS.length / COLS) * ROW_H + 2;
 
 /** Pick a class before each run. Its weapon is the starting weapon and unlocks the synergy. */
 export class ClassScene extends Phaser.Scene {
@@ -24,6 +27,7 @@ export class ClassScene extends Phaser.Scene {
   private passiveTitle!: Phaser.GameObjects.Text;
   private passiveDesc!: Phaser.GameObjects.Text;
   private dash!: Phaser.GameObjects.Text;
+  private charged!: Phaser.GameObjects.Text;
   private synergyTitle!: Phaser.GameObjects.Text;
   private synergyDesc!: Phaser.GameObjects.Text;
 
@@ -47,20 +51,20 @@ export class ClassScene extends Phaser.Scene {
       const c = CLASSES[id];
       const x = (i % COLS) * CELL_W + 3;
       const y = ROW_Y + Math.floor(i / COLS) * ROW_H;
-      this.add.rectangle(x + 51, y + 4, 102, 8, 0x1d2b53, 0.7);
+      this.add.rectangle(x + 51, y + 3.5, 102, ROW_H, 0x1d2b53, 0.7);
       this.markers.push(
         this.add
-          .rectangle(x + 51, y + 4, 102, 8)
+          .rectangle(x + 51, y + 3.5, 102, ROW_H)
           .setStrokeStyle(1, 0xffec27)
           .setDepth(101),
       );
       this.add
-        .image(x + 8, y + 4, `hero_idle_${id}`)
-        .setScale(0.55)
+        .image(x + 8, y + 3.5, `hero_idle_${id}`)
+        .setScale(0.5)
         .setDepth(100);
-      this.names.push(text(this, x + 16, y + 0.5, c.name, COLOR.text, 7));
+      this.names.push(text(this, x + 16, y, c.name, COLOR.text, 7));
       this.add
-        .zone(x + 51, y + 4, 102, 8)
+        .zone(x + 51, y + 3.5, 102, ROW_H)
         .setDepth(110)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => {
@@ -72,10 +76,11 @@ export class ClassScene extends Phaser.Scene {
 
     const wrap = { width: W - 30 };
     // Stacked under each other in refresh(): each block starts right below the one before.
-    this.trait = text(this, 16, 102, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
+    this.trait = text(this, 16, INFO_Y, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
     this.passiveTitle = text(this, 16, 0, '', '#ff77a8', 7).setWordWrapWidth(wrap.width);
     this.passiveDesc = text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(1);
     this.dash = text(this, 16, 0, '', '#00e436', 6).setWordWrapWidth(wrap.width);
+    this.charged = text(this, 16, 0, '', '#ffa300', 6).setWordWrapWidth(wrap.width);
     this.synergyTitle = text(this, 16, 0, '', COLOR.gold, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
     this.synergyDesc = text(this, 16, 0, '', COLOR.blue, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
     const hint = text(this, W / 2, 173, '', COLOR.gray, 6).setOrigin(0.5, 0);
@@ -122,13 +127,14 @@ export class ClassScene extends Phaser.Scene {
     this.passiveTitle.setText(`PASIF: ${c.passive.name}`);
     this.passiveDesc.setText(c.passive.desc);
     this.dash.setText(`DASH (${padConnected() ? 'B' : 'K'}): ${DASHES[CLASS_IDS[this.selected]].name}`);
+    this.charged.setText(`TAHAN ${padConnected() ? 'X' : 'J'}: ${CHARGED[CLASS_IDS[this.selected]].name}`);
     this.synergyTitle.setText(`SINERGI (${WEAPONS[c.weapon].name}): ${c.synergy.name}`);
     this.synergyDesc.setText(c.synergy.desc);
     // Long texts wrap; each block follows right under the one before.
-    const stack = [this.trait, this.passiveTitle, this.passiveDesc, this.dash, this.synergyTitle, this.synergyDesc];
+    const stack = [this.trait, this.passiveTitle, this.passiveDesc, this.dash, this.charged, this.synergyTitle, this.synergyDesc];
     for (let i = 1; i < stack.length; i++) {
       const prev = stack[i - 1];
-      stack[i].setY(prev.y + prev.height + (i === 1 || i === 3 || i === 4 ? 2 : 1));
+      stack[i].setY(prev.y + prev.height + (i === 1 || i === 3 || i === 5 ? 2 : 1));
     }
   }
 

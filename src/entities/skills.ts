@@ -29,7 +29,7 @@ type WeaponSkills = {
   onDiveLand?: (c: SkillCtx, x: number, groundY: number) => void;
 };
 
-const later = (scene: Phaser.Scene, ms: number, fn: () => void) => scene.time.delayedCall(ms, fn);
+export const later = (scene: Phaser.Scene, ms: number, fn: () => void) => scene.time.delayedCall(ms, fn);
 
 /** What comes out of the Gate of Babylon: the held-weapon sprites of other heroes. */
 export const TREASURES = ['w_pedang', 'w_tombak', 'w_kapak', 'w_belati', 'w_katana', 'w_sabit', 'w_pedangTerbang'];
@@ -195,7 +195,7 @@ export function leafBurst(scene: Phaser.Scene, x: number, y: number, n: number):
 }
 
 /** A branch snaking from (x1, y1) out to (x2, y2): a wavy line that grows, holds, then withers. */
-function vine(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number): void {
+export function vine(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number): void {
   const g = scene.add.graphics().setDepth(12);
   scene.tweens.addCounter({
     from: 0,
@@ -221,7 +221,7 @@ function vine(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: numbe
 }
 
 /** A tree of height h bursting up at x: barked trunk, two branches, a layered canopy; it stands `ms` then sinks. */
-function tree(scene: Phaser.Scene, x: number, h: number, ms: number, lean: number): void {
+export function tree(scene: Phaser.Scene, x: number, h: number, ms: number, lean: number): void {
   const g = scene.add.graphics().setDepth(4);
   const top = FLOOR_Y - h;
   g.fillStyle(0x4a2a1a).fillRect(x - 4, top, 8, h);
@@ -282,7 +282,7 @@ export function bolt(scene: Phaser.Scene, x0: number, y0: number, x1: number, y1
 }
 
 /** Points along a line from (x0, y0) to (x1, y1), each kinked sideways (perpendicular) by up to `amp` px. */
-function jag(x0: number, y0: number, x1: number, y1: number, amp: number): [number, number][] {
+export function jag(x0: number, y0: number, x1: number, y1: number, amp: number): [number, number][] {
   const len = Math.hypot(x1 - x0, y1 - y0);
   const n = Math.max(3, Math.round(len / 12));
   const [nx, ny] = len ? [-(y1 - y0) / len, (x1 - x0) / len] : [0, 0];
@@ -330,7 +330,7 @@ export function stormArc(scene: Phaser.Scene, x0: number, y0: number, x1: number
 const STATIC_MAX = 6;
 
 /** The stored STATIK, drawn as gold pips orbiting over his crown (created once per run scene). */
-function staticCrown(scene: Phaser.Scene, p: Player): void {
+export function staticCrown(scene: Phaser.Scene, p: Player): void {
   if (p.getData('staticG')) return;
   const g = scene.add.graphics().setDepth(11);
   p.setData('staticG', g);
@@ -428,7 +428,7 @@ const ORB_COLORS = {
  * A layered sphere of radius `r` at (x, y): dark rim, colored body, lit side, a white heart and three spiral arms,
  * turning (`spin` > 0 clockwise for Blue drawing in, < 0 for Red throwing out). Returns its container (destroy it).
  */
-function cursedOrb(
+export function cursedOrb(
   scene: Phaser.Scene,
   x: number,
   y: number,
@@ -463,7 +463,7 @@ function cursedOrb(
  * Of the lines from (ox, oy) toward each enemy, the one that passes within `width` of the most of them (ahead of the
  * origin only); ties go to the nearer enemy. Returns the angle, or `fallback` when there is no one.
  */
-function bestLine(foes: Phaser.GameObjects.Sprite[], ox: number, oy: number, width: number, fallback: number): number {
+export function bestLine(foes: Phaser.GameObjects.Sprite[], ox: number, oy: number, width: number, fallback: number): number {
   let best = { a: fallback, n: 0, d: Infinity };
   for (const t of foes) {
     const a = Phaser.Math.Angle.Between(ox, oy, t.x, t.y);
@@ -516,7 +516,7 @@ export function hexMirror(g: Phaser.GameObjects.Graphics, r: number, rim: number
 }
 
 /** A boulder ripped from the ground at (x0, FLOOR_Y) and hurled in an arc onto `t`; `onHit` runs if it lands. */
-function hurlRock(scene: Phaser.Scene, x0: number, t: Phaser.GameObjects.Sprite, onHit: () => void): void {
+export function hurlRock(scene: Phaser.Scene, x0: number, t: Phaser.GameObjects.Sprite, onHit: () => void): void {
   const r = scene.add
     .image(x0, FLOOR_Y - 4, 'boulder')
     .setScale(2)
@@ -757,7 +757,7 @@ const ELEMENT_SPELLS: SkillFn[] = [
 ];
 
 /** A Susanoo sword, hilt at the container's origin, blade `len` px pointing up: dark edge, blue body, a pale core. */
-function susanooBlade(scene: Phaser.Scene, x: number, y: number, len: number): Phaser.GameObjects.Container {
+export function susanooBlade(scene: Phaser.Scene, x: number, y: number, len: number): Phaser.GameObjects.Container {
   const g = scene.add.graphics();
   g.fillStyle(0x29adff, 0.25).fillRect(-6, -len - 4, 12, len + 4);
   g.fillStyle(0x1d2b53)
@@ -777,7 +777,7 @@ function susanooBlade(scene: Phaser.Scene, x: number, y: number, len: number): P
  * `bones` (spine and ribs), `flesh` (body, pauldrons, tengu helm with its crescent crest), `wings` and glowing `eyes`.
  * All start invisible (wings folded to scaleX 0).
  */
-function perfectSusanoo(
+export function perfectSusanoo(
   scene: Phaser.Scene,
   x: number,
   y: number,
@@ -889,7 +889,7 @@ function perfectSusanoo(
 }
 
 /** Gae Bolg drawn large, pointing right from the container's origin (`len` px of shaft): crimson glow, dark shaft, a barbed red head. */
-function crimsonSpear(scene: Phaser.Scene, len: number): Phaser.GameObjects.Container {
+export function crimsonSpear(scene: Phaser.Scene, len: number): Phaser.GameObjects.Container {
   const g = scene.add.graphics();
   g.fillStyle(0xff004d, 0.25).fillRect(-len / 2 - 2, -3, len + 14, 6);
   g.fillStyle(0x1d0f0a).fillRect(-len / 2, -1.5, len, 3);
@@ -914,7 +914,7 @@ function crimsonSpear(scene: Phaser.Scene, len: number): Phaser.GameObjects.Cont
 }
 
 /** A small puff of gun smoke at (x, y). */
-function smokePuff(scene: Phaser.Scene, x: number, y: number): void {
+export function smokePuff(scene: Phaser.Scene, x: number, y: number): void {
   for (let i = 0; i < 4; i++) {
     const c = scene.add.circle(x + Phaser.Math.Between(-2, 2), y + Phaser.Math.Between(-2, 2), 2, 0x83769c, 0.7).setDepth(12);
     scene.tweens.add({ targets: c, y: c.y - 6, scale: 2, alpha: 0, duration: 300, onComplete: () => c.destroy() });
@@ -922,7 +922,7 @@ function smokePuff(scene: Phaser.Scene, x: number, y: number): void {
 }
 
 /** A giant blade of shadow, hilt at the container's origin and pointing up `len` px: black edge, violet body, a crimson vein. */
-function shadowBlade(scene: Phaser.Scene, x: number, y: number, len: number): Phaser.GameObjects.Container {
+export function shadowBlade(scene: Phaser.Scene, x: number, y: number, len: number): Phaser.GameObjects.Container {
   const g = scene.add.graphics();
   g.fillStyle(0x8a3fd1, 0.25).fillRect(-9, -len - 4, 18, len + 4);
   g.fillStyle(0x000000)
@@ -939,7 +939,7 @@ function shadowBlade(scene: Phaser.Scene, x: number, y: number, len: number): Ph
 }
 
 /** A skeletal hand clawing up out of the floor at x (scaleY 0: still underground; tween scaleY to 1.5 to raise it). */
-function underworldHand(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Container {
+export function underworldHand(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Container {
   const g = scene.add.graphics();
   // Forearm, palm and four hooked fingers: dark outline, bone, a pale lit edge.
   for (const [w, c] of [
@@ -965,7 +965,7 @@ function underworldHand(scene: Phaser.Scene, x: number, y: number): Phaser.GameO
 }
 
 /** Dark smoke billowing from (x, y) (the Reaper's giant rising and fading). */
-function smoke2(scene: Phaser.Scene, x: number, y: number, n: number): void {
+export function smoke2(scene: Phaser.Scene, x: number, y: number, n: number): void {
   for (let i = 0; i < n; i++) {
     const s = scene.add
       .circle(x + Phaser.Math.Between(-18, 18), y + Phaser.Math.Between(-6, 6), Phaser.Math.Between(3, 6), i % 2 ? 0x1c1c28 : 0x2a0a2a, 0.8)
@@ -985,7 +985,7 @@ function smoke2(scene: Phaser.Scene, x: number, y: number, n: number): void {
  * The Reaper's true shape, about 70 px tall: a hooded black cloak with a tattered hem, a skull with red pinpoints
  * for eyes, and the great scythe held at its shoulder (`scythe` turns about the grip). Facing `f`, feet at `body`'s origin.
  */
-function giantReaper(
+export function giantReaper(
   scene: Phaser.Scene,
   x: number,
   y: number,
@@ -1057,7 +1057,7 @@ function giantReaper(
  * The Nemean Lion's golden ghost, facing right with its body at the container's origin: dark outline, gold body,
  * a jagged orange mane with a lit crest, a red eye, and a glow behind it.
  */
-function nemeanLion(scene: Phaser.Scene, x: number, y: number, f: number): Phaser.GameObjects.Container {
+export function nemeanLion(scene: Phaser.Scene, x: number, y: number, f: number): Phaser.GameObjects.Container {
   const g = scene.add.graphics();
   const mane = (r: number) =>
     Array.from({ length: 14 }, (_, i) => {
@@ -1082,7 +1082,7 @@ function nemeanLion(scene: Phaser.Scene, x: number, y: number, f: number): Phase
 }
 
 /** The sun: twelve rays, a red corona, an orange limb, a gold body and a white-hot core, drawn about the container's origin so it can turn and scale there. */
-function sunDisc(scene: Phaser.Scene, x: number, y: number, r: number): Phaser.GameObjects.Container {
+export function sunDisc(scene: Phaser.Scene, x: number, y: number, r: number): Phaser.GameObjects.Container {
   const g = scene.add.graphics();
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2;
@@ -1105,7 +1105,7 @@ function sunDisc(scene: Phaser.Scene, x: number, y: number, r: number): Phaser.G
 }
 
 /** A straight beam of sunfire (red glow, orange, gold, white core) that fades. */
-function solarBeam(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number, ms = 260): void {
+export function solarBeam(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number, ms = 260): void {
   const g = scene.add.graphics().setDepth(14);
   for (const [w, c, a] of [
     [8, 0xff004d, 0.35],
@@ -1118,7 +1118,7 @@ function solarBeam(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: 
 }
 
 /** A solar prominence: a curved tongue of fire arching from the sun at (x1, y1) down onto (x2, y2). */
-function prominence(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number): void {
+export function prominence(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number): void {
   const [dx, dy] = [x2 - x1, y2 - y1];
   const len = Math.hypot(dx, dy) || 1;
   const bulge = (x2 >= x1 ? -1 : 1) * Phaser.Math.Between(14, 26);
@@ -1139,7 +1139,7 @@ function prominence(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2:
 }
 
 /** Points of a crescent of radius r bulging toward +x; k is how far the inner curve reaches (0: half disc, 1: none). */
-function crescentPts(r: number, k: number): Phaser.Math.Vector2[] {
+export function crescentPts(r: number, k: number): Phaser.Math.Vector2[] {
   const pts: Phaser.Math.Vector2[] = [];
   for (let i = 0; i <= 12; i++) {
     const t = -Math.PI / 2 + (i / 12) * Math.PI;

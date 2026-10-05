@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import type { Derived } from '../logic/stats.ts';
 import { moveHitbox, nextCombo, type Move, type Weapon } from '../logic/loot.ts';
-import { COLOR } from '../gfx/sprites.ts';
+import { COLOR, PALETTE } from '../gfx/sprites.ts';
 import { cutMark, flash, floatText, W } from '../gfx/ui.ts';
 import type { PlayerWorld } from './arena.ts';
 import type { ClassId } from '../logic/classes.ts';
-import { SKILLS, TREASURES } from './skills.ts';
+import { SKILLS, TREASURES, glint, ring, sparks } from './skills.ts';
+import { CHARGE, CHARGED, type ChargedCtx } from './charged/index.ts';
 import { CLASSES, FURY } from '../logic/classes.ts';
 import { DASHES } from './dashes.ts';
 import { PASSIVES } from './passives.ts';
@@ -97,6 +98,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private crossed = false;
   /** Strikes of the current flurry (Move.hits) already started. */
   private flurry = 0;
+  /** Hold attack (see charged/types.ts CHARGE): when J went down (0 = no hold that may charge), when the charge
+   * started (0 = not charging), the level reached, the next gathering mote, the charge aura and the last frame's
+   * real time (a gap means the run was paused: the charge is dropped). */
+  private holdAt = 0;
+  private chargeAt = 0;
+  private chargeLevel: 0 | 1 | 2 = 0;
+  private nextMote = 0;
+  private chargeGfx?: Phaser.GameObjects.Graphics;
+  private lastFrame = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -212,6 +222,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return this.scene.time.now < this.dashUntil;
   }
 
+  /** Charging a hold attack (J held). */
+  get charging(): boolean {
+    return this.chargeAt > 0;
+  }
+
   get invulnerable(): boolean {
     return this.scene.time.now < this.invulnUntil || this.hp <= 0;
   }
@@ -271,6 +286,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const b = this.body;
     const grounded = b.blocked.down || b.touching.down;
     const style = STYLES[this.skin];
+    // The run was paused (pause menu, rewards, lost focus) since the last frame: a held charge is dropped, so a J
+    // released during the pause does not fire on resume.
+    const real = this.scene.game.loop.time;
+    if (real - this.lastFrame > 250) this.cancelCharge();
+    this.lastFrame = real;
     // Landing after real airtime: a burst of the class's trail (and a thud for heavy classes).
     if (grounded && this.airSince && time - this.airSince > 250) {
       emitTrail(this.scene, this.x, this.y + 6, -this.facing, style.trail, 5);
@@ -298,7 +318,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!dashing && !locked) {
       const dir = (k.right.isDown || k.d.isDown ? 1 : 0) - (k.left.isDown || k.a.isDown ? 1 : 0);
       if (dir) this.facing = dir;
-      this.setVelocityX(dir * this.stats.speed * (this.has('slow') ? SLOW_MULT : 1));
+      this.setVelocityX(dir * this.stats.speed * (this.has('slow') ? SLOW_MULT : 1) * (this.chargeAt ? CHARGE.speed : 1));
       // Dragon form flies: up/down steer freely, kept below the HUD.
       if (dragon) {
         const up = k.up.isDown || k.w.isDown || k.space.isDown ? 1 : 0;
@@ -342,6 +362,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const attackPressed = Phaser.Input.Keyboard.JustDown(k.attack);
     const skillPressed = Phaser.Input.Keyboard.JustDown(k.skill);
     const silenced = this.has('silence');
+    // Every fresh press may become a hold attack (a fusion, skill, dive or cancel clears it again).
+    if (attackPressed) this.holdAt = time;
     // Fusion (Gojo's Purple): attack and skill together, i.e. one pressed while the other is held.
     const fuse =
       !!this.weapon.fusion &&
@@ -357,10 +379,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       (attackPressed || ((this.weapon.automatic || dragon) && k.attack.isDown)) &&
       time >= this.swingReadyAt &&
       !this.thrown?.active
-    )
+    ) {
       this.attack(time);
+      // Automatic weapons keep firing through a charge, at a slower rate (the barrel spins up).
+      if (this.chargeAt && this.weapon.automatic) this.swingReadyAt = time + (this.swingReadyAt - time) / CHARGE.autoFireMult;
+    }
     if (!fuse && !locked && !silenced && skillPressed && time >= this.skillReadyAt) this.useSkill(time, 'skill');
     if (!locked && !silenced && !this.awakening && Phaser.Input.Keyboard.JustDown(k.ult) && this.ult >= 100) this.useSkill(time, 'ult');
+    this.updateCharge(time);
 
     const running = grounded && b.velocity.x !== 0;
     const frame = !grounded ? 'jump' : running ? (Math.floor(time / style.stride) % 2 ? 'run1' : 'run0') : 'idle';
@@ -384,6 +410,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** The class dash: its own movement, then its own start effect. */
   private dash(time: number): void {
     const d = DASHES[this.skin];
+    this.cancelCharge();
     this.dashUntil = time + d.ms;
     this.dashCritUntil = time + d.ms + 500;
     this.dashReadyAt = time + this.stats.dashCooldown * (d.cd ?? 1) * 1000;
@@ -503,6 +530,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (d === 'burn' && this.stats.fireImmune) return;
     const now = this.scene.time.now;
     if (!this.has(d)) floatText(this.scene, this.x, this.y - 22, `${DEBUFFS[d].name}!`, DEBUFFS[d].color);
+    if (d === 'freeze' || d === 'stun' || d === 'silence') this.cancelCharge();
     this.debuffs.set(d, { until: now + DEBUFFS[d].ms, power: Math.max(1, Math.round(power * DOT_SHARE)) });
     // Never shortens a longer lock already running.
     if (d === 'freeze' || d === 'stun') this.lockUntil = Math.max(this.lockUntil, now + DEBUFFS[d].ms);
@@ -613,6 +641,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Turn into the dragon for `ms` (times stats.formTime). */
   transform(ms: number): void {
     this.formUntil = this.scene.time.now + ms * this.stats.formTime;
+    this.cancelCharge();
   }
 
   private attack(time: number): void {
@@ -654,6 +683,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     } else if (diving) {
       m = this.weapon.dive;
       this.comboIndex = this.airIndex = -1;
+      // A dive never charges, however long J stays down.
+      this.holdAt = 0;
     } else {
       // Mid-air: the weapon's own air combo; the ground combo restarts after it.
       const air = this.weapon.air;
@@ -782,6 +813,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     const info = this.weapon[kind]!;
+    this.cancelCharge();
     sfx(kind);
     if (kind === 'skill') this.skillReadyAt = time + this.weapon.skill.cd * this.stats.skillCdMult * 1000;
     else if (kind === 'fusion') this.fusionReadyAt = time + this.weapon.fusion!.cd * this.stats.skillCdMult * 1000;
@@ -795,6 +827,106 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     floatText(this.scene, Phaser.Math.Clamp(this.x, half, W - half), this.y - 18, `${info.name}!`, color);
   }
 
+  private get chargeCtx(): ChargedCtx {
+    // power 1: a charged attack is a weapon attack, skill items do not scale it.
+    return { p: this, world: this.world, scene: this.scene, power: 1 };
+  }
+
+  /** Drop the hold attack (hit, dash, skill, freeze...): it needs a fresh press of J to charge again. */
+  cancelCharge(): void {
+    this.holdAt = this.chargeAt = this.chargeLevel = 0;
+    this.chargeGfx?.clear().setVisible(false);
+  }
+
+  /** Hold attack: start charging once J has been held long enough, raise the level, fire on release. */
+  private updateCharge(time: number): void {
+    if (!this.holdAt) return;
+    if (!this.keys.attack.isDown) {
+      const level = this.chargeLevel;
+      this.cancelCharge();
+      if (level) this.fireCharged(time, level);
+      return;
+    }
+    if (this.dragon || this.has('silence')) return this.cancelCharge();
+    if (!this.chargeAt) {
+      // Wait out the swing (and any lunge lock) the press started.
+      if (time - this.holdAt < CHARGE.startMs || time < this.swingUntil || time < this.lockUntil) return;
+      this.chargeAt = time;
+    }
+    const t = time - this.chargeAt;
+    const full = CHARGE.level2Ms - CHARGE.startMs;
+    const level = t >= full ? 2 : t >= CHARGE.level1Ms - CHARGE.startMs ? 1 : 0;
+    if (level > this.chargeLevel) {
+      this.chargeLevel = level;
+      this.chargeFlash(level as 1 | 2);
+    }
+    this.drawCharge(time, Math.min(1, t / full));
+  }
+
+  private fireCharged(time: number, level: 1 | 2): void {
+    const atk = CHARGED[this.skin];
+    if (atk.fire(this.chargeCtx, level) === false) {
+      floatText(this.scene, this.x, this.y - 16, 'TIDAK ADA TARGET', COLOR.gray);
+      return;
+    }
+    this.swingReadyAt = Math.max(this.swingReadyAt, time + CHARGE.recoverMs);
+    sfx('heavy');
+    const half = (atk.name.length + 1) * 4;
+    floatText(this.scene, Phaser.Math.Clamp(this.x, half, W - half), this.y - 18, `${atk.name}!`, level === 2 ? COLOR.gold : '#ffa300');
+  }
+
+  /** The charge, every frame: the class's own look, or motes of the class color gathering into a growing aura. */
+  private drawCharge(time: number, t01: number): void {
+    const g = (this.chargeGfx ??= this.scene.add.graphics().setDepth(11));
+    g.clear().setVisible(true);
+    const own = CHARGED[this.skin].charging;
+    if (own) return own(this.chargeCtx, t01, this.chargeLevel, g);
+    const color = PALETTE[CLASSES[this.skin].color];
+    const full = this.chargeLevel === 2;
+    // Aura: a soft disc and a rim that grow with the charge; once full it pulses fast with a white outer rim.
+    const pulse = Math.sin(time / (full ? 35 : 90));
+    const r = 5 + t01 * 6 + pulse;
+    g.fillStyle(color, 0.12 + 0.13 * t01).fillCircle(this.x, this.y, r + 2);
+    g.lineStyle(1, color, 0.45 + 0.45 * t01).strokeCircle(this.x, this.y, r);
+    if (full) g.lineStyle(1, 0xfff1e8, 0.5 + 0.3 * pulse).strokeCircle(this.x, this.y, r + 3);
+    if (time < this.nextMote) return;
+    // Motes drawn in from a circle around the hero, faster once a level is reached.
+    this.nextMote = time + (this.chargeLevel ? 35 : 60);
+    const a = Math.random() * Math.PI * 2;
+    const d = 16 + Math.random() * 10;
+    const mote = this.scene.add
+      .rectangle(this.x + Math.cos(a) * d, this.y + Math.sin(a) * d, 1, 1, Math.random() < 0.5 ? color : 0xfff1e8)
+      .setDepth(12);
+    this.scene.tweens.add({
+      targets: mote,
+      x: this.x,
+      y: this.y,
+      alpha: 0.3,
+      duration: 220,
+      ease: 'Quad.In',
+      onComplete: () => mote.destroy(),
+    });
+  }
+
+  /** A level is reached: one flash of the hero each, a ring and a sound; full adds sparks and a tiny shake. */
+  private chargeFlash(level: 1 | 2): void {
+    const s = this.scene;
+    const color = PALETTE[CLASSES[this.skin].color];
+    flash(this, 0xfff1e8);
+    if (level === 1) {
+      sfx('charge1');
+      ring(s, this.x, this.y, color, 3, 16, 260);
+      glint(s, this.x + this.facing * 4, this.y - 5);
+      return;
+    }
+    sfx('charge2');
+    ring(s, this.x, this.y, color, 4, 28, 360, 2);
+    ring(s, this.x, this.y, 0xfff1e8, 2, 18, 260);
+    sparks(s, this.x, this.y, [color, 0xfff1e8], 10, 20);
+    s.cameras.main.shake(70, 0.003);
+    rumble(80, 0.3);
+  }
+
   hurt(damage: number, fromX: number): HurtResult {
     const time = this.scene.time.now;
     if (time < this.invulnUntil || this.hp <= 0) return 'ignored';
@@ -806,6 +938,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.hp = Math.max(0, this.hp - Math.max(1, Math.round(damage * this.stats.damageTaken * (this.dragon ? 0.6 : 1))));
     this.invulnUntil = time + this.stats.iframes;
+    this.cancelCharge();
     this.setVelocity((this.x < fromX ? -1 : 1) * 140, -150);
     flash(this, 0xff004d);
     this.scene.cameras.main.shake(100, 0.01);
@@ -868,6 +1001,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         x = this.x;
       }
     }
+    // Charging: the weapon is drawn back (raised behind the head; guns and fists pulled in), trembling once full.
+    if (this.chargeAt && !active) {
+      angle = this.weapon.projectile || this.weapon.fist ? -20 : -130;
+      x -= f * 2;
+      if (this.chargeLevel === 2) x += Math.floor(time / 40) % 2 ? 1 : -1;
+    }
     const spinning = time < this.spinUntil || (active && m.anim === 'spin');
     if (spinning) angle = (time * 1.6) % 360;
     // Right-facing angles; mirrored by scaleX for the left side.
@@ -911,6 +1050,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.held?.destroy();
     this.twin?.destroy();
     this.slash?.destroy();
+    this.chargeGfx?.destroy();
     super.destroy(fromScene);
   }
 }

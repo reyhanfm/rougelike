@@ -11,7 +11,7 @@ All in-game text is **Indonesian, UPPERCASE**. Code comments are English.
 ```
 npm run dev        # vite dev server (http://localhost:5173)
 npm run typecheck  # tsc --noEmit
-npm run check      # game/touch/gamepad/audio .check.ts (assert-based balance/data checks)
+npm run check      # game/charged/touch/gamepad/audio .check.ts (assert-based balance/data checks)
 npm run verify     # typecheck + check + build — run before calling work done
 npx prettier --write <files>   # format touched files only (Boss.ts has pre-existing style warnings)
 ```
@@ -28,12 +28,14 @@ Dev URL shortcuts (from ClassScene, dev only): `?round=10`, `?weapon=busur`, `?m
 | `src/entities/skills.ts`                                  | `SKILLS[weaponId]`: `skill`, `ult`, `fusion` (J+L), optional `basic` (cast), `onHit` (melee hit), `onSwing` (move) |
 | `src/entities/dashes.ts`                                  | `DASHES[classId]`: each class's own dash (K) movement, hit and VFX                                                 |
 | `src/entities/passives.ts`                                | `PASSIVES[classId]`: the class PASIF (always-on technique) via hooks: tick/onAttack/onHit/onKill/modify/guard/...  |
+| `src/entities/charged/`                                   | hold attack (TAHAN J): `types.ts` (`CHARGE` timings, `ChargedAttack` contract + damage budget), `batch1..6.ts`     |
+|                                                           | (`BATCH_N`, five classes each), `index.ts` (`CHARGED[classId]`, placeholder lunge for classes not written yet)     |
 | `src/entities/styles.ts`                                  | `STYLES[classId]`: run stride, lean, jump style, trail particles, weapon hold pose                                 |
 | `src/gfx/sprites.ts`                                      | `PALETTE` (one char per color), `SPRITES` text grids (`w_<weaponId>` held weapon, projectiles, props), `LEGS`      |
 | `src/entities/Player.ts`                                  | input, combo/attack/dash/skill flow, `useSkill` (shows the skill name itself)                                      |
 | `src/entities/arena.ts`                                   | `PlayerWorld` (what skills may do: `shot`, `pull`, `slam`, `area`, `targets`, `strike`) and `Arena` (enemy side)   |
 | `src/scenes/RunScene.ts`                                  | the run: implements both interfaces, status effects (burn/freeze/slow), HUD, rewards                               |
-| `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H` — shrink them when rows no longer fit above y=102)                   |
+| `src/scenes/ClassScene.ts`                                | class picker grid (3 columns, `ROW_Y`/`ROW_H`; the info panel starts under the grid and must end above y=173)      |
 | `src/entities/Enemy.ts`, `Boss.ts`, `src/logic/stages.ts` | enemies, bosses, round scaling, special bosses                                                                     |
 | `src/keys.ts`, `src/touch.ts`, `src/gamepad.ts`           | synthetic key presses; touch buttons and controller (per-screen button layout) press the keyboard keys             |
 | `src/entities/invasions.ts`                               | `INTROS[special]`: entrance cinematic of a hidden boss crashing into a normal round (`INVASION` in stages.ts)      |
@@ -58,7 +60,10 @@ A class touches **every** one of these; missing one is a type error or a broken 
 6. `passives.ts` — `PASSIVES[classId]` + `passive: { name, desc }` in `classes.ts` (name ≤ 20, desc ≤ 90, unique; checked).
    A passive is a real effect with its own VFX, not a stat line (stats belong in `trait`). Its hits are `'proc'`
    (never re-trigger `onHit`); per-round state goes through `state(p, init)`, per-frame marks through `overlay(c)`.
-7. Run `npm run verify`, then **look at it in the browser** (see Testing) — skill, ult, fusion, dash, idle sprite.
+7. `charged/batchN.ts` — `CHARGED[classId]`, the hold attack (TAHAN J) in the class's batch file: its own technique
+   (name ≤ 20, desc ≤ 90, unique, not the skill/ult/fusion name; checked in `charged.check.ts`), two levels (full =
+   bigger reach + stagger/launch), source `'basic'`, damage budget and what the system already does in `types.ts`.
+8. Run `npm run verify`, then **look at it in the browser** (see Testing) — skill, ult, fusion, dash, charged attack, idle sprite.
 
 ## Quality bar: every character must look and feel cool
 
@@ -138,6 +143,7 @@ s.spawnEnemy('bat', 120, 60); // slime, bat, boar, ...
 for (const t of s.hittables()) t.hp = t.maxHp = 99999; // keep them alive to watch the whole effect
 p.ult = 100;
 p.useSkill(s.time.now, 'ult'); // 'skill' | 'ult' | 'fusion'; p.dash(s.time.now)
+p.fireCharged(s.time.now, 2); // the hold attack (TAHAN J) at level 1 | 2, without holding the key
 setTimeout(() => s.scene.pause(), 1500); // freeze mid-effect, then screenshot
 ```
 

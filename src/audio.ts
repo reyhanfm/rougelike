@@ -459,6 +459,8 @@ export type Sfx =
   | 'jump'
   | 'swing'
   | 'heavy'
+  | 'charge1'
+  | 'charge2'
   | 'shoot'
   | 'dash'
   | 'skill'
@@ -499,6 +501,16 @@ const EFFECTS: Record<Sfx, () => void> = {
   heavy: () => {
     noise(0.16, { filter: 'bandpass', freq: 1800, to: 300, q: 1.2, vol: 0.45 });
     tone(140, 0.14, { wave: 'triangle', to: 60, vol: 0.4 });
+  },
+  // Hold attack: a rising chime at level 1, a brighter chord with a hiss at full charge.
+  charge1: () => {
+    tone(392, 0.12, { wave: 0.25, to: 784, vol: 0.14, hold: 0 });
+    arpeggio(['g5', 'd6'], 0.04, { wave: 0.125, vol: 0.12, delay: 0.06 });
+  },
+  charge2: () => {
+    tone(262, 0.25, { wave: 'sawtooth', to: 1046, vol: 0.12 });
+    noise(0.2, { filter: 'highpass', freq: 2500, vol: 0.14 });
+    arpeggio(['c6', 'e6', 'g6', 'c7'], 0.035, { wave: 0.25, vol: 0.14, delay: 0.08 });
   },
   shoot: () => tone(1100, 0.08, { wave: 0.25, to: 320, vol: 0.12, hold: 0 }),
   dash: () => noise(0.18, { filter: 'bandpass', freq: 600, to: 4500, q: 2, vol: 0.35 }),

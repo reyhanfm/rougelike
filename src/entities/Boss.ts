@@ -14,6 +14,7 @@ import {
   bossLoop,
   bossPatterns,
   bossPhase,
+  bossBite,
   DEMON_PHASES,
   type BossKind,
   type BossPattern,
@@ -48,7 +49,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
   hp: number;
   readonly maxHp: number;
-  readonly damage: number;
+  private readonly flatDamage: number;
   readonly tier: number;
   readonly kind: BossKind;
   /** Mahoraga or Leviathan (bonus round); undefined for the regular bosses. */
@@ -103,7 +104,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.next = this.patterns[0];
     const stats = special ? specialStats(special, cfg) : { hp: cfg.bossHp, dmg: cfg.bossDamage };
     this.hp = this.maxHp = stats.hp;
-    this.damage = stats.dmg;
+    this.flatDamage = stats.dmg;
     this.armor = this.maxArmor = kind === 'leviathan' ? Math.round(this.maxHp * LEVIATHAN.armor) : 0;
     this.baseTint = LOOP_TINTS[this.loop % LOOP_TINTS.length];
     const b = BODY[kind];
@@ -122,6 +123,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     }
     if (kind === 'leviathan' || kind === 'godzilla') scene.cameras.main.shake(800, 0.012);
     if (kind === 'kaguya') scene.cameras.main.flash(500, 192, 128, 255);
+  }
+
+  /** Flat damage plus a bite of the player's max HP; every attack scales this (shots x0.6 ... laser x1.6). */
+  get damage(): number {
+    return Math.round(this.flatDamage + bossBite(this.tier) * this.arena.playerMaxHp);
   }
 
   preUpdate(time: number, delta: number): void {

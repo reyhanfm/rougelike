@@ -67,7 +67,7 @@ export class HubScene extends Phaser.Scene {
       const pad = padConnected();
       soundHint.setText(`${pad ? 'SELECT' : 'M'}\n${soundLabel()}`);
       menuHint.setText(pad ? 'D-PAD PILIH  A BELI  START MULAI' : 'W/S PILIH  J BELI  SPASI MULAI');
-      playHint.setText(pad ? 'X SERANG B DASH Y SKILL RB ULTI' : 'J SERANG K DASH L SKILL I ULTI');
+      playHint.setText(pad ? 'X SERANG (TAHAN) B DASH Y SKILL RB ULTI' : 'J SERANG (TAHAN) K DASH L SKILL I ULTI');
     });
 
     const kb = this.input.keyboard!;

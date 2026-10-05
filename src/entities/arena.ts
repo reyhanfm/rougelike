@@ -5,6 +5,8 @@ import type { Debuff, EnemyKind } from '../logic/stages.ts';
 /** What enemies and bosses may do to the world. RunScene implements it. */
 export interface Arena {
   readonly player: Phaser.GameObjects.Sprite;
+  /** Bosses and elites bite a share of it (bossBite, ELITE.bite). */
+  readonly playerMaxHp: number;
   /** Multiplier on enemy pauses between actions (enemyPace). */
   readonly pace: number;
   /** Hostile projectile. */

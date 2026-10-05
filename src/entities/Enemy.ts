@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ENEMIES, type Debuff, type EnemyKind } from '../logic/stages.ts';
+import { ELITE, ENEMIES, type Debuff, type EnemyKind } from '../logic/stages.ts';
 import type { Arena } from './arena.ts';
 import { W } from '../gfx/ui.ts';
 
@@ -7,7 +7,7 @@ export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
   hp: number;
   readonly maxHp: number;
-  readonly damage: number;
+  private readonly flatDamage: number;
   /** Phased out (ghost): can neither hit nor be hit. */
   untargetable = false;
   readonly kind: EnemyKind;
@@ -27,10 +27,15 @@ export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.arena = arena;
     this.kind = kind;
     this.hp = this.maxHp = Math.round(hp * ENEMIES[kind].hp);
-    this.damage = Math.round(damage * ENEMIES[kind].dmg);
+    this.flatDamage = Math.round(damage * ENEMIES[kind].dmg);
     this.flying = ENEMIES[kind].flying;
     this.setDepth(5);
     this.nextAct = scene.time.now + Phaser.Math.Between(400, 1000);
+  }
+
+  /** Elites also bite a share of the player's max HP, so stacking HP never trivialises them. */
+  get damage(): number {
+    return this.getData('elite') ? Math.round(this.flatDamage + ELITE.bite * this.arena.playerMaxHp) : this.flatDamage;
   }
 
   /** Call after adding to a physics group (group.add resets body defaults). */

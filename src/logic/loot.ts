@@ -1726,11 +1726,11 @@ export const ITEMS: Record<ItemId, Item> = {
 
   hatiDewa: {
     name: 'HATI DEWA',
-    desc: 'MAX HP +100, PULIH 2 HP/DTK',
+    desc: 'MAX HP +100, PULIH 1 HP/DTK',
     rarity: 'godly',
     apply: (s) => {
       s.maxHp += 100;
-      s.regen += 2;
+      s.regen += 1;
     },
   },
   mataDewa: {
@@ -1862,10 +1862,10 @@ export const ITEMS: Record<ItemId, Item> = {
   },
   cawanDewa: {
     name: 'CAWAN DEWA',
-    desc: 'CURI 8% DAMAGE, +5 HP TIAP BUNUH',
+    desc: 'CURI 5% DAMAGE, +5 HP TIAP BUNUH',
     rarity: 'godly',
     apply: (s) => {
-      s.lifesteal += 0.08;
+      s.lifesteal += 0.05;
       s.healOnKill += 5;
     },
   },
@@ -2288,9 +2288,10 @@ export const PAIRS: readonly ItemPair[] = [
     s.killBolt += 2;
     s.ultGainMult *= 1.3;
   }),
-  pair('hatiDewa', 'cawanDewa', 'KEABADIAN', 'PULIH +3 HP/DTK, CURI 5% DAMAGE', (s) => {
-    s.regen += 3;
-    s.lifesteal += 0.05;
+  // Both items already reach the regen and lifesteal caps, so the set gives what they cannot.
+  pair('hatiDewa', 'cawanDewa', 'KEABADIAN', 'MAX HP +50, KEBAL +0.4 DTK', (s) => {
+    s.maxHp += 50;
+    s.iframes += 400;
   }),
   pair('mataDewa', 'pedangDewa', 'MURKA DEWA', 'DAMAGE +30%, ECHO +30%', (s) => {
     s.damage *= 1.3;
@@ -2379,9 +2380,9 @@ export const PAIRS: readonly ItemPair[] = [
     s.bossDamage += 0.3;
     s.damage *= 1.1;
   }),
-  pair('jamDewa', 'perisaiDewa', 'KEKEKALAN', 'DAMAGE +20%, PULIH 2 HP/DTK', (s) => {
+  pair('jamDewa', 'perisaiDewa', 'KEKEKALAN', 'DAMAGE +20%, PULIH 1 HP/DTK', (s) => {
     s.damage *= 1.2;
-    s.regen += 2;
+    s.regen += 1;
   }),
 ];
 
@@ -2395,6 +2396,45 @@ export function activePairs(items: readonly ItemId[]): ItemPair[] {
   return PAIRS.filter((p) => p.items.every((id) => items.includes(id)));
 }
 
+/** Relic slots: items held at once. A new one past this replaces an owned one (see takeItem). */
+export const MAX_ITEMS = 8;
+
+/**
+ * Inventory after taking item `id`. With all MAX_ITEMS slots full it needs `drop` (index of the owned item to discard,
+ * replaced in place); undefined = not allowed. A discarded item is simply gone, so it may be offered again later.
+ */
+export function takeItem(items: readonly ItemId[], id: ItemId, drop?: number): ItemId[] | undefined {
+  if (items.includes(id)) return undefined;
+  if (items.length < MAX_ITEMS) return [...items, id];
+  if (drop === undefined || drop < 0 || drop >= items.length) return undefined;
+  return items.map((x, i) => (i === drop ? id : x));
+}
+
+type StatKey = keyof Derived;
+/** Item multipliers that add up instead of compounding: +15% and +20% make +35%. */
+const ADD_UP: readonly StatKey[] = ['damage', 'maxHp', 'speed', 'skillPower', 'ultGainMult', 'soulMult', 'dashPower'];
+/** Lower is better: their speed-ups add up (x0.8 and x0.75 = 25% + 33% faster); a curse (x1.15) counts against them. */
+const ADD_DOWN: readonly StatKey[] = ['damageTaken', 'swingCooldown', 'dashCooldown', 'skillCdMult'];
+/** Diminishing returns: of a total bonus above `knee`, only `rate` counts. */
+const SOFT: Partial<Record<StatKey, { knee: number; rate: number }>> = {
+  damage: { knee: 1, rate: 0.5 },
+  skillPower: { knee: 1, rate: 0.5 },
+  maxHp: { knee: 1, rate: 0.15 },
+};
+/** Soulslike: items never push sustain/defense past these (a class or permanent stat already above one keeps its value). */
+const ITEM_CAP: Partial<Record<StatKey, number>> = {
+  dodge: 0.15,
+  lifesteal: 0.05,
+  regen: 1,
+  healOnKill: 5,
+  critChance: 0.5,
+  critMult: 2.5,
+  echo: 0.4,
+  ultGainMult: 2,
+  iframes: 1000,
+};
+const ITEM_FLOOR: Partial<Record<StatKey, number>> = { damageTaken: 0.65, skillCdMult: 0.5 };
+
 /** Permanent stats + class + current weapon + items picked up this run. */
 export function runStats(base: Derived, weapon: Weapon, items: readonly ItemId[], cls?: ClassId): Derived {
   const s = { ...base };
@@ -2402,9 +2442,25 @@ export function runStats(base: Derived, weapon: Weapon, items: readonly ItemId[]
     CLASSES[cls].apply(s);
     if (hasSynergy(cls, weapon.id)) CLASSES[cls].synergy.apply(s);
   }
-  // Items are unique; fixed order so pickup order does not change an identical build.
-  for (const id of ITEM_IDS) if (items.includes(id)) ITEMS[id].apply(s);
-  for (const p of activePairs(items)) p.apply(s);
+  const s0 = { ...s };
+  // Items are unique; fixed order so pickup order does not change an identical build. Applied in turn so the special
+  // rules (fastest block, highest execute, switches) hold; the multipliers are then redone additively below.
+  const effects = [...ITEM_IDS.filter((id) => items.includes(id)).map((id) => ITEMS[id].apply), ...activePairs(items).map((p) => p.apply)];
+  for (const fx of effects) fx(s);
+  // Probe: what each item / set does alone on top of the class, summed instead of multiplied.
+  const probes = effects.map((fx) => {
+    const p = { ...s0 };
+    fx(p);
+    return p;
+  });
+  for (const f of ADD_UP) s[f] = s0[f] + probes.reduce((sum, p) => sum + p[f] - s0[f], 0);
+  for (const f of ADD_DOWN) s[f] = s0[f] / Math.max(0.5, 1 + probes.reduce((sum, p) => sum + s0[f] / p[f] - 1, 0));
+  for (const [f, { knee, rate }] of Object.entries(SOFT) as [StatKey, { knee: number; rate: number }][]) {
+    const bonus = s[f] / s0[f] - 1;
+    if (bonus > knee) s[f] = s0[f] * (1 + knee + (bonus - knee) * rate);
+  }
+  for (const [f, cap] of Object.entries(ITEM_CAP) as [StatKey, number][]) s[f] = Math.min(s[f], Math.max(cap, s0[f]));
+  for (const [f, floor] of Object.entries(ITEM_FLOOR) as [StatKey, number][]) s[f] = Math.max(s[f], Math.min(floor, s0[f]));
   // Flat damage items scale with the weapon too, so rapid fire does not multiply their value.
   s.damage *= weapon.dmg;
   s.swingCooldown *= weapon.cd;
@@ -2414,28 +2470,18 @@ export function runStats(base: Derived, weapon: Weapon, items: readonly ItemId[]
   s.critChance = Math.min(0.9, s.critChance);
   s.swingCooldown = Math.max(0.1, s.swingCooldown);
   s.dashCooldown = Math.max(0.35, s.dashCooldown);
-  s.skillCdMult = Math.max(0.3, s.skillCdMult);
-  s.damageTaken = Math.max(0.4, s.damageTaken);
-  s.echo = Math.min(0.9, s.echo);
   s.speed = Math.min(190, s.speed);
   s.extraJumps = Math.min(3, s.extraJumps);
   s.killSouls = Math.min(3, s.killSouls);
   s.killBolt = Math.min(3, s.killBolt);
-  s.iframes = Math.min(1400, s.iframes);
-  s.regen = Math.min(5, s.regen);
-  s.healOnKill = Math.min(12, s.healOnKill);
-  s.ultGainMult = Math.min(3, s.ultGainMult);
   s.ultRegen = Math.min(8, s.ultRegen);
-  s.critMult = Math.min(3, s.critMult);
   s.dashPower = Math.min(4, s.dashPower);
   s.elemental = Math.min(3, s.elemental);
   s.burnChance = Math.min(0.6, s.burnChance);
   s.freezeChance = Math.min(0.4, s.freezeChance);
-  s.dodge = Math.min(0.4, s.dodge);
-  s.barrier = s.barrier && Math.max(3, s.barrier);
+  s.barrier = s.barrier && Math.max(4, s.barrier);
   s.goldChance = Math.min(0.8, s.goldChance);
   s.bossDamage = Math.min(1.5, s.bossDamage);
-  s.lifesteal = Math.min(0.2, s.lifesteal);
   s.rage = Math.min(0.8, s.rage);
   return s;
 }

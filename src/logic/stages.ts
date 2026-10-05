@@ -16,9 +16,17 @@ export interface RoundConfig {
   eliteRound?: boolean;
 }
 
-/** Regular boss HP and damage for a boss tier (1 = round 5). */
+/** Regular boss HP and flat damage for a boss tier (1 = round 5); every boss hit also bites max HP (bossBite). */
 function bossBase(tier: number): { hp: number; dmg: number } {
-  return { hp: 600 * (1 + 0.8 * (tier - 1) + 0.25 * (tier - 1) ** 2), dmg: 22 + 6 * (tier - 1) };
+  return { hp: 600 * (1 + 0.8 * (tier - 1) + 0.18 * (tier - 1) ** 2), dmg: 26 + 3.5 * (tier - 1) };
+}
+
+/**
+ * Share of the player's max HP added to a boss's damage (before damage taken), so stacking HP never trivialises a
+ * boss. Eased in over the first two bosses. Each attack scales it with its multiplier: shots x0.6 ... laser x1.6.
+ */
+export function bossBite(tier: number): number {
+  return Math.min(0.18, 0.09 * Math.max(1, tier));
 }
 
 export function isBossRound(round: number): boolean {
@@ -32,7 +40,8 @@ export function isPhaseBossRound(round: number): boolean {
 
 export function roundConfig(round: number): RoundConfig {
   const progress = Math.max(0, round - 1);
-  const scale = 1 + 0.28 * progress + 0.02 * progress ** 2;
+  // Items add up now (a full build is ~x4-x8, not x100), so enemy HP grows gently: a sponge is not a challenge.
+  const scale = 1 + 0.15 * progress + 0.003 * progress ** 2;
   const phase = isPhaseBossRound(round);
   const boss = isBossRound(round);
   const tier = boss ? round / BOSS_EVERY : 0;
@@ -42,7 +51,8 @@ export function roundConfig(round: number): RoundConfig {
     bossTier: tier,
     enemyCount: boss ? 0 : Math.min(12, 5 + Math.floor(round / 2)),
     enemyHp: Math.round(85 * scale),
-    enemyDamage: Math.round(15 * (1 + 0.11 * progress)),
+    // Steep while the relic slots fill (about one item a round), gentle once they are full.
+    enemyDamage: Math.round(15 + 3 * Math.min(progress, 9) + 1.1 * Math.max(0, progress - 9)),
     // Every 10th round is the super boss: double HP and hits 30% harder than a regular boss of the same tier.
     bossHp: boss ? Math.round(bossBase(tier).hp * (phase ? 2 : 1)) : 0,
     bossDamage: boss ? Math.round(bossBase(tier).dmg * (phase ? 1.3 : 1)) : 0,
@@ -142,8 +152,11 @@ export function specialStats(kind: SpecialBoss, cfg: RoundConfig): { hp: number;
   return { hp: Math.round(b.hp * SPECIAL_STATS[kind].hp * share), dmg: Math.round(b.dmg * SPECIAL_STATS[kind].dmg) };
 }
 
-/** Elite = mini boss: at most one per normal round, any round (even the first). Big, tough, pays out. */
-export const ELITE = { chance: 0.5, hp: 7.5, dmg: 2, soul: 5, coins: 3, scale: 1.5, twoAffixFrom: 8 } as const;
+/**
+ * Elite = mini boss: at most one per normal round, any round (even the first). Big, tough, pays out. `bite`: share of
+ * the player's max HP added to its hits (like bossBite).
+ */
+export const ELITE = { chance: 0.5, hp: 7.5, dmg: 1.7, bite: 0.05, soul: 5, coins: 3, scale: 1.5, twoAffixFrom: 8 } as const;
 
 /** Elite round: from round `from`, `chance` per normal round (when no bonus boss came); `share` of the usual count, all elites. */
 export const ELITE_ROUND = { from: 3, chance: 0.12, share: 0.5 } as const;

@@ -5,6 +5,7 @@ import { INTROS, invasionBanner } from '../entities/invasions.ts';
 import { createEnemy, Enemy } from '../entities/Enemy.ts';
 import { Player } from '../entities/Player.ts';
 import { SKILLS } from '../entities/skills.ts';
+import { CHARGED } from '../entities/charged/index.ts';
 import { PASSIVES, type PassiveCtx } from '../entities/passives.ts';
 import { padConnected } from '../gamepad.ts';
 import { duckMusic, playMusic, sfx, soundLabel, stopMusic, toggleSound } from '../audio.ts';
@@ -13,8 +14,10 @@ import { burst, cutMark, flash, floatText, FLOOR_Y, H, text, TILE, W } from '../
 import {
   activePairs,
   ITEMS,
+  MAX_ITEMS,
   pairOf,
   RARITY_COLOR,
+  takeItem,
   rewardInfo,
   rewardRarity,
   rollRewards,
@@ -137,6 +140,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private paused = false;
   private rewards?: Reward[];
   private rewardSel = 0;
+  /** Replace step of the reward panel: the item waiting for a relic slot. */
+  private replacing?: ItemId;
   private regenAcc = 0;
   private lifestealAcc = 0;
   private rewardUi?: Phaser.GameObjects.Container;
@@ -163,6 +168,10 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     return this.player.stats;
   }
 
+  get playerMaxHp(): number {
+    return this.stats.maxHp;
+  }
+
   get touchMode(): 'play' | 'paused' | 'menu' {
     return this.over ? 'menu' : this.paused ? 'paused' : this.rewards ? 'menu' : 'play';
   }
@@ -186,7 +195,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.regenAcc = this.lifestealAcc = 0;
     this.bosses = [];
     this.bossLeft = false;
-    this.portal = this.rewards = this.rewardUi = this.inventory = this.elite = this.eliteTitle = undefined;
+    this.portal = this.rewards = this.rewardUi = this.inventory = this.elite = this.eliteTitle = this.replacing = undefined;
     if (data.round > this.save.bestRound) {
       this.save.bestRound = data.round;
       writeSave(this.save);
@@ -1084,6 +1093,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       ).setOrigin(0.5, 0),
     );
     ui.add([this.add.image(W - 50, REWARD_Y - 12, 'coin'), text(this, W - 44, REWARD_Y - 16, `${this.coins}`, COLOR.gold)]);
+    const full = this.items.length >= MAX_ITEMS;
+    ui.add(text(this, 20, REWARD_Y - 16, `RELIK ${this.items.length}/${MAX_ITEMS}`, full ? COLOR.red : COLOR.gray));
     rewards.forEach((r, i) => {
       const info = rewardInfo(r);
       const rarity = rewardRarity(r);
@@ -1133,9 +1144,54 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.refreshRewards();
   }
 
+  /**
+   * Relic slots full: list the owned items (plus a cancel row); the chosen one is discarded for `this.replacing`.
+   * Same rows and keys as the reward panel (W/S, J, tap), so keyboard, touch and controller all work.
+   */
+  private buildReplaceUi(): void {
+    this.rewardUi?.destroy();
+    const ui = this.add.container(0, 0).setDepth(200);
+    const neu = this.replacing!;
+    ui.add(this.add.rectangle(W / 2, H / 2 + 12, 290, 146, 0x000000, 0.85).setStrokeStyle(1, 0x83769c));
+    ui.add([
+      text(this, W / 2, 33, `RELIK PENUH ${this.items.length}/${MAX_ITEMS}`, COLOR.red).setOrigin(0.5, 0),
+      text(this, W / 2, 43, `GANTI: ${ITEMS[neu].name}`, RARITY_COLOR[ITEMS[neu].rarity]).setOrigin(0.5, 0),
+    ]);
+    const rowY = (i: number) => 55 + i * 10;
+    const row = (i: number) =>
+      this.add
+        .zone(W / 2, rowY(i) + 4, 280, 10)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => {
+          this.rewardSel = i;
+          this.takeReward();
+        });
+    this.items.forEach((id, i) => {
+      const y = rowY(i);
+      ui.add([
+        row(i),
+        text(this, 20, y, '>', COLOR.gold).setName(`sel${i}`),
+        this.add.image(34, y + 4, `i_${id}`),
+        text(this, 44, y, ITEMS[id].name, RARITY_COLOR[ITEMS[id].rarity]),
+        text(this, W - 20, y, this.items.includes(pairOf(id).partner) ? 'SET' : '', COLOR.gold).setOrigin(1, 0),
+      ]);
+    });
+    const back = this.items.length;
+    ui.add([
+      row(back),
+      text(this, 20, rowY(back), '>', COLOR.gold).setName(`sel${back}`),
+      text(this, 44, rowY(back), 'BATAL (KEMBALI)', COLOR.gray),
+      text(this, 20, 147, '', COLOR.gray).setName('setName'),
+      text(this, 20, 157, '', COLOR.red).setName('setDesc'),
+      text(this, W / 2, 166, padConnected() ? 'D-PAD PILIH  A BUANG' : 'W/S PILIH  J BUANG', COLOR.blue).setOrigin(0.5, 0),
+    ]);
+    this.rewardUi = ui;
+    this.refreshRewards();
+  }
+
   /** Spend coins to roll a new set of rewards; each refresh on the same panel costs 1 more. */
   private reroll(): void {
-    if (!this.rewards || this.paused) return;
+    if (!this.rewards || this.paused || this.replacing) return;
     const cost = rerollCost(this.rerolls);
     if (this.coins < cost) {
       sfx('deny');
@@ -1153,12 +1209,17 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private moveReward(d: number): void {
     if (!this.rewards) return;
     sfx('move');
-    this.rewardSel = Phaser.Math.Wrap(this.rewardSel + d, 0, SKIP_ROW + 1);
+    this.rewardSel = Phaser.Math.Wrap(this.rewardSel + d, 0, this.rewardRows);
     this.refreshRewards();
   }
 
+  /** Rows of the open panel: three rewards + skip, or the owned items + cancel in the replace step. */
+  private get rewardRows(): number {
+    return this.replacing ? this.items.length + 1 : SKIP_ROW + 1;
+  }
+
   private refreshRewards(): void {
-    for (let i = 0; i <= SKIP_ROW; i++) {
+    for (let i = 0; i < this.rewardRows; i++) {
       (this.rewardUi?.getByName(`sel${i}`) as Phaser.GameObjects.Text | null)?.setVisible(i === this.rewardSel);
     }
     // Set info of the highlighted item: its partner and the bonus both give.
@@ -1166,6 +1227,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const desc = this.rewardUi?.getByName('setDesc') as Phaser.GameObjects.Text | null;
     const r = this.rewards?.[this.rewardSel];
     if (!name || !desc) return;
+    if (this.replacing) {
+      // Replace step: what the highlighted item does, and the set that breaks without it.
+      const id = this.items[this.rewardSel];
+      name.setText(id ? ITEMS[id].desc : '');
+      desc.setText(id && this.items.includes(pairOf(id).partner) ? `SET ${pairOf(id).pair.name} PUTUS` : '');
+      return;
+    }
     if (r?.type !== 'item') {
       name.setText('');
       desc.setText('');
@@ -1184,25 +1252,53 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   private takeReward(): void {
     if (!this.rewards || this.paused) return;
-    const r = this.rewardSel === SKIP_ROW ? undefined : this.rewards[this.rewardSel];
+    let drop: number | undefined;
+    let r: Reward | undefined;
+    if (this.replacing) {
+      const id = this.replacing;
+      this.replacing = undefined;
+      // Cancel row: back to the rewards, on the item that was picked.
+      if (this.rewardSel >= this.items.length) {
+        sfx('back');
+        this.rewardSel = Math.max(
+          0,
+          this.rewards.findIndex((x) => x.type === 'item' && x.id === id),
+        );
+        return this.buildRewardUi();
+      }
+      drop = this.rewardSel;
+      r = { type: 'item', id };
+    } else {
+      r = this.rewardSel === SKIP_ROW ? undefined : this.rewards[this.rewardSel];
+      // All relic slots taken: first choose which owned item makes room. Potions never need a slot.
+      if (r?.type === 'item' && !takeItem(this.items, r.id)) {
+        sfx('move');
+        this.replacing = r.id;
+        this.rewardSel = 0;
+        return this.buildReplaceUi();
+      }
+    }
     this.rewards = undefined;
     this.rewardUi?.destroy();
     // The J/W presses used in the menu must not leak into a swing or jump.
     this.input.keyboard!.resetKeys();
     sfx(r ? 'reward' : 'back');
-    if (r) this.applyReward(r);
+    if (r) this.applyReward(r, drop);
     else floatText(this, this.player.x, this.player.y - 16, 'DILEWATI', COLOR.gray);
     this.openPortal();
   }
 
-  private applyReward(r: Reward): void {
+  /** `drop`: index of the owned item discarded to make room (it may be offered again later). */
+  private applyReward(r: Reward, drop?: number): void {
     const oldMax = this.stats.maxHp;
     if (r.type === 'potion') this.player.heal(Math.round(this.stats.maxHp * 0.5));
-    const completes = this.completesSet(r);
-    if (r.type === 'item') this.items.push(r.id);
+    const dropped = drop === undefined ? undefined : this.items[drop];
+    if (r.type === 'item') this.items = takeItem(this.items, r.id, drop) ?? this.items;
+    const completes = r.type === 'item' && this.items.includes(pairOf(r.id).partner);
     this.player.equip(this.currentStats(), WEAPONS[this.weaponId]);
     if (this.stats.maxHp > oldMax) this.player.heal(this.stats.maxHp - oldMax);
     floatText(this, this.player.x, this.player.y - 16, rewardInfo(r).name, COLOR.gold);
+    if (dropped) floatText(this, this.player.x, this.player.y - 40, `BUANG ${ITEMS[dropped].name}`, COLOR.gray);
     if (completes && r.type === 'item') {
       floatText(this, this.player.x, this.player.y - 28, `SET ${pairOf(r.id).pair.name}!`, COLOR.gold);
       sfx('set');
@@ -1282,6 +1378,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
           '',
           `PASIF: ${CLASSES[this.cls].passive.name}`,
           `${padConnected() ? 'BAWAH+X' : 'S+J'} DI UDARA: MENUKIK`,
+          `TAHAN ${padConnected() ? 'X' : 'J'}: ${CHARGED[this.cls].name}`,
+          CHARGED[this.cls].desc,
           '',
           ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []),
           pauseHint(),
@@ -1313,6 +1411,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.pauseText = text(this, W / 2, H / 2, `PAUSE\n\n${pauseHint()}`, COLOR.text)
       .setOrigin(0.5)
       .setAlign('center')
+      .setWordWrapWidth(W - 28)
       .setBackgroundColor('#000000')
       .setPadding(6)
       .setDepth(300)
