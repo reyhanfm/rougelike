@@ -135,7 +135,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   pedang: {
     id: 'pedang',
     name: 'EXCALIBUR',
-    desc: 'PEDANG SUCI BERSELUBUNG ANGIN, COMBO 4, J+L: AVALON',
+    desc: 'PEDANG SUCI BERSELUBUNG ANGIN, COMBO 4, J+L: RHONGOMYNIAD',
     dmg: 1,
     cd: 1,
     crit: 0,
@@ -168,9 +168,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0x29adff,
       cut: 0xc2f0ff,
     },
-    skill: { name: 'STRIKE AIR', desc: 'SELUBUNG ANGIN DILEPAS: BOR PUSARAN MEMBIDIK, MENEMBUS & MENGHEMPAS', cd: 5 },
-    fusion: { name: 'AVALON', desc: 'J+L: SARUNG PEDANG JADI KUBAH CAHAYA: KEBAL, PULIH, MUSUH TERPENTAL', cd: 14 },
-    ult: { name: 'EXCALIBUR', desc: 'CAHAYA EMAS RAKSASA MENYAPU DARI LANGIT KE CAKRAWALA' },
+    skill: { name: 'STRIKE AIR', desc: 'PALU ANGIN: EXCALIBUR TERBUKA 8 DTK, SERANGAN JADI CAHAYA, SKILL JADI KILAU EXCALIBUR', cd: 6 },
+    fusion: { name: 'RHONGOMYNIAD', desc: 'J+L: TOMBAK SUCI JADI PUSARAN CAHAYA MENEMBUS BARISAN, LALU MENARA CAHAYA JATUH', cd: 12 },
+    ult: { name: 'EXCALIBUR', desc: '13 SEGEL DILEPAS: CAHAYA EMAS MENYAPU DARI LANGIT, LALU MEMBANJIRI SELURUH MEDAN' },
   },
   belati: {
     id: 'belati',
@@ -435,7 +435,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     id: 'pedangTerbang',
     name: 'PEDANG TERBANG',
     desc: 'PEDANG QI BERBURU SENDIRI: 1, 2, LALU 3 PEDANG SEKALIGUS',
-    dmg: 0.9,
+    dmg: 1,
     cd: 1,
     crit: 0.05,
     // Swords of qi that hunt on their own: nothing to catch, so he can keep sending them.
@@ -464,7 +464,11 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       slam: 30,
       trail: 0x29adff,
     },
-    skill: { name: 'FORMASI ENAM PEDANG', desc: 'ENAM PEDANG MENGUNCI KERUMUNAN DALAM SEGEL, MENEBAS SILANG, LALU MENUTUP', cd: 5 },
+    skill: {
+      name: 'FORMASI ENAM PEDANG',
+      desc: 'ENAM PEDANG MENGUNCI KERUMUNAN DALAM SEGEL, MENEBAS SILANG, LALU MENUTUP; SEGEL MELUAS TIAP ALAM',
+      cd: 5,
+    },
     fusion: { name: 'PEDANG LANGIT', desc: 'J+L: PEDANG RAKSASA MENGHUNJAM, LALU PECAH JADI PEDANG PEMBURU', cd: 10 },
     ult: { name: 'SUNGAI SERIBU PEDANG', desc: 'SUNGAI PEDANG MENGALIR MENEMBUS TIAP MUSUH, LALU MEKAR JADI BUNGA PEDANG' },
   },
@@ -1165,13 +1169,16 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       dive: { vx: 150, vy: 280 },
       slam: 34,
     },
-    skill: { name: 'SENPO: RASENSHURIKEN', desc: 'MODE SENNIN: SHURIKEN ANGIN DIBIDIK KE KERUMUNAN, BOLA JARUM ANGIN MENYEDOT', cd: 6 },
+    skill: { name: 'TAJUU KAGE BUNSHIN', desc: 'BELASAN BUNSHIN MENGEROYOK TIAP MUSUH (UDARA JUGA), DITUTUP UZUMAKI NARUTO RENDAN', cd: 7 },
     fusion: {
-      name: 'CHOJO ODAMA RASEN TARENGAN',
-      desc: 'J+L: MODE KURAMA, TANGAN CHAKRA EMAS MEMBANTING ODAMA RASENGAN KE TIAP MUSUH',
-      cd: 11,
+      name: 'SENPO: RASENSHURIKEN',
+      desc: 'J+L: DIBENTUK BERSAMA BUNSHIN, DIBIDIK KE KERUMUNAN, BOLA JARUM ANGIN MENYEDOT',
+      cd: 10,
     },
-    ult: { name: 'MODE BARYON', desc: 'NARUTO & KURAMA MENYATU: TINJU BARYON KE TIAP MUSUH, LALU BIJUDAMA RAKSASA' },
+    ult: {
+      name: 'CHOCHO ODAMA RASENSHURIKEN',
+      desc: 'KURAMA RIKUDO 6 LENGAN MELEMPAR 2 RASENSHURIKEN RAKSASA (RIKUDO & BIJUDAMA) YANG MENYATU',
+    },
   },
   kusanagi: {
     id: 'kusanagi',
@@ -1230,9 +1237,13 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0x29adff,
       status: { freeze: 250 },
     },
-    skill: { name: 'CHIDORI', desc: 'PETIR DI TANGAN, MELESAT MENEMBUS HINGGA 3 MUSUH BERANTAI (UDARA JUGA), MELUMPUHKAN', cd: 5 },
-    fusion: { name: 'KIRIN', desc: 'J+L: AWAN BADAI, PETIR BERWUJUD KIRIN MENUKIK KE KERUMUNAN & MENYAMBAR SEMUA', cd: 12 },
-    ult: { name: 'INDRA NO YA', desc: 'SUSANOO UNGU MEREGANG BUSUR, PANAH PETIR MEMBELAH ARENA' },
+    skill: { name: 'KIRIN', desc: 'AWAN BADAI, PETIR BERWUJUD KIRIN MENUKIK KE KERUMUNAN & MENYAMBAR SEMUA', cd: 8 },
+    fusion: {
+      name: 'ENTON: KAGUTSUCHI',
+      desc: 'J+L: RINNEGAN MENARIK SEMUA MUSUH, DURI API HITAM AMATERASU MENUSUK DARI SEKELILINGNYA',
+      cd: 11,
+    },
+    ult: { name: 'INDRA NO YA', desc: 'SUSANOO PENUH + CHAKRA 9 BIJU: PANAH PETIR KE BARISAN TERPADAT, ARENA MELEDAK' },
   },
   gravitasi: {
     id: 'gravitasi',
@@ -1552,6 +1563,30 @@ export function moveHitbox(m: Move, x: number, y: number, facing: number): { x: 
 
 /** Ult meter gains (out of 100). */
 export const ULT_GAIN = { basic: 4, skill: 2, kill: 6 } as const;
+
+/**
+ * Hitstop: the fight holds still for a few ms so a heavy blow lands with weight. `heavy` is the |knockback| from which
+ * a basic move counts as a finisher; `gap` is the quiet time after a freeze so multi-kills and flurries do not stutter.
+ */
+export const HITSTOP = { finisher: 60, crit: 45, kill: 50, elite: 100, boss: 180, heavy: 200, gap: 200 } as const;
+
+/** How long one hit freezes the fight (0 = no hitstop). Ult set pieces and procs hit too often; only a boss kill stops them. */
+export function hitstopMs(h: {
+  source: 'basic' | 'skill' | 'ult' | 'proc';
+  crit: boolean;
+  killed: boolean;
+  knockback: number;
+  big?: 'elite' | 'boss';
+}): number {
+  if (h.killed && h.big === 'boss') return HITSTOP.boss;
+  if (h.source === 'ult' || h.source === 'proc') return 0;
+  const basic = h.source === 'basic';
+  return Math.max(
+    h.killed ? (h.big === 'elite' ? HITSTOP.elite : HITSTOP.kill) : 0,
+    basic && h.crit ? HITSTOP.crit : 0,
+    basic && Math.abs(h.knockback) >= HITSTOP.heavy ? HITSTOP.finisher : 0,
+  );
+}
 
 export type Rarity = 'biasa' | 'rare' | 'legend' | 'godly';
 

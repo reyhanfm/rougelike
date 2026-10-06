@@ -83,8 +83,8 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '0f0cccc0f0',
       '..0a66a0..',
     ],
-    passive: { name: 'SELUBUNG ANGIN', desc: 'BERLARI MENGUMPULKAN ANGIN DI PEDANG; SERANGAN BERIKUTNYA MELEPAS BOR ANGIN MENEMBUS' },
-    trait: 'AVALON: PULIH 1 HP/DTK, HP +10%, DITERIMA -10%',
+    passive: { name: 'AVALON', desc: 'PUKULAN BERAT DITOLAK SARUNG CAHAYA, PULIH 6% HP & DIBALAS; JEDA 10 DTK' },
+    trait: 'INTI NAGA: PULIH 1 HP/DTK, HP +10%, DITERIMA -10%',
     apply: (s) => {
       s.regen += 1;
       s.maxHp *= 1.1;
@@ -367,7 +367,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '7f077770f7',
       '..0kkkk0..',
     ],
-    passive: { name: 'PEDANG PENJAGA', desc: 'EMPAT PEDANG QI MENGORBIT TUBUH, MENEBAS MUSUH YANG MENDEKAT & MENANGKIS PROYEKTIL' },
+    passive: { name: 'JALAN KULTIVASI', desc: 'QI DARI SERANGAN MENEROBOS 4 ALAM: PETIR SURGAWI, PEDANG ORBIT +, INTI EMAS, JIWA BARU' },
     trait: 'QI: SKILL +20%, PULIH 1 HP/DTK, SKILL CD -10%',
     apply: (s) => {
       s.skillPower *= 1.2;
@@ -884,7 +884,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '0f099990f0',
       '..055550..',
     ],
-    passive: { name: 'KAGE BUNSHIN', desc: 'DASH MENINGGALKAN BUNSHIN YANG MELOMPAT & MEMUKUL MUSUH 2.6 DTK (CD 5 DTK)' },
+    passive: { name: 'SENSOR KURAMA', desc: 'MUSUH YANG BERSIAP MENYERANG DITANDAI MATA KURAMA; MEMUKULNYA = KRITIS & SERANGANNYA BATAL' },
     trait: 'CHAKRA KURAMA: HP +20%, PULIH 1 HP/DTK, ULTI +15% CEPAT',
     apply: (s) => {
       s.maxHp *= 1.2;

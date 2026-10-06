@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { FLOOR_Y, W, floatText } from '../gfx/ui.ts';
+import { FLOOR_Y, W, burst, floatText } from '../gfx/ui.ts';
 import {
   ADAPT_MULT,
   GODZILLA,
@@ -21,6 +21,7 @@ import {
   type RoundConfig,
 } from '../logic/stages.ts';
 import type { Arena } from './arena.ts';
+import { glint, ring, rocks, sparks } from './skills.ts';
 
 type Mode = 'idle' | 'windup' | BossPattern;
 
@@ -41,7 +42,7 @@ const BODY: Record<BossKind, { texture: string; w: number; h: number; ox: number
 /** Wide attacks: they stay dangerous until the warning ends, so the boss waits longer after them. */
 const WIDE: readonly BossPattern[] = ['pillars', 'laser', 'quake', 'sweep'];
 /** Patterns followed by the long recovery. */
-const LONG: readonly BossPattern[] = [...WIDE, 'exterminate', 'barrage', 'dive', 'breath', 'tail', 'truth', 'portal', 'dimension'];
+const LONG: readonly BossPattern[] = [...WIDE, 'exterminate', 'blitz', 'barrage', 'dive', 'breath', 'tail', 'truth', 'portal', 'dimension'];
 const ADAPT_LABEL: Record<AdaptKind, string> = { basic: 'SERANGAN', skill: 'SKILL', ult: 'ULTI', proc: 'EFEK', burn: 'API', freeze: 'ES' };
 const PHASE_TINTS = [0xffffff, 0xffb0b0, 0xff6060];
 
@@ -73,6 +74,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   /** Mahoraga: wheel turns so far; each one makes it faster. */
   private turns = 0;
   private wheel?: Phaser.GameObjects.Image;
+  /** Mahoraga: the wheel's resting angle (45 degrees a turn); it rocks around it. Tweened, so it is public. */
+  wheelAngle = 0;
+  /** Mahoraga: below MAHORAGA.frenzy of its HP it rages for the rest of the fight. */
+  private raging = false;
+  private nextMoteAt = 0;
+  private nextGhostAt = 0;
   /** Own clock (ms of frames lived): it stops while the game is paused and never reads a stale scene clock. */
   private clock = 0;
   private nextTurnAt: number = MAHORAGA.turnMs;
@@ -89,6 +96,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private maxArmor = 0;
   private breaks = 0;
   private exposedUntil = 0;
+  /** Mid-jolt from `flinch`: one at a time, so the restore always undoes exactly one shift. */
+  private flinching = false;
 
   constructor(scene: Phaser.Scene, arena: Arena, x: number, y: number, cfg: RoundConfig, special?: SpecialBoss) {
     const kind = special ?? bossKind(cfg.bossTier);
@@ -132,19 +141,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
-    this.wheel?.setPosition(this.x, this.y - 19);
     this.clock += delta;
     const now = this.clock;
-    if (this.kind === 'mahoraga') {
-      if (now >= this.nextTurnAt) {
-        this.nextTurnAt = now + MAHORAGA.turnMs;
-        if (this.felt.size) this.turnWheel();
-      }
-      if (now >= this.leaveAt && !this.leaving) {
-        this.leaving = true;
-        this.scene.time.delayedCall(0, () => this.active && this.arena.bossLeaves(this));
-      }
-    }
+    if (this.kind === 'mahoraga') this.mahoragaTick(now);
     if (this.kind === 'godzilla') this.godzillaTick(now);
     if (this.kind === 'kaguya') this.kaguyaTick();
   }
@@ -164,12 +163,85 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     if (now - this.immuneShownAt > 500) {
       this.immuneShownAt = now;
       floatText(this.scene, this.x, this.y - 22, 'KEBAL', '#ffec27');
+      // The blow glances off: a gold ring snaps shut around it.
+      ring(this.scene, this.x, this.y, 0xffec27, 20, 9, 180, 2);
+      sparks(this.scene, this.x, this.y, [0xffec27, 0xfff1e8], 6, 16);
     }
     return 0;
   }
 
-  /** The wheel turns: one more step of adaptation to every kind that hit it since the last turn; it shakes off burn and freeze. */
+  /**
+   * Hit reaction: bosses are too heavy to push, so only the picture jolts 2 screen px away from the blow. Display
+   * origin and body offset shift by the same amount, which leaves the physics body where it was.
+   */
+  flinch(dir: number): void {
+    const body = this.body as Phaser.Physics.Arcade.Body | null;
+    if (this.flinching || !dir || !body) return;
+    this.flinching = true;
+    const ox = this.originX;
+    const d = (dir * 2) / this.scaleX;
+    this.displayOriginX -= d;
+    body.offset.x -= d;
+    // Absolute restore (setOrigin), so a texture swap during the jolt cannot leave the picture off-center.
+    this.scene.time.delayedCall(70, () => {
+      this.flinching = false;
+      if (!this.active || !this.body) return;
+      this.setOrigin(ox, this.originY);
+      body.offset.x += d;
+    });
+  }
+
+  /**
+   * Mahoraga's own frame: the wheel bobs and rocks over its head, pale motes rise off the body (gold and red once it
+   * rages), it leaves afterimages when it moves fast, the wheel turns on its clock, and in time it leaves.
+   */
+  private mahoragaTick(now: number): void {
+    const s = this.scene;
+    this.wheel?.setPosition(this.x, this.y - 19 + Math.sin(now / 260)).setAngle(this.wheelAngle + Math.sin(now / 420) * 4);
+    if (!this.raging && this.hp < this.maxHp * MAHORAGA.frenzy) this.rage();
+    if (now >= this.nextTurnAt) {
+      this.nextTurnAt = now + MAHORAGA.turnMs * (this.raging ? MAHORAGA.frenzyTurn : 1);
+      if (this.felt.size) this.turnWheel();
+    }
+    if (now >= this.nextMoteAt) {
+      this.nextMoteAt = now + (this.raging ? 45 : 110);
+      const color = this.raging ? Phaser.Math.RND.pick([0xffec27, 0xff004d]) : 0xfff1e8;
+      const m = s.add
+        .rectangle(this.x + Phaser.Math.Between(-8, 8), this.y + Phaser.Math.Between(-6, 10), 1, 2, color)
+        .setDepth(7)
+        .setAlpha(0.8);
+      s.tweens.add({ targets: m, y: m.y - Phaser.Math.Between(10, 18), alpha: 0, duration: 520, onComplete: () => m.destroy() });
+    }
+    if (Math.abs(this.body.velocity.x) > 160 && now >= this.nextGhostAt) {
+      this.nextGhostAt = now + 35;
+      this.ghost(0.45, this.raging ? 0xff004d : 0xfff1e8);
+    }
+    if (now >= this.leaveAt && !this.leaving) {
+      this.leaving = true;
+      s.time.delayedCall(0, () => this.active && this.arena.bossLeaves(this));
+    }
+  }
+
+  /** A fading solid-color copy of Mahoraga where it stands (fast moves, blinks). */
+  private ghost(alpha: number, color: number): void {
+    const g = this.scene.add
+      .image(this.x, this.y, this.texture.key)
+      .setFlipX(this.flipX)
+      .setScale(this.scaleX, this.scaleY)
+      .setTint(color)
+      .setTintMode(Phaser.TintModes.FILL)
+      .setAlpha(alpha)
+      .setDepth(7);
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 240, onComplete: () => g.destroy() });
+  }
+
+  /**
+   * The wheel turns: one more step of adaptation to every kind that hit it since the last turn. The clunk heals it
+   * (adapting mends the wound), shakes off burn and freeze and throws a shockwave out both ways: the eight spokes
+   * flare, a gold ring rolls out and light is drawn back into the body.
+   */
   private turnWheel(): void {
+    const s = this.scene;
     this.turns++;
     const adapted: string[] = [];
     const immune: string[] = [];
@@ -179,12 +251,96 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       (ADAPT_MULT[step] ? adapted : immune).push(ADAPT_LABEL[k]);
     }
     this.felt.clear();
-    this.setData({ burnUntil: 0, burn: 0, freezeUntil: this.scene.time.now });
-    this.scene.tweens.add({ targets: this.wheel, angle: this.turns * 45, duration: 250 });
-    this.scene.cameras.main.flash(150, 255, 236, 39);
-    if (adapted.length) floatText(this.scene, W / 2, 56, `ADAPTASI: ${adapted.join(' ')}`, '#ffec27');
-    if (immune.length) floatText(this.scene, W / 2, 68, `KEBAL: ${immune.join(' ')}`, '#ff004d');
-    if (this.turns >= MAHORAGA.barrageAt && !this.patterns.includes('barrage')) this.patterns = [...this.patterns, 'barrage'];
+    this.setData({ burnUntil: 0, burn: 0, freezeUntil: s.time.now });
+    const heal = Math.min(this.maxHp - this.hp, Math.round(this.maxHp * MAHORAGA.heal));
+    this.hp += heal;
+    if (heal > 0) floatText(s, this.x, this.y - 32, `+${heal}`, '#00e436');
+
+    // The clunk: a 45-degree turn that overshoots and settles, the wheel swelling for a beat.
+    s.tweens.add({ targets: this, wheelAngle: this.turns * 45, duration: 260, ease: 'Back.Out' });
+    if (this.wheel) {
+      this.wheel.setScale(1.8);
+      s.tweens.add({ targets: this.wheel, scale: 1, duration: 300, ease: 'Quad.Out' });
+    }
+    const wx = this.x;
+    const wy = this.y - 19;
+    for (let i = 0; i < 8; i++) {
+      const ray = s.add
+        .rectangle(wx, wy, 34, i % 2 ? 1 : 2, i % 2 ? 0xfff1e8 : 0xffec27)
+        .setOrigin(0, 0.5)
+        .setRotation(Phaser.Math.DegToRad(this.turns * 45 + i * 45))
+        .setDepth(13)
+        .setScale(0, 1);
+      s.tweens.add({ targets: ray, scaleX: 1, alpha: 0, duration: 320, ease: 'Quad.Out', onComplete: () => ray.destroy() });
+    }
+    ring(s, wx, wy, 0xffec27, 6, 48, 420, 2);
+    ring(s, this.x, this.body.bottom - 2, 0xfff1e8, 4, 70, 380);
+    // Light drawn back in from all round: the wound closing.
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const m = s.add.rectangle(this.x + Math.cos(a) * 30, this.y + Math.sin(a) * 30, 2, 2, i % 2 ? 0x00e436 : 0xffec27).setDepth(13);
+      s.tweens.add({ targets: m, x: this.x, y: this.y, alpha: 0.2, duration: 380, ease: 'Quad.In', onComplete: () => m.destroy() });
+    }
+    s.cameras.main.flash(150, 255, 236, 39);
+    s.cameras.main.shake(160, 0.01);
+    this.arena.shockwave(this.x, this.body.bottom, Math.round(this.damage * 0.6));
+    if (adapted.length) floatText(s, W / 2, 56, `ADAPTASI: ${adapted.join(' ')}`, '#ffec27');
+    if (immune.length) floatText(s, W / 2, 68, `KEBAL: ${immune.join(' ')}`, '#ff004d');
+    for (const [p, at] of [
+      ['blitz', MAHORAGA.blitzAt],
+      ['barrage', MAHORAGA.barrageAt],
+    ] as const)
+      if (this.turns >= at && !this.patterns.includes(p)) this.patterns = [...this.patterns, p];
+  }
+
+  /** Below MAHORAGA.frenzy of its HP: a roar, the body flushes red, the wheel spins round and turns faster from now on. */
+  private rage(): void {
+    const s = this.scene;
+    this.raging = true;
+    this.baseTint = 0xffb0b0;
+    this.setTint(this.baseTint);
+    s.cameras.main.shake(450, 0.018);
+    floatText(s, W / 2, 80, 'MAHORAGA MENGAMUK!', '#ff004d');
+    ring(s, this.x, this.y, 0xff004d, 8, 90, 600, 3);
+    ring(s, this.x, this.y, 0xffec27, 4, 60, 450);
+    rocks(s, this.x, this.body.bottom, 10);
+    s.tweens.add({ targets: this, wheelAngle: this.wheelAngle + 360, duration: 700, ease: 'Cubic.Out' });
+  }
+
+  /**
+   * The Sword of Extermination's cut: a crescent of positive energy at (x, y) opening toward `dir` (white core over a
+   * gold glow, a thin inner edge), sparks thrown off its tip.
+   */
+  private swordArc(x: number, y: number, dir: number, r: number): void {
+    const s = this.scene;
+    const c = s.add
+      .container(x, y)
+      .setDepth(13)
+      .setScale(0.5 * dir, 0.5);
+    const g = s.add.graphics();
+    const arc = (w: number, color: number, alpha: number, rr: number) => {
+      g.lineStyle(w, color, alpha);
+      g.beginPath();
+      g.arc(0, 0, rr, -1.25, 1.25);
+      g.strokePath();
+    };
+    arc(9, 0xffec27, 0.25, r);
+    arc(5, 0xfff1e8, 0.5, r);
+    arc(2, 0xffffff, 1, r);
+    arc(1, 0xffec27, 0.8, r - 6);
+    c.add(g);
+    s.tweens.add({ targets: c, scaleX: 1.1 * dir, scaleY: 1.1, alpha: 0, duration: 300, ease: 'Quad.Out', onComplete: () => c.destroy() });
+    sparks(s, x + dir * r, y, [0xfff1e8, 0xffec27], 8, 24);
+  }
+
+  /** A fist landing at (x, y): a white shock ring, dust and rocks off the floor, a hard shake. */
+  private impact(x: number, y: number): void {
+    const s = this.scene;
+    ring(s, x, y, 0xfff1e8, 4, 26, 220, 2);
+    ring(s, x, y, 0xffec27, 2, 16, 160);
+    burst(s, x, y, 0xfff1e8, 10);
+    rocks(s, x, FLOOR_Y, 5);
+    s.cameras.main.shake(140, 0.014);
   }
 
   /** Godzilla regenerates, and once it is badly hurt it releases a nuclear pulse all around. */
@@ -316,7 +472,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   private get idleMs(): number {
-    if (this.kind === 'mahoraga') return Math.max(250, 850 - 70 * this.turns);
+    if (this.kind === 'mahoraga') return Math.max(200, 800 - 70 * this.turns) * (this.raging ? 0.7 : 1);
     if (this.kind === 'leviathan' || this.kind === 'godzilla' || this.kind === 'kaguya') return this.enraged ? 480 : 800;
     // Later phases barely pause.
     return Math.max(300, 1100 - 130 * (this.tier - 1)) * (this.phase ? 1 - 0.2 * (this.phase - 1) : 1);
@@ -402,6 +558,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         if (this.grounded && elapsed > 200) {
           this.arena.shockwave(this.x, this.body.bottom, Math.round(this.damage * 0.7));
           this.scene.cameras.main.shake(200, 0.02);
+          if (this.kind === 'mahoraga') {
+            rocks(this.scene, this.x, this.body.bottom, 8);
+            ring(this.scene, this.x, this.body.bottom, 0xfff1e8, 4, 40, 300);
+          }
           this.rest(time);
         }
         break;
@@ -416,7 +576,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     if (this.kind === 'knight' || this.kind === 'demonLord' || this.special) {
       const speed =
         this.kind === 'mahoraga'
-          ? 35 + 6 * this.turns
+          ? (40 + 7 * this.turns) * (this.raging ? 1.3 : 1)
           : this.enraged
             ? 45
             : this.kind === 'godzilla'
@@ -446,7 +606,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     const shotDmg = Math.round(this.damage * 0.6);
     switch (p) {
       case 'charge':
-        this.setVelocityX(toward * Math.min(this.kind === 'mahoraga' ? 340 : 260, 170 + 10 * this.tier + 15 * this.turns));
+        this.setVelocityX(toward * Math.min(this.kind === 'mahoraga' ? 380 : 260, 170 + 10 * this.tier + 20 * this.turns));
         break;
       case 'slam':
         this.setVelocity(Phaser.Math.Clamp((target.x - this.x) / 0.9, -220, 220), -320);
@@ -510,9 +670,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         this.scene.cameras.main.shake(this.warnMs, 0.004);
         break;
       case 'exterminate': {
-        // Sword of Extermination: a wide cut in front, then Mahoraga charges through it.
+        // Sword of Extermination: the blade glints, a wide cut of positive energy opens in front, then Mahoraga charges
+        // through it. Once it has adapted enough it wheels round and cuts again where the player went.
+        const s = this.scene;
         const w = 96;
-        const warn = Math.max(300, 500 - 30 * this.turns);
+        const warn = Math.max(260, 480 - 35 * this.turns);
+        glint(s, this.x + toward * 10, this.y + 4);
         this.arena.zone(
           Phaser.Math.Clamp(toward > 0 ? this.x : this.x - w, 0, W - w),
           this.y - 32,
@@ -521,7 +684,42 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
           warn,
           Math.round(this.damage * 1.3),
         );
-        this.scene.time.delayedCall(warn, () => this.active && this.setVelocityX(toward * 320));
+        s.time.delayedCall(warn, () => {
+          if (!this.active) return;
+          this.swordArc(this.x + toward * 8, this.y - 8, toward, 44);
+          s.cameras.main.shake(120, 0.012);
+          this.setVelocityX(toward * 340);
+        });
+        if (this.turns >= MAHORAGA.doubleCutAt)
+          s.time.delayedCall(warn + 380, () => {
+            if (!this.active) return;
+            const { x: px, y: py } = this.arena.player;
+            const back = Math.sign(px - this.x) || -toward;
+            this.setVelocityX(0).setFlipX(back < 0);
+            glint(s, this.x + back * 10, this.y + 4);
+            const zy = Phaser.Math.Clamp(py - 28, 0, FLOOR_Y - 48);
+            this.arena.zone(Phaser.Math.Clamp(back > 0 ? this.x : this.x - w, 0, W - w), zy, w, 48, 300, Math.round(this.damage * 1.3));
+            s.time.delayedCall(300, () => this.active && this.swordArc(this.x + back * 8, zy + 24, back, 44));
+          });
+        break;
+      }
+      case 'blitz': {
+        // Adapted to the player's footwork: it melts into its own shadow, comes out right behind them with the fist
+        // already drawn back, and the punch lands an instant later.
+        const s = this.scene;
+        const p = this.arena.player;
+        const behind = p.flipX ? 1 : -1;
+        const x = Phaser.Math.Clamp(p.x + behind * 28, 16, W - 16);
+        this.ghost(0.8, 0x8a3fd1);
+        burst(s, this.x, this.y, 0x1d0f2e, 12);
+        this.body.reset(x, this.y);
+        const dir = Math.sign(p.x - x) || -behind;
+        this.setFlipX(dir < 0);
+        ring(s, x, this.y, 0x8a3fd1, 18, 4, 160, 2);
+        const warn = Math.max(200, 340 - 25 * this.turns);
+        const zx = Phaser.Math.Clamp(dir > 0 ? x : x - 44, 0, W - 44);
+        this.arena.zone(zx, this.y - 22, 44, 36, warn, Math.round(this.damage * 1.1));
+        s.time.delayedCall(warn, () => this.active && this.impact(zx + 22, this.y - 4));
         break;
       }
       case 'dive': {
@@ -561,14 +759,19 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         this.scene.cameras.main.shake(500, 0.02);
         this.arena.shockwave(this.x, this.body.bottom, Math.round(this.damage * 0.7), 'stun');
         break;
-      case 'barrage':
-        // Adapted to the player's movement: three quick strikes that follow them.
-        for (let i = 0; i < 3; i++)
-          this.scene.time.delayedCall(i * 380, () => {
+      case 'barrage': {
+        // Adapted to the player's movement: a chase of strikes that follow them (one more each turn, up to six), each
+        // a fist slamming down where they stood.
+        const n = 3 + Math.min(3, this.turns - MAHORAGA.barrageAt);
+        for (let i = 0; i < n; i++)
+          this.scene.time.delayedCall(i * 340, () => {
             if (!this.active) return;
-            this.arena.zone(Phaser.Math.Clamp(this.arena.player.x - 20, 0, W - 40), FLOOR_Y - 64, 40, 64, 420, this.damage);
+            const x = Phaser.Math.Clamp(this.arena.player.x - 20, 0, W - 40);
+            this.arena.zone(x, FLOOR_Y - 64, 40, 64, 400, this.damage);
+            this.scene.time.delayedCall(400, () => this.active && this.impact(x + 20, FLOOR_Y - 4));
           });
         break;
+      }
       case 'bones': {
         // All-Killing Ash Bones: a spread of bones shot at the player; a hit leaves them weakened.
         const base = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);

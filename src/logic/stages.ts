@@ -73,8 +73,8 @@ const SPECIAL_KINDS: readonly SpecialBoss[] = ['mahoraga', 'leviathan', 'godzill
 
 /** hp/dmg: multipliers on the regular boss of the coming boss tier. A kill pays souls x`soul` and +`coins`. */
 export const SPECIAL_STATS: Record<SpecialBoss, { hp: number; dmg: number; soul: number; coins: number }> = {
-  // Low HP for a special: it has to fall before it adapts to everything.
-  mahoraga: { hp: 1, dmg: 1.6, soul: 4, coins: 15 },
+  // Lowish HP for a special, but every wheel turn heals it: it has to fall before it adapts to everything.
+  mahoraga: { hp: 1.3, dmg: 1.9, soul: 5, coins: 20 },
   leviathan: { hp: 2.5, dmg: 1.5, soul: 4, coins: 15 },
   godzilla: { hp: 3.6, dmg: 1.8, soul: 8, coins: 40 },
   kaguya: { hp: 3, dmg: 1.7, soul: 7, coins: 35 },
@@ -82,10 +82,21 @@ export const SPECIAL_STATS: Record<SpecialBoss, { hp: number; dmg: number; soul:
 
 /**
  * Mahoraga: every `turnMs` the wheel turns and it adapts one step to every kind of attack that hit it since the last
- * turn (ADAPT_MULT: share of damage that still lands; the last step is immunity). From `barrageAt` turns it adds a
- * follow-up attack. Not beaten within `leaveMs`, it goes back into the shadows.
+ * turn (ADAPT_MULT: share of damage that still lands; the last step is immunity). Each turn also heals `heal` of its max
+ * HP (adapting mends the wound) and sends a shockwave out. From `blitzAt` turns it blinks behind the player, from
+ * `barrageAt` it chases them with strikes, from `doubleCutAt` the Sword of Extermination cuts twice. Below `frenzy` of
+ * its HP it rages: the wheel turns `frenzyTurn` times as often. Not beaten within `leaveMs`, it goes back into the shadows.
  */
-export const MAHORAGA = { turnMs: 4000, barrageAt: 3, leaveMs: 75000 } as const;
+export const MAHORAGA = {
+  turnMs: 3200,
+  heal: 0.04,
+  blitzAt: 1,
+  barrageAt: 2,
+  doubleCutAt: 3,
+  frenzy: 0.4,
+  frenzyTurn: 0.6,
+  leaveMs: 75000,
+} as const;
 
 /** Godzilla: regenerates `regen` of its max HP per second; below `enrage` it releases one nuclear pulse and fights faster. */
 export const GODZILLA = { regen: 0.008, enrage: 0.3 } as const;
@@ -285,8 +296,9 @@ export type BossPattern =
   | 'quake'
   | 'sweep'
   | 'legion'
-  // Mahoraga: Sword of Extermination, and a chase of strikes once it has adapted.
+  // Mahoraga: Sword of Extermination, and once it has adapted a blink behind the player and a chase of strikes.
   | 'exterminate'
+  | 'blitz'
   | 'barrage'
   // Leviathan: submerge, then erupt under the player.
   | 'dive'

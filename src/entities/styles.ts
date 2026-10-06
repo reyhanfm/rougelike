@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { ClassId } from '../logic/classes.ts';
 import type { Player } from './Player.ts';
-import { HELL, HOLY, twilightWings } from './skills.ts';
+import { excaliburBare, HELL, HOLY, twilightWings } from './skills.ts';
 
 /**
  * Airborne body motion. flip/backflip: one somersault; roll: two quick ones; spin: a pirouette (turns to face each way);
@@ -34,8 +34,51 @@ export interface MoveStyle {
 }
 
 export const STYLES: Record<ClassId, MoveStyle> = {
-  // Artoria: composed stride, prana sparks at her heels, sword held forward and low.
-  ksatria: { stride: 110, lean: 6, jump: 'lift', trail: { shape: 'spark', colors: [0x29adff, 0xc2f0ff] }, hold: { angle: 40 } },
+  // Artoria: composed, upright stride, prana sparks at her heels, the sword held forward and low. Excalibur is hidden
+  // in Invisible Air: the blade is barely there, only a ripple of wind streaming along it. After Strike Air spends the
+  // barrier the blade shows bare, gold light running up its edge.
+  ksatria: {
+    stride: 110,
+    lean: 4,
+    jump: 'lift',
+    trail: { shape: 'spark', colors: [0x29adff, 0xc2f0ff, 0xffec27] },
+    hold: { angle: 40 },
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(11.5);
+      const draw = () => {
+        g.clear();
+        const h = p.held;
+        if (!p.active || !h.visible || p.weapon.id !== 'pedang') return;
+        const dir = h.scaleX < 0 ? -1 : 1;
+        const [ux, uy] = [Math.cos(h.rotation) * dir, Math.sin(h.rotation) * dir];
+        const len = 13 * Math.abs(h.scaleY);
+        const t = scene.time.now;
+        const at = (d: number, side: number): [number, number] => [h.x + ux * d - uy * side, h.y + uy * d + ux * side];
+        if (excaliburBare(p)) {
+          // The last 1.5 s the glow flickers: the wind is about to close over the blade again.
+          const left = ((p.getData('excaliburUntil') as number) ?? 0) - t;
+          if (left < 1500 && Math.floor(t / 90) % 2) return;
+          g.lineStyle(4, 0xffec27, 0.35).lineBetween(...at(3, 0), ...at(len + 2, 0));
+          g.lineStyle(1, 0xfff1e8, 0.8).lineBetween(...at(4, 0), ...at(len, 0));
+          const [gx, gy] = at(3 + ((t / 250) % 1) * (len - 3), 0);
+          g.fillStyle(0xfff1e8).fillRect(gx - 0.5, gy - 0.5, 1, 1);
+          return;
+        }
+        h.setAlpha(h.alpha * 0.3);
+        for (let i = 0; i < 4; i++) {
+          const k = (t / 110 + i / 4) % 1;
+          const d = 2 + k * (len - 2);
+          const side = (i % 2 ? 1 : -1) * (1.5 + Math.sin(k * Math.PI) * 1.5);
+          g.lineStyle(1, i % 2 ? 0xc2f0ff : 0xfff1e8, 0.8 * (1 - k * 0.6)).lineBetween(...at(d - 2, side), ...at(d + 2, side));
+        }
+      };
+      scene.events.on('postupdate', draw);
+      scene.events.once('shutdown', () => {
+        scene.events.off('postupdate', draw);
+        g.destroy();
+      });
+    },
+  },
   // King Hassan: slow, inevitable steps; black smoke and azure embers rise where he walks; Azrael stands planted
   // point-down in front of him, the pommel at his chest, as in his saint graph.
   pembunuh: {

@@ -109,10 +109,18 @@ The user wants each character to be **keren**, iconic and unmistakably theirs. W
   are local coordinates.
 - Rotating/scaling a `Graphics` happens around (0, 0), not its drawing — wrap it in a container placed at the pivot.
 - `world.pull` / `world.slam` skip bosses (they are too heavy to move); damage them with `strike`/`area` instead.
+- Hit feel lives in `RunScene.attack`/`damage`: **hitstop** (`hitstopMs` + `HITSTOP` in `loot.ts`, checked in game.check)
+  freezes clock, tweens and physics for 45–180 ms on basic finishers (|knockback| ≥ `HITSTOP.heavy`), basic crits and
+  kills; ult hits and procs never freeze (only a boss kill does), and `HITSTOP.gap` keeps multi-kills from stuttering.
+  Knockback pushes **away from `fromX`** (a blast's center, the tail of a shot), not always away from the player.
+  Bosses do not move but `Boss.flinch` jolts the picture 2 px (display origin + body offset, body stays put). Slain
+  small fry leave a `fling` corpse image that tumbles away from the blow. Do not add your own hitstop in skills.
 - Depths: background props 2–5, player ~10, effects 11–15, HUD above. Dark overlays at depth 8.
 - Shared VFX helpers in `skills.ts`: `ring`, `sparks`, `thorns`, `rocks`, `explosion`, `glint`, `afterimage`,
   `bladeLine`, `leafBurst`, `vine`, `tree`, `bolt` (lightning), `stormArc` (layered gold lightning), `twilightWings`, `balanceSigil`, `lightRay`, `hexMirror`, `hurlRock`, `feathers`, `flameTongue`, `azraelBlade`,
-  `eveningBell`, `moonCrescent` (crescent blade container), `moonPhase` (moon in any phase, new to full); `cutMark`,
+  `eveningBell`, `moonCrescent` (crescent blade container), `moonPhase` (moon in any phase, new to full),
+  `rasenshuriken` (wind / rikudo / bijuu palettes), `kuramaAvatar` (nine tails, three heads, six arms),
+  `sasukeSusanoo` (horned violet Complete Body Susanoo with bow grip/hand), `kagutsuchiSpike` (Amaterasu spike); `cutMark`,
   `floatText`, `burst` in `gfx/ui.ts`. Reuse them.
 - An enemy can die in the middle of any loop (an `onKill` burst, a boss falling clears its summons). `RunScene`
   marks it `setActive(false)` before kill effects run and every hit path skips inactive targets: keep checking
@@ -157,11 +165,18 @@ setTimeout(() => s.scene.pause(), 1500); // freeze mid-effect, then screenshot
 Characters already reworked to the quality bar (2026-10): Gravity Master (new class: Gravity Order, Black Hole),
 Hashirama (Jukai Kotan, Mokuryu, Shin Susenju), Jack Frost (Blizzard Vortex, Eternal Winter, homing ice shards),
 Antares (Dragon's Fear, Breath of Destruction, Monarch of Destruction + dragon form), Elementalis (element cycle,
-Blink, Elemental Cataclysm), Artoria (Strike Air, Avalon, Excalibur sweep), King Hassan (Evening Bell, Azure Flame of
+Blink, Elemental Cataclysm), Artoria (reworked 2026-10: Excalibur mode: Strike Air bares the blade for 8 s (`excaliburBare`),
+basics throw golden waves and the skill becomes KILAU EXCALIBUR (a skill fn may return a string = name shown);
+Rhongomyniad fusion (`rhongomyniadLance`, spiral beam, Tower of Light); Excalibur ult with 13 seals; AVALON passive), King Hassan (Evening Bell, Azure Flame of
 the Grave crescent, Azrael with horned skull + spectral cuts, planted-sword pose), Sukuna (Fuga fire bow, World Cutting Slash fusion that aims the line through the most
 enemies, Malevolent Shrine domain ult), Gilgamesh (Enkidu chains, Gate of Babylon sky-full fusion of 36 gates, 5/5/9-gate basic volleys, Enuma Elish
-rupture swept through a full turn over the whole arena, then the sky tears), Naruto (Senpo: Rasenshuriken aimed at the crowd, Chojo Odama Rasen Tarengan chakra arms, Mode Baryon blitz +
-Bijudama), Lightning Lord (new class: STATIK charge via `SKILLS.halilintar.onHit`, Tombak Halilintar chain javelin, Mahkota
+rupture swept through a full turn over the whole arena, then the sky tears), Naruto (reworked again 2026-10: Tajuu Kage Bunshin skill, a dozen-plus clones over the whole arena
+plus Uzumaki Naruto Rendan; Senpo: Rasenshuriken fusion formed with a clone; Chocho Odama Rasenshuriken ult, the
+Valley of the End set piece: Six Paths `kuramaAvatar` with six arms throwing a Rikudo and a Bijudama `rasenshuriken`
+that merge over the arena; passive SENSOR KURAMA reads enemy wind-ups via `Enemy.windingUp`/`interrupt`), Sasuke (reworked 2026-10: Kirin moved
+to the skill, Enton: Kagutsuchi fusion: Rinnegan threads yank enemies in and black-flame `kagutsuchiSpike`s stab out
+all round him; Indra no Ya ult: nine tailed-beast chakra streams, `sasukeSusanoo` at the back edge drawing a lightning
+bow, beam aimed with `bestLine` through the most enemies ahead, recoil blast at its feet, arena-wide "LENYAP!"), Lightning Lord (new class: STATIK charge via `SKILLS.halilintar.onHit`, Tombak Halilintar chain javelin, Mahkota
 Badai orb crown, Penghakiman Guntur storm web ult, `stormArc` lightning helper), Nephalem (new class, half angel half demon: holy blade + twin hellblade, KESEIMBANGAN
 onHit, Sayap Senja, Gerbang Surga & Neraka, Senjakala; always-on wings via `STYLES[cls].attach`). Lumina (new class, light: Pedang Foton, KRISTAL CAHAYA passive crystals that
 also serve as mirrors, Jaring Cermin rainbow mirror lattice, Tirai Aurora curtains, Fajar Semesta lens + dawn;
@@ -175,9 +190,12 @@ Kyoshiki: Murasaki aimed along the busiest line with `bestLine`, layered `cursed
 Then: Cu Chulainn (Gae Bolg run-up, leap and spear storm, `crimsonSpear`), Madara (winged Perfect Susanoo built in
 layers, `perfectSusanoo` + `susanooBlade`), Itachi (Tsukuyomi crosses, clone stabs, 72-hour clock), Ashura (Tinju
 Seribu: six arms, three lanes of fists, giant fist). Skill pass: Samurai Mikiri (counter stance, replaced an Iaido
-that duplicated his passive), Sasuke Chidori (chained dash), Madara Katon: Goka Mekkyaku (rolling wall of fire). Dash pass: Magic Archer star mines,
+that duplicated his passive), Sasuke Chidori (chained dash; later
+replaced, see below), Madara Katon: Goka Mekkyaku (rolling wall of fire). Dash pass: Magic Archer star mines,
 Dark Avenger shadow-pool slide + eruption, Antares half-dragon fire charge, Naruto Rasengan charge (his old clone dash
-duplicated his passive), Nephalem split light/hellfire paths closing in a cross. Buffs: Cultivator (swords no longer return
+duplicated his passive), Nephalem split light/hellfire paths closing in a cross. Cultivator rework (2026-10): passive JALAN KULTIVASI, qi from hits breaks through 4 realms (tribulation lightning, more guard
+swords, Golden Core, Nascent Soul that shoots swords; `realm` on the player widens Formasi Enam Pedang and multiplies
+Pedang Langit's shards). Buffs: Cultivator (swords no longer return
 and block the next attack: 1/2/3-sword volleys, 4 guard swords that also cut projectiles), Gravity Master (Gravity Order
 is map-wide x10/x100/x1000 crush, six-planet Orbit Planet, Black Hole with jets, torn floor, black beat and white hole).
 Sukuna buff (stronger trait, DISMANTLE twice as often, Fuga side pillars and floor fire wave, Kai aimed at the nearest
@@ -185,3 +203,22 @@ enemy ahead). Surya (new class, Solar Knight: KORONA flame ring, sun-disc halo `
 eclipse, Solaris falling sun; `sunDisc`, `solarBeam`, `prominence`). Candra (new class, Moon Knight: FASE BULAN moon
 over his head waxes every 2 basic hits and powers Sabit Candra's 1-4 looping crescents + falling full moon, Pasang
 Bulan tide lift and crash, Malam Seribu Bulan phase-cycling moon with floor reflection and arena-wide crescent).
+
+## Changelog
+
+| Date       | Area                | Before                                                   | After                                                                                                                                                                                                                           | Files                                                                                      |
+| ---------- | ------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 2026-10-06 | Hit feel: hitstop   | none                                                     | `hitstopMs`/`HITSTOP`: finisher 60, basic crit 45, kill 50, elite kill 100, boss kill 180 ms; ult/proc never (except boss kill); 200 ms gap                                                                                     | `loot.ts`, `RunScene.ts`, `game.check.ts`                                                  |
+| 2026-10-06 | Hit feel: knockback | always pushed away from the player                       | pushed away from `fromX` (blast center, tail of a shot)                                                                                                                                                                         | `RunScene.ts`                                                                              |
+| 2026-10-06 | Hit feel: bosses    | white flash only                                         | `Boss.flinch`: picture jolts 2 px away from the blow, body stays put                                                                                                                                                            | `Boss.ts`, `RunScene.ts`                                                                   |
+| 2026-10-06 | Hit feel: kills     | enemy vanished on the spot                               | `fling`: corpse image tumbles away from the blow and fades (pull blows throw it toward the player)                                                                                                                              | `RunScene.ts`                                                                              |
+| 2026-10-06 | Naruto skill        | SENPO: RASENSHURIKEN (cd 6)                              | TAJUU KAGE BUNSHIN (cd 7): 12-16 clones over the arena (air too), Uzumaki Naruto Rendan finale                                                                                                                                  | `skills.ts`, `loot.ts`                                                                     |
+| 2026-10-06 | Naruto fusion       | CHOJO ODAMA RASEN TARENGAN (cd 11)                       | SENPO: RASENSHURIKEN (cd 10), formed with a clone, aimed at the crowd                                                                                                                                                           | `skills.ts`, `loot.ts`                                                                     |
+| 2026-10-06 | Naruto ult          | MODE BARYON                                              | CHOCHO ODAMA RASENSHURIKEN: six-armed `kuramaAvatar` throws a Rikudo and a Bijudama `rasenshuriken` that merge over the arena                                                                                                   | `skills.ts`, `loot.ts`                                                                     |
+| 2026-10-06 | Naruto passive      | KAGE BUNSHIN (clone on dash, clashed with the new skill) | SENSOR KURAMA: enemies winding up are marked; hitting one = crit + attack cancelled + 0.7 s stagger (not bosses)                                                                                                                | `passives.ts`, `classes.ts`, `Enemy.ts` (`windingUp`, `interrupt`)                         |
+| 2026-10-06 | Sasuke skill        | CHIDORI (chained dash, cd 5)                             | KIRIN (cd 8, moved from fusion, damage lowered)                                                                                                                                                                                 | `skills.ts`, `loot.ts`                                                                     |
+| 2026-10-06 | Sasuke fusion       | KIRIN (cd 12)                                            | ENTON: KAGUTSUCHI (cd 11): Rinnegan threads pull enemies in, 16 black-flame `kagutsuchiSpike`s stab out (burn + bind)                                                                                                           | `skills.ts`, `loot.ts`                                                                     |
+| 2026-10-06 | Sasuke ult          | INDRA NO YA: flat Susanoo, horizontal beam               | INDRA NO YA set piece: 9 tailed-beast chakra streams, `sasukeSusanoo` + lightning bow, `bestLine` beam, recoil blast, arena-wide LENYAP!                                                                                        | `skills.ts`, `loot.ts`                                                                     |
+| 2026-10-06 | Mahoraga buff       | HP x1, dmg x1.6, wheel 4 s, barrage from turn 3          | HP x1.3, dmg x1.9, wheel 3.2 s; each turn heals 4% + shockwave; BLITZ (turn 1), 3-6 strike barrage (turn 2), double Extermination cut (turn 3); MENGAMUK below 40% HP; motes, afterimages, rocking wheel, sword arc VFX         | `Boss.ts`, `stages.ts`, `game.check.ts`                                                    |
+| 2026-10-06 | Artoria rework      | Strike Air drill, AVALON fusion, SELUBUNG ANGIN passive  | Strike Air hammer of pressure fronts + Excalibur mode (golden waves, KILAU EXCALIBUR skill); RHONGOMYNIAD fusion; 13-seal Excalibur ult with arena-wide climax; AVALON passive blocks heavy hits; Invisible Air hides the blade | `skills.ts`, `passives.ts`, `dashes.ts`, `styles.ts`, `loot.ts`, `classes.ts`, `Player.ts` |
+| 2026-10-06 | Cultivator rework   | PEDANG PENJAGA (4 fixed guard swords)                    | JALAN KULTIVASI: realms QI/PONDASI/INTI EMAS/JIWA BARU (2-6 guard swords, +10% dmg per realm, tribulation bolts, Nascent Soul); weapon dmg 1, skill/fusion/ult/dash damage up                                                   | `passives.ts`, `skills.ts`, `dashes.ts`, `loot.ts`, `classes.ts`                           |

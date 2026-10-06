@@ -16,6 +16,8 @@ const {
   rewardInfo,
   nextCombo,
   COMBO_WINDOW_MS,
+  hitstopMs,
+  HITSTOP,
   rarityWeights,
   rollRarity,
   moveHitbox,
@@ -169,6 +171,17 @@ assert.ok(up.skillCdMult < base.skillCdMult && up.skillPower > base.skillPower);
 assert.equal(maxed.skillCdMult, 0.5);
 
 // Combos: chain within the window, restart after it, wrap at the end.
+// Hitstop: finishers, basic crits and kills freeze; light hits, ult hits and procs never do; a boss kill always does.
+const hs = { source: 'basic', crit: false, killed: false, knockback: 60 } as const;
+assert.equal(hitstopMs(hs), 0);
+assert.equal(hitstopMs({ ...hs, knockback: -HITSTOP.heavy }), HITSTOP.finisher);
+assert.equal(hitstopMs({ ...hs, crit: true }), HITSTOP.crit);
+assert.equal(hitstopMs({ ...hs, source: 'skill', crit: true }), 0);
+assert.equal(hitstopMs({ ...hs, source: 'skill', killed: true, big: 'elite' }), HITSTOP.elite);
+assert.equal(hitstopMs({ ...hs, source: 'ult', killed: true, knockback: 300 }), 0);
+assert.equal(hitstopMs({ ...hs, source: 'ult', killed: true, big: 'boss' }), HITSTOP.boss);
+assert.ok(Object.values(HITSTOP).every((v) => v > 0) && HITSTOP.boss <= 250, 'hitstop stays a blink, never a pause');
+
 assert.equal(nextCombo(-1, 0, 3), 0);
 assert.equal(nextCombo(0, 100, 3), 1);
 assert.equal(nextCombo(1, COMBO_WINDOW_MS, 3), 2);
@@ -268,7 +281,7 @@ assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').lifesteal, 0);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'berserker').rage, 0.25, 'class trait applies with any weapon');
 assert.equal(runStats(base, WEAPONS.busur, [], 'pemburu').pierceArrows, 1);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').maxHp, Math.round(base.maxHp * 1.1));
-assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').regen, 1, 'Avalon heals over time');
+assert.equal(runStats(base, WEAPONS.pedang, [], 'ksatria').regen, 1, 'the dragon core heals over time');
 assert.ok(WEAPONS.pedang.combo.length === 4 && WEAPONS.pedang.ult.name === 'EXCALIBUR');
 assert.equal(runStats(base, WEAPONS.belati, [], 'pembunuh').critMult, 2);
 // Fate reworks: Hassan executes, Heracles revives (twice with his weapon), Cu Chulainn dodges.
@@ -531,6 +544,12 @@ assert.ok(
     ADAPT_MULT[0] === 1 && ADAPT_MULT.every((x, i) => i === 0 || x < ADAPT_MULT[i - 1]) && ADAPT_MULT.at(-1) === 0,
     'each wheel turn resists more, until Mahoraga is immune',
   );
+  {
+    const { MAHORAGA } = await import('./stages.ts');
+    assert.ok(MAHORAGA.blitzAt < MAHORAGA.barrageAt && MAHORAGA.barrageAt < MAHORAGA.doubleCutAt, 'Mahoraga escalates turn by turn');
+    // Fastest healing (raging wheel) stays under 2.5% of its HP per second, or it could never fall.
+    assert.ok((MAHORAGA.heal * 1000) / (MAHORAGA.turnMs * MAHORAGA.frenzyTurn) < 0.025, 'Mahoraga can still be beaten');
+  }
   assert.ok(rollEliteRound(7, () => 0) && !rollEliteRound(7, () => 0.99));
   assert.ok(!rollEliteRound(10, () => 0) && !rollEliteRound(ELITE_ROUND.from - 1, () => 0), 'no elite round on boss rounds or too early');
   const er = eliteRoundConfig(7);

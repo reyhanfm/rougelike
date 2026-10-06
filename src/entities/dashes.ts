@@ -61,17 +61,32 @@ export const DASHES: Record<ClassId, DashStyle> = {
     tint: 0x29adff,
     hit: { mult: 0.9, radius: 14, cut: 0xc2f0ff },
     // Prana erupts behind her like a jet: a blue flare, a cone of mana flames trailing, and a ring where she launched.
+    // Where the burst spends itself she cuts through: a line of blue prana along her path snaps shut behind her and the
+    // air bursts in a ring.
     start: ({ p, world, scene, power }) => {
       const f = p.facing;
+      const sx = p.x;
+      later(scene, 170, () => {
+        if (!p.active) return;
+        bladeLine(scene, sx, p.y, p.x, p.y, 0x29adff, 60);
+        ring(scene, p.x, p.y, 0xc2f0ff, 2, 16, 200, 2);
+        sparks(scene, p.x + f * 6, p.y, [0x29adff, 0xc2f0ff, 0xfff1e8], 8, 14);
+      });
       const flare = scene.add.circle(p.x, p.y, 6, 0x29adff, 0.5).setStrokeStyle(2, 0xc2f0ff).setDepth(12);
       scene.tweens.add({ targets: flare, radius: 26, alpha: 0, duration: 250, onComplete: () => flare.destroy() });
       ring(scene, p.x - f * 4, p.y, 0xc2f0ff, 4, 20, 220, 2);
       world.area(p.x, p.y, 18, 0.5 * power, 150, 'skill');
-      during(scene, 170, 25, () => {
+      during(scene, 170, 25, (i) => {
         for (const dy of [-3, 3]) {
-          const jet = scene.add.rectangle(p.x - f * 6, p.y + dy, 6, 2, 0x29adff).setDepth(11);
+          const jet = scene.add.rectangle(p.x - f * 6, p.y + dy, 6, 2, i % 2 ? 0xc2f0ff : 0x29adff).setDepth(11);
           scene.tweens.add({ targets: jet, x: jet.x - f * 14, scaleX: 0.2, alpha: 0, duration: 180, onComplete: () => jet.destroy() });
         }
+        // A blue flame tongue at the core of the jet.
+        const core = scene.add
+          .triangle(p.x - f * 5, p.y, 0, -3, 0, 3, -f * 12, 0, 0x7fe6ff, 0.8)
+          .setOrigin(0)
+          .setDepth(11);
+        scene.tweens.add({ targets: core, alpha: 0, scaleX: 0.3, duration: 140, onComplete: () => core.destroy() });
       });
     },
   },
@@ -250,7 +265,7 @@ export const DASHES: Record<ClassId, DashStyle> = {
     vy: -50,
     ms: 420,
     tint: 0x29adff,
-    hit: { mult: 0.5, radius: 12, cut: 0xc2f0ff },
+    hit: { mult: 0.8, radius: 14, cut: 0xc2f0ff },
     // He rides his flying sword: it appears under his feet, glowing, a ribbon of qi streaming behind until he steps off.
     start: ({ p, scene }) => {
       const sword = scene.add

@@ -68,7 +68,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Texture suffix: hero frames are recolored per class. */
   private readonly skin: ClassId;
   private readonly keys: Keys;
-  private readonly held: Phaser.GameObjects.Image;
+  /** The weapon in hand (Artoria's Invisible Air hides and wraps it, see STYLES.ksatria). */
+  readonly held: Phaser.GameObjects.Image;
   /** Off-hand blade for twin-sword weapons. */
   private readonly twin: Phaser.GameObjects.Image;
   private readonly slash: Phaser.GameObjects.Image;
@@ -822,9 +823,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.cameras.main.flash(120, 255, 236, 39);
     }
     // Long names stay on screen near the edges (8px per character, centered).
-    const half = (info.name.length + 1) * 4;
+    // A skill may fire as another technique and name it (Artoria's KILAU EXCALIBUR).
+    const name = typeof fired === 'string' ? fired : info.name;
+    const half = (name.length + 1) * 4;
     const color = kind === 'ult' ? COLOR.gold : kind === 'fusion' ? '#c080ff' : COLOR.blue;
-    floatText(this.scene, Phaser.Math.Clamp(this.x, half, W - half), this.y - 18, `${info.name}!`, color);
+    floatText(this.scene, Phaser.Math.Clamp(this.x, half, W - half), this.y - 18, `${name}!`, color);
   }
 
   private get chargeCtx(): ChargedCtx {

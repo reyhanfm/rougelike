@@ -24,6 +24,8 @@ import {
   coinReward,
   rerollCost,
   runStats,
+  HITSTOP,
+  hitstopMs,
   ULT_GAIN,
   WEAPONS,
   type ItemId,
@@ -144,6 +146,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private replacing?: ItemId;
   private regenAcc = 0;
   private lifestealAcc = 0;
+  /** Hitstop (game-loop ms): the fight holds still until `hitstopUntil`, and may not freeze again before `hitstopReady`. */
+  private hitstopUntil = 0;
+  private hitstopReady = 0;
   private rewardUi?: Phaser.GameObjects.Container;
   private hud!: Phaser.GameObjects.Graphics;
   private hpText!: Phaser.GameObjects.Text;
@@ -192,7 +197,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.coins = data.coins ?? 0;
     this.cleared = this.over = this.paused = this.invading = false;
     this.invasion = this.invaded = undefined;
-    this.regenAcc = this.lifestealAcc = 0;
+    this.regenAcc = this.lifestealAcc = this.hitstopUntil = this.hitstopReady = 0;
     this.bosses = [];
     this.bossLeft = false;
     this.portal = this.rewards = this.rewardUi = this.inventory = this.elite = this.eliteTitle = this.replacing = undefined;
@@ -309,6 +314,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   update(time: number, delta: number): void {
     if (this.paused || this.over) return;
+    if (this.hitstopUntil) {
+      if (time < this.hitstopUntil) return;
+      this.hitstopUntil = 0;
+      this.time.paused = false;
+      this.tweens.resumeAll();
+      this.physics.resume();
+    }
     if (this.rewards) {
       this.player.setVelocityX(0);
       return;
@@ -701,9 +713,12 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (hits.has(t)) return;
     hits.add(t);
     const spec = shot.getData('shot') as ShotSpec;
+    // Read before a destroy below drops the body.
+    const vx = (shot.body as Phaser.Physics.Arcade.Body).velocity.x;
     if (spec.returning && !spec.pierce) shot.setData('back', true);
     else if (!spec.pierce) shot.destroy();
-    this.attack(t, spec.mult, spec.source, spec.knockback ?? 80, false, shot.x, shot.y);
+    // The blow comes from behind the shot along its flight (a fast shot may already overlap the target's center).
+    this.attack(t, spec.mult, spec.source, spec.knockback ?? 80, false, shot.x - Math.sign(vx) * 8, shot.y);
     this.applyStatus(t, spec.status);
     if (spec.explode) {
       shot.destroy();
@@ -812,7 +827,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     const x = t.x;
     const y = t.y;
-    const killed = this.damage(t, dmg, crit ? COLOR.gold : COLOR.text, knockback);
+    const heft = t instanceof Boss ? 'boss' : t.getData('elite') ? 'elite' : undefined;
+    const killed = this.damage(t, dmg, crit ? COLOR.gold : COLOR.text, knockback, fromX);
+    this.hitstop(hitstopMs({ source, crit, killed, knockback, big: heft }));
     // Passive procs never feed passives again (no loops).
     if (source !== 'proc') this.passive.onHit?.(this.pctx, t, { source, crit, killed, dmg });
     if (source === 'basic' || source === 'skill') this.player.addUlt((ULT_GAIN[source] + (killed ? ULT_GAIN.kill : 0)) * st.ultGainMult);
@@ -845,6 +862,39 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
   }
 
+  /** Freeze clock, tweens and physics for a blink; `update` lets go once the game-loop time passes `hitstopUntil`. */
+  private hitstop(ms: number): void {
+    const now = this.game.loop.time;
+    if (!ms || this.paused || this.over || now < this.hitstopReady) return;
+    this.hitstopUntil = now + ms;
+    this.hitstopReady = this.hitstopUntil + HITSTOP.gap;
+    this.time.paused = true;
+    this.tweens.pauseAll();
+    this.physics.pause();
+  }
+
+  /** A slain small fry tumbles away from the blow and fades: only a picture, the enemy itself is already gone. */
+  private fling(t: Enemy, dir: number, knockback: number): void {
+    // A pulling blow (negative knockback) throws the body toward the player instead.
+    const s = knockback < 0 ? -dir : dir;
+    const d = 16 + Math.min(Math.abs(knockback), 300) / 10;
+    const body = this.add
+      .image(t.x, t.y, t.texture.key, t.frame.name)
+      .setScale(t.scaleX, t.scaleY)
+      .setFlipX(t.flipX)
+      .setDepth(t.depth)
+      .setTint(0xc2c3c7);
+    this.tweens.add({
+      targets: body,
+      x: { value: Phaser.Math.Clamp(t.x + s * d, 4, W - 4), ease: 'Quad.Out' },
+      y: { value: t.y - 10 - d / 4, ease: 'Sine.Out', yoyo: true, duration: 220 },
+      angle: s * 300,
+      alpha: { value: 0, ease: 'Quad.In' },
+      duration: 440,
+      onComplete: () => body.destroy(),
+    });
+  }
+
   private bolt(x: number, y: number): void {
     const t = this.targets(x, y)[0] as Hittable | undefined;
     if (!t || this.over) return;
@@ -873,7 +923,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   }
 
   /** Returns true when this killed the target. */
-  private damage(t: Hittable, dmg: number, color: string, knockback: number): boolean {
+  /** `fromX`: where the blow comes from; the target is pushed (and a corpse flung) away from it. */
+  private damage(t: Hittable, dmg: number, color: string, knockback: number, fromX = this.player.x): boolean {
     // Dead (or dying: see setActive below) targets take no more hits, so nothing dies twice.
     if (!t.active) return false;
     t.hp -= dmg;
@@ -886,10 +937,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     flash(t, 0xffffff, t instanceof Boss ? t.baseTint : 0xffffff);
     burst(this, t.x, t.y, 0xfff1e8, 4);
+    // Away from the blow (a blast behind the target throws it toward the player); straight on, away from the player.
+    const dir = Math.sign(t.x - fromX) || Math.sign(t.x - this.player.x) || this.player.facing;
     // No push at 0 (burn ticks, blocked hits) so the enemy keeps its own movement.
-    // Mini bosses shrug off most of the push.
-    if (!(t instanceof Boss) && knockback)
-      t.knockback(Math.sign(t.x - this.player.x) || this.player.facing, t.getData('elite') ? knockback * 0.3 : knockback);
+    // Mini bosses shrug off most of the push; bosses only jolt.
+    if (t instanceof Boss) {
+      if (knockback) t.flinch(dir);
+    } else if (knockback) t.knockback(dir, t.getData('elite') ? knockback * 0.3 : knockback);
     if (t.hp > 0) return false;
     // Out of play from here on: kill effects below (onKill bursts, kill bolts) must not find and hit it again.
     t.setActive(false);
@@ -934,6 +988,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       }
     } else {
       burst(this, t.x, t.y, 0x00e436, 10);
+      this.fling(t, dir, knockback);
       // Big slime splits in two: spawned now (not a capped summon), so the round cannot count as cleared in between.
       if (t.kind === 'splitter') for (const dx of [-8, 8]) this.spawnEnemy('slime', Phaser.Math.Clamp(t.x + dx, 16, W - 16), t.y - 6);
     }

@@ -7,6 +7,7 @@ import type { HurtResult, Player } from './Player.ts';
 import {
   afterimage,
   bladeLine,
+  bolt,
   explosion,
   eveningBell,
   FIRE,
@@ -20,7 +21,6 @@ import {
   sparks,
   stormArc,
   thorns,
-  whileAlive,
   hexMirror,
   lightRay,
   moonPhase,
@@ -95,6 +95,9 @@ function overlay(c: PassiveCtx, depth = 15): Phaser.GameObjects.Graphics {
   return g;
 }
 
+/** An enemy showing its "about to attack" cue (bosses telegraph their own way and are never read). */
+const windingUp = (t: Foe): t is Foe & { interrupt(ms: number): void } => 'windingUp' in t && !!(t as { windingUp: boolean }).windingUp;
+
 /** Top of an enemy's head. */
 const head = (t: Foe) => t.y - t.displayHeight / 2;
 
@@ -124,64 +127,126 @@ function smoke(scene: Phaser.Scene, x: number, y: number, n: number, colors: num
 /** Lumina's floating light crystals (also read by Jaring Cermin as extra mirrors). */
 const crystalState = () => ({ hits: 0, crystals: [] as { x: number; y: number; born: number; next: number }[] });
 
+/** The Cultivator's realms: qi needed to break through to each, and the swords of his guard there. */
+const REALMS = [
+  { name: 'PEMURNIAN QI', qi: 0, swords: 2 },
+  { name: 'PONDASI', qi: 10, swords: 3 },
+  { name: 'INTI EMAS', qi: 25, swords: 4 },
+  { name: 'JIWA BARU', qi: 45, swords: 6 },
+] as const;
+
+const cultState = () => ({
+  qi: 0,
+  realm: 0,
+  swords: [] as Phaser.GameObjects.Image[],
+  last: new Map<object, number>(),
+  trail: 0,
+  soulAt: 0,
+  soul: undefined as Phaser.GameObjects.Image | undefined,
+});
+
+/** Qi gathered; enough of it and he breaks through. */
+function gainQi(c: PassiveCtx, n: number): void {
+  const s = state(c.p, cultState);
+  s.qi += n;
+  const next = REALMS[s.realm + 1];
+  if (next && s.qi >= next.qi) breakthrough(c, s);
+}
+
+/** Breakthrough: the heavenly tribulation falls on him, then on the enemies nearest him. */
+function breakthrough({ p, world, scene }: PassiveCtx, s: ReturnType<typeof cultState>): void {
+  s.realm++;
+  p.setData('realm', s.realm);
+  const cx = p.x;
+  const cy = Math.max(16, p.y - 64);
+  const cloud = scene.add.graphics().setDepth(9).setAlpha(0);
+  for (let i = 0; i < 9; i++)
+    cloud.fillStyle(i % 2 ? 0x1d2b53 : 0x2b2f6b, 0.9).fillCircle(cx + (i - 4) * 8, cy + (i % 3) * 2, 7 + (i % 3) * 2);
+  cloud.lineStyle(1, 0xc080ff, 0.6).lineBetween(cx - 30, cy + 8, cx + 30, cy + 8);
+  scene.tweens.add({ targets: cloud, alpha: 1, duration: 150 });
+  scene.tweens.add({ targets: cloud, alpha: 0, delay: 900, duration: 300, onComplete: () => cloud.destroy() });
+  later(scene, 200, () => {
+    if (!p.active) return;
+    bolt(scene, cx, cy + 6, p.x, p.y, 0xc080ff);
+    ring(scene, p.x, p.y, 0xc2f0ff, 4, 34, 320, 2);
+    ring(scene, p.x, p.y, 0xc080ff, 2, 22, 260);
+    sparks(scene, p.x, p.y, [0xc080ff, 0xc2f0ff, 0xfff1e8], 14, 26);
+    scene.cameras.main.flash(120, 192, 128, 255);
+    floatText(scene, Phaser.Math.Clamp(p.x, 50, W - 50), p.y - 26, REALMS[s.realm].name, s.realm >= 2 ? '#ffec27' : '#c2f0ff');
+  });
+  world
+    .targets(p.x, p.y)
+    .slice(0, 1 + s.realm)
+    .forEach((t, i) =>
+      later(scene, 340 + i * 110, () => {
+        if (!t.active) return;
+        bolt(scene, t.x + Phaser.Math.Between(-10, 10), 0, t.x, t.y, 0xc080ff);
+        sparks(scene, t.x, t.y, [0xc080ff, 0xfff1e8], 8, 14);
+        scene.cameras.main.shake(100, 0.008);
+        world.strike(t, 1.2 + 0.4 * s.realm, 'proc', true, { slow: 800 });
+      }),
+    );
+}
+
 export const PASSIVES: Record<ClassId, Passive> = {
-  // SELUBUNG ANGIN (Invisible Air): the wind wrapped around Excalibur. As Artoria runs it winds tighter around the
-  // blade (a swirl of white-blue wisps once it is full); her next attack lets it go as a drill of air aimed at the
-  // nearest enemy ahead, piercing the whole line.
+  // AVALON, the Everdistant Utopia: the scabbard of Excalibur sleeps inside her body (a little gold-and-blue scabbard
+  // hangs at her hip while it is ready). A heavy blow (12% of her HP or more) never lands: the scabbard comes apart
+  // into plates of light that lock into a curved wall on the side of the blow, her wounds close (6% HP), and the
+  // blow is turned back on its source as a lance of light. Then it needs 10 s to gather again.
   ksatria: {
-    tick: ({ p, scene }, time, delta) => {
-      const s = state(p, () => ({ wind: 0, charged: false, wisp: 0 }));
-      if (!s.charged) {
-        if (p.grounded) s.wind += (Math.abs(p.body.velocity.x) * delta) / 1000;
-        if (s.wind >= 110) {
-          s.charged = true;
-          glint(scene, p.x + p.facing * 7, p.y - 2);
-          ring(scene, p.x + p.facing * 6, p.y, 0xc2f0ff, 2, 14, 220);
-        }
-        return;
-      }
-      if (time < s.wisp) return;
-      s.wisp = time + 70;
-      // Wind coiling around the blade.
-      const a = time / 60;
-      const w = scene.add
-        .rectangle(p.x + p.facing * 6 + Math.cos(a) * 6, p.y + Math.sin(a) * 4, 2, 1, Math.floor(a) % 2 ? 0xc2f0ff : 0xfff1e8)
-        .setDepth(12);
-      scene.tweens.add({ targets: w, x: w.x - p.facing * 6, alpha: 0, duration: 220, onComplete: () => w.destroy() });
+    tick: (c, time) => {
+      const { p } = c;
+      const s = state(p, () => ({ ready: 0 }));
+      const g = overlay(c, 9.5);
+      g.clear();
+      if (time < s.ready || !p.visible) return;
+      const x = p.x - p.facing * 4;
+      const y = p.y + 1;
+      g.fillStyle(0x1d2b53).fillRect(x - 1.5, y - 1, 3, 9);
+      g.fillStyle(0x2a4bd7).fillRect(x - 0.5, y, 1, 7);
+      g.fillStyle(0xffec27)
+        .fillRect(x - 1.5, y - 1, 3, 1)
+        .fillRect(x - 1.5, y + 3, 3, 1)
+        .fillRect(x - 0.5, y + 8, 1, 1);
+      // A glint runs down it now and then.
+      const k = (time % 1600) / 400;
+      if (k < 1) g.fillStyle(0xfff1e8).fillRect(x - 0.5, y + k * 7, 1, 1);
     },
-    onAttack: ({ p, world, scene }) => {
-      const s = state(p, () => ({ wind: 0, charged: false, wisp: 0 }));
-      if (!s.charged) return;
-      s.charged = false;
-      s.wind = 0;
-      const f = p.facing;
-      // Aimed when it is let go: the nearest enemy ahead within a cone, else straight on.
-      const foe = world
-        .targets(p.x, p.y)
-        .find((t) => Math.sign(t.x - p.x) === f && Math.abs(Math.atan2(t.y - p.y, Math.abs(t.x - p.x))) < 0.6);
-      const a = foe ? Math.atan2(foe.y - p.y, foe.x - p.x) : f > 0 ? 0 : Math.PI;
-      const x = p.x + f * 8;
-      ring(scene, x, p.y, 0xc2f0ff, 2, 20, 220, 2);
-      sparks(scene, x, p.y, [0xc2f0ff, 0xfff1e8], 8, 16);
-      const drill = world.shot({
-        x,
-        y: p.y,
-        vx: Math.cos(a) * 280,
-        vy: Math.sin(a) * 280,
-        texture: 'angin',
-        mult: 1.4,
-        source: 'proc',
-        pierce: true,
-        knockback: 220,
-      }) as Phaser.GameObjects.Image;
-      drill.setFlipX(false).setRotation(a);
-      whileAlive(scene, drill, 30, (k) => {
-        const r = scene.add
-          .rectangle(drill.x, drill.y + (k % 2 ? 3 : -3), 4, 1, 0xc2f0ff, 0.8)
-          .setRotation(a)
-          .setDepth(11);
-        scene.tweens.add({ targets: r, alpha: 0, scaleX: 2, duration: 200, onComplete: () => r.destroy() });
-      });
+    guard: ({ p, world, scene }, dmg, fromX, from) => {
+      const s = state(p, () => ({ ready: 0 }));
+      const time = scene.time.now;
+      if (time < s.ready || incoming(p, dmg) < p.stats.maxHp * 0.12) return false;
+      s.ready = time + 10000;
+      p.parry('AVALON', '#ffec27');
+      p.heal(Math.ceil(p.stats.maxHp * 0.06));
+      const side = Math.sign(fromX - p.x) || p.facing;
+      const base = side > 0 ? 0 : Math.PI;
+      for (let i = 0; i < 10; i++) {
+        const a = base + (i - 4.5) * 0.24;
+        const pl = scene.add
+          .rectangle(p.x - p.facing * 4, p.y + 3, 5, 2, i % 3 ? 0xffec27 : 0xfff1e8)
+          .setStrokeStyle(1, 0x2a4bd7)
+          .setDepth(14);
+        scene.tweens.add({
+          targets: pl,
+          x: p.x + Math.cos(a) * 14,
+          y: p.y - 2 + Math.sin(a) * 14,
+          rotation: a + Math.PI / 2,
+          duration: 90,
+          ease: 'Back.Out',
+          onComplete: () =>
+            scene.tweens.add({ targets: pl, alpha: 0, scale: 1.5, delay: 350, duration: 200, onComplete: () => pl.destroy() }),
+        });
+      }
+      ring(scene, p.x + side * 14, p.y - 2, 0xffec27, 2, 18, 260, 2);
+      sparks(scene, p.x + side * 14, p.y - 2, [0xffec27, 0xfff1e8], 10, 16);
+      if (from?.active)
+        later(scene, 140, () => {
+          if (!from.active) return;
+          bladeLine(scene, p.x + side * 14, p.y - 2, from.x, from.y, 0xffec27, 80);
+          world.strike(from, 0.8, 'proc', false, undefined, isBoss(from) ? 0 : 240);
+        });
+      return true;
     },
   },
 
@@ -496,31 +561,48 @@ export const PASSIVES: Record<ClassId, Passive> = {
     },
   },
 
-  // PEDANG PENJAGA: four swords of qi wheel around the cultivator all the time, in front of and behind him like a
-  // tilted halo, cutting whatever comes close and cutting enemy projectiles out of the air.
+  // JALAN KULTIVASI (the Path of Cultivation): every blow he lands gathers qi (a kill gathers more), and with enough
+  // of it he breaks through to the next realm: Qi Refining, Foundation Establishment, Golden Core, Nascent Soul.
+  // Heaven answers each breakthrough with a tribulation: dark clouds gather over him, violet lightning strikes him (he
+  // takes it into his body in a flare of qi), then the enemies nearest him. Each realm adds swords to the guard that
+  // wheels around him (cutting whatever comes close and cutting projectiles out of the air) and makes all his blows
+  // heavier; at Golden Core a golden core glows in his chest; at Nascent Soul his nascent soul, a small luminous self,
+  // sits at his shoulder and looses hunting swords of its own. The realm is kept on the player (`realm`), so the sword
+  // arts grow with it. Every round starts again from Qi Refining.
   cultivator: {
-    tick: ({ p, world, scene }, time) => {
-      const s = state(p, () => ({ swords: [] as Phaser.GameObjects.Image[], last: new Map<object, number>(), trail: 0 }));
-      if (!s.swords.length)
-        s.swords = Array.from({ length: 4 }, () => scene.add.image(p.x, p.y, 'w_pedangTerbang').setTint(0x9fe8ff).setScale(0.8));
+    tick: (c, time) => {
+      const { p, world, scene } = c;
+      const s = state(p, cultState);
+      const realm = REALMS[s.realm];
+      const gold = s.realm >= 2;
+      if (s.swords.length !== realm.swords) {
+        s.swords.forEach((sw) => sw.destroy());
+        s.swords = Array.from({ length: realm.swords }, (_, i) =>
+          scene.add
+            .image(p.x, p.y, 'w_pedangTerbang')
+            .setTint(gold && i % 2 ? 0xffec27 : 0x9fe8ff)
+            .setScale(0.8),
+        );
+      }
       const trail = time >= s.trail;
       if (trail) s.trail = time + 50;
-      const foes = world.targets(p.x, p.y).filter((t) => dist(t, p) < 44);
-      const shots = world.hostiles().filter((h) => dist(h, p) < 30);
+      const R = 18 + 2 * s.realm;
+      const foes = world.targets(p.x, p.y).filter((t) => dist(t, p) < R + 26);
+      const shots = world.hostiles().filter((h) => dist(h, p) < R + 12);
       s.swords.forEach((sw, i) => {
-        const a = time / 220 + (i * Math.PI * 2) / s.swords.length;
-        sw.setPosition(p.x + Math.cos(a) * 18, p.y + Math.sin(a) * 9)
+        const a = time / (220 - 20 * s.realm) + (i * Math.PI * 2) / s.swords.length;
+        sw.setPosition(p.x + Math.cos(a) * R, p.y + Math.sin(a) * R * 0.5)
           .setRotation(a + Math.PI / 2)
           .setDepth(Math.sin(a) > 0 ? 11 : 9);
         if (trail) {
-          const d = scene.add.rectangle(sw.x, sw.y, 1, 1, 0xc2f0ff).setDepth(10);
+          const d = scene.add.rectangle(sw.x, sw.y, 1, 1, gold ? 0xffec27 : 0xc2f0ff).setDepth(10);
           scene.tweens.add({ targets: d, alpha: 0, duration: 180, onComplete: () => d.destroy() });
         }
         for (const t of foes) {
           if (dist(t, sw) > 8 + t.displayWidth / 2 || time - (s.last.get(t) ?? 0) < 450) continue;
           s.last.set(t, time);
-          cutMark(scene, t.x, t.y, 0x29adff, 14);
-          world.strike(t, 0.5, 'proc', false, undefined, 40);
+          cutMark(scene, t.x, t.y, gold ? 0xffec27 : 0x29adff, 14);
+          world.strike(t, 0.5 + 0.15 * s.realm, 'proc', false, undefined, 40);
         }
         // A sword that crosses an enemy projectile cuts it out of the air.
         for (const h of shots) {
@@ -530,7 +612,49 @@ export const PASSIVES: Record<ClassId, Passive> = {
           h.destroy();
         }
       });
+      // Golden Core: a gold core pulses in his chest.
+      const g = overlay(c, 11.5);
+      g.clear();
+      if (gold && p.visible) {
+        const pulse = 2 + Math.sin(time / 150);
+        g.fillStyle(0xffec27, 0.3).fillCircle(p.x, p.y - 1, pulse + 2);
+        g.fillStyle(0xffec27).fillCircle(p.x, p.y - 1, 1.2);
+      }
+      // Nascent Soul: a small luminous self at his shoulder, loosing a hunting sword every 1.3 s.
+      if (s.realm < 3) return;
+      const sx = p.x - p.facing * 11;
+      const sy = p.y - 13 + Math.sin(time / 300) * 2;
+      if (!s.soul?.active)
+        s.soul = scene.add
+          .image(sx, sy, p.texture.key)
+          .setTint(0xc2f0ff)
+          .setTintMode(Phaser.TintModes.FILL)
+          .setScale(0.6)
+          .setAlpha(0.55)
+          .setDepth(9);
+      s.soul.setTexture(p.texture.key).setPosition(sx, sy).setFlipX(p.flipX);
+      g.lineStyle(1, 0xffec27, 0.8).strokeEllipse(sx, sy - 6, 6, 2);
+      if (time < s.soulAt) return;
+      const t = world.targets(sx, sy)[0];
+      if (!t) return;
+      s.soulAt = time + 1300;
+      const a = Phaser.Math.Angle.Between(sx, sy, t.x, t.y);
+      ring(scene, sx, sy, 0xc2f0ff, 2, 10, 160);
+      world.shot({
+        x: sx,
+        y: sy,
+        vx: Math.cos(a) * 240,
+        vy: Math.sin(a) * 240,
+        texture: 'w_pedangTerbang',
+        tint: 0xfff1e8,
+        mult: 0.6,
+        source: 'proc',
+        homing: true,
+      });
     },
+    onHit: (c, _t, h) => gainQi(c, h.source === 'basic' ? 1 : 2),
+    onKill: (c) => gainQi(c, 3),
+    modify: ({ p }) => ({ mult: 1 + 0.1 * state(p, cultState).realm }),
   },
 
   // RESONANSI ELEMEN: two elements meeting in one enemy react. A burning enemy struck by ice explodes in scalding
@@ -1006,43 +1130,33 @@ export const PASSIVES: Record<ClassId, Passive> = {
     },
   },
 
-  // KAGE BUNSHIN: a shadow clone pops out of the smoke where Naruto dashed from. For a few seconds it bounds from
-  // enemy to enemy throwing punches on its own, then goes up in smoke.
+  // SENSOR KURAMA: Kurama feels negative emotion. Any enemy gathering itself to attack is marked with the fox's slit
+  // eye over its head, a thread of orange chakra running to it from Naruto. A hit on a marked enemy reads the attack
+  // before it comes: the blow is a crit, the attack is cancelled and the enemy staggers under a fox-claw rake.
   naruto: {
-    onDash: ({ p, world, scene }) => {
-      const s = state(p, () => ({ ready: 0 }));
-      const time = scene.time.now;
-      if (time < s.ready) return;
-      s.ready = time + 5000;
-      const poof = (x: number, y: number) => smoke(scene, x, y, 8, [0xfff1e8, 0xc2c3c7], 6);
-      const clone = scene.add.image(p.x, p.y, p.texture.key).setFlipX(p.flipX).setDepth(9);
-      poof(clone.x, clone.y);
-      const hops = 6;
-      for (let i = 0; i < hops; i++)
-        later(scene, 200 + i * 400, () => {
-          if (!clone.active) return;
-          const t = world.targets(clone.x, clone.y).find((o) => dist(o, clone) < 110);
-          if (!t) return;
-          const side = clone.x <= t.x ? -1 : 1;
-          clone.setFlipX(side > 0);
-          scene.tweens.add({
-            targets: clone,
-            x: Phaser.Math.Clamp(t.x + side * 9, 6, W - 6),
-            y: Math.min(t.y, FLOOR_Y - 7),
-            duration: 140,
-            ease: 'Quad.Out',
-            onComplete: () => {
-              if (!t.active) return;
-              sparks(scene, t.x - side * 3, t.y, [0xffa300, 0xfff1e8], 6, 10);
-              world.strike(t, 0.5, 'proc', false, undefined, 80);
-            },
-          });
-        });
-      later(scene, 200 + hops * 400, () => {
-        if (!clone.active) return;
-        poof(clone.x, clone.y);
-        clone.destroy();
-      });
+    tick: (c, time) => {
+      const g = overlay(c, 14);
+      g.clear();
+      const marked = c.world.targets(c.p.x, c.p.y).filter(windingUp);
+      for (const t of marked) {
+        const [x, y] = [t.x, head(t) - 6];
+        g.lineStyle(1, 0xffa300, 0.25 + 0.2 * Math.sin(time / 60)).lineBetween(c.p.x, c.p.y - 4, x, y + 3);
+        g.fillStyle(0xab5236).fillEllipse(x, y, 12, 7);
+        g.fillStyle(0xffa300).fillEllipse(x, y, 10, 5);
+        g.fillStyle(0xffec27).fillEllipse(x - 1, y - 1, 4, 2);
+        g.fillStyle(0x000000).fillRect(x - 0.5, y - 2.5, 1.5, 5);
+      }
+      // While he senses something, a flicker of Kurama's chakra round him.
+      if (marked.length) g.lineStyle(1, 0xffa300, 0.4 + 0.3 * Math.sin(time / 50)).strokeEllipse(c.p.x, c.p.y, 16, 20);
+    },
+    modify: (_c, t, source) => (source !== 'proc' && windingUp(t) ? { crit: true } : undefined),
+    onHit: ({ scene }, t) => {
+      if (!t.active || !windingUp(t)) return;
+      t.interrupt(700);
+      // The fox's claw: three orange rakes across it.
+      for (const d of [-4, 0, 4]) cutMark(scene, t.x + d, t.y, 0xffa300, 14, -0.9);
+      sparks(scene, t.x, t.y, [0xffa300, 0xffec27, 0xfff1e8], 8, 14);
+      floatText(scene, t.x, t.y - 20, 'TERBACA', '#ffa300');
     },
   },
 

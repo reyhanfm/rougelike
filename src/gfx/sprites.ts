@@ -131,7 +131,6 @@ export const SPRITES: Record<string, string[]> = {
   hero_run1: [...heroTop, '...0cc0...', '...0cc0...', '...4444...'],
   hero_jump: [...heroTop, '..0c00c0..', '.0c0..0c0.', '.44....44.'],
 
-  // Excalibur: gold guard and tip, blue grip, white blade.
   // Excalibur: blue grip, gold guard, silver blade with gold runes down the fuller.
   w_pedang: ['...a............', '...a77777777776.', 'ccaaa7a7a7a77777', '...a77777777776.', '...a............'],
   // Azrael: King Hassan's broad greatsword, a cross guard and a fuller burning with azure flame.

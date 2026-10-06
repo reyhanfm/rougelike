@@ -80,6 +80,19 @@ export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.windupUntil = time + ms;
   }
 
+  /** Showing the "about to attack" cue (Naruto's SENSOR KURAMA reads it). */
+  get windingUp(): boolean {
+    return this.windupUntil > 0;
+  }
+
+  /** Cancel the cue so the attack never comes, and stagger for `ms`. */
+  interrupt(ms: number): void {
+    if (!this.windupUntil) return;
+    this.windupUntil = 0;
+    this.setTint(0xffffff);
+    this.stunUntil = Math.max(this.stunUntil, this.scene.time.now + ms);
+  }
+
   /** 'hold' while the cue blinks, 'go' on the single frame it ends, else 'idle'. */
   protected windup(time: number): 'idle' | 'hold' | 'go' {
     if (!this.windupUntil) return 'idle';
