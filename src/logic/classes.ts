@@ -33,7 +33,9 @@ export type ClassId =
   | 'surya'
   | 'candra'
   | 'darkLord'
-  | 'lightLord';
+  | 'lightLord'
+  | 'obito'
+  | 'pain';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -1242,6 +1244,82 @@ export const CLASSES: Record<ClassId, GameClass> = {
       apply: (s) => {
         s.skillPower *= 1.2;
         s.critChance += 0.05;
+      },
+    },
+  },
+  obito: {
+    id: 'obito',
+    name: 'OBITO',
+    weapon: 'rantaiKamui',
+    color: 'O',
+    legs: { kind: 'coat', pant: 's', boot: '5' },
+    hair: '0',
+    // Obito as Tobi of the Akatsuki: spiky black hair over the orange spiral mask, its swirl running into the one eye
+    // hole on his right where the Sharingan shows, the high collar and red clouds of the Akatsuki cloak.
+    head: [
+      '..0.00.0..',
+      '.00000000.',
+      '.0OOOOOO0.',
+      '.0O4444O0.',
+      '.0O4O08O0.',
+      '.0O44O4O0.',
+      '..0s88s0..',
+      '.0s77s770.',
+      '0fs88s88f0',
+      '0f0ssss0f0',
+      '..0s78s0..',
+    ],
+    passive: { name: 'KAMUI: TEMBUS', desc: 'TIAP 5 DTK, HIT SAAT DIA TAK MENYERANG MENEMBUS TUBUHNYA; PENYERANG TERPELINTIR' },
+    trait: 'MANGEKYO KAMUI: DASH -25% CD, DASH +30%, HINDAR 10%',
+    apply: (s) => {
+      s.dashCooldown *= 0.75;
+      s.dashPower *= 1.3;
+      s.dodge += 0.1;
+    },
+    synergy: {
+      name: 'TOBI',
+      desc: 'SKILL CD -15%, SKILL +10%',
+      apply: (s) => {
+        s.skillCdMult *= 0.85;
+        s.skillPower *= 1.1;
+      },
+    },
+  },
+  pain: {
+    id: 'pain',
+    name: 'PAIN',
+    weapon: 'batangCakra',
+    color: 'R',
+    legs: { kind: 'coat', pant: 's', boot: '5' },
+    hair: '9',
+    // Pain, the Deva Path that Nagato fights through: spiky orange hair, the ringed Rinnegan, the black piercings on
+    // his nose and cheeks, the high collar and red clouds of the Akatsuki cloak.
+    head: [
+      '.9.9.99.9.',
+      '.99999999.',
+      '.09999990.',
+      '.0f9ff9f0.',
+      '.0fRffRf0.',
+      '.06f66f60.',
+      '..0s88s0..',
+      '.0ss77ss0.',
+      '0fs8888sf0',
+      '0f0s77s0f0',
+      '..0ssss0..',
+    ],
+    passive: { name: 'DEWA: SHINRA TENSEI', desc: 'SAAT DIKEPUNG/DITEMBAK, TOLAKAN OTOMATIS (JEDA 5 DTK); MENTAL KE DINDING = BENTUR' },
+    trait: 'RINNEGAN: SKILL +15%, ULTI +15% CEPAT, HP +10%',
+    apply: (s) => {
+      s.skillPower *= 1.15;
+      s.ultGainMult *= 1.15;
+      s.maxHp *= 1.1;
+    },
+    synergy: {
+      name: 'AKATSUKI',
+      desc: 'SKILL CD -10%, DITERIMA -10%',
+      apply: (s) => {
+        s.skillCdMult *= 0.9;
+        s.damageTaken *= 0.9;
       },
     },
   },

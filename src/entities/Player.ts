@@ -251,6 +251,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.invulnUntil = Math.max(this.invulnUntil, this.scene.time.now + ms);
   }
 
+  /** The skill (L) is ready again at once (Naraka Path restoring Pain). */
+  resetSkill(): void {
+    this.skillReadyAt = 0;
+  }
+
   lock(ms: number): void {
     this.lockUntil = this.scene.time.now + ms;
   }

@@ -33,7 +33,9 @@ export type WeaponId =
   | 'pedangSurya'
   | 'sabitCandra'
   | 'kelam'
-  | 'bintangFajar';
+  | 'bintangFajar'
+  | 'rantaiKamui'
+  | 'batangCakra';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
@@ -1055,9 +1057,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       slam: 24,
       cut: 0xff004d,
     },
-    skill: { name: 'AMATERASU', desc: 'API HITAM ABADI MEMBAKAR MUSUH & MENJALAR', cd: 7 },
-    fusion: { name: 'TOTSUKA NO TSURUGI', desc: 'J+L: SUSANOO MERAH, PEDANG TOTSUKA MENUSUK TIAP MUSUH LALU MENYEGELNYA', cd: 11 },
-    ult: { name: 'TSUKUYOMI', desc: 'DUNIA MERAH: TIAP MUSUH DISALIB & DITUSUK 72 JAM DALAM SEDETIK, LALU AMBRUK' },
+    skill: { name: 'AMATERASU', desc: 'TATAPAN MANGEKYO: MUSUH YANG DIPANDANG TERBAKAR API HITAM ABADI, MENJALAR SAAT BERSENTUH', cd: 7 },
+    fusion: { name: 'IZANAMI', desc: 'J+L: MOMEN DIULANG 3 KALI: MUSUH DIPUTAR BALIK KE TEMPATNYA & SEMUA SAKITNYA TERULANG', cd: 11 },
+    ult: { name: 'TSUKUYOMI', desc: 'DUNIA MERAH: TUSUKAN 72 JAM DIHITUNG, MENDARAT SEKALIGUS SAAT BANGUN, LALU MUSUH TRAUMA' },
   },
   tongkatFrost: {
     id: 'tongkatFrost',
@@ -1638,6 +1640,107 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       cd: 11,
     },
     ult: { name: 'HARI TANPA BAYANG', desc: 'CAHAYA RENDAH MEMANJANGKAN BAYANGAN MUSUH, PAKU CAHAYA MENANCAPKANNYA, LALU DIBAKAR HABIS' },
+  },
+  rantaiKamui: {
+    id: 'rantaiKamui',
+    name: 'RANTAI KAMUI',
+    desc: 'RANTAI BERBORGOL: LECUT LURUS, SAPU SAMPING, SENTAK KE ATAS, LALU BORGOL MENYERET MUSUH',
+    dmg: 1,
+    cd: 1,
+    crit: 0.05,
+    arc: 'slashRantai',
+    arcTint: 0xffffff,
+    cut: 0xc2c3c7,
+    // Every move throws the chain itself out along its reach (SKILLS.rantaiKamui.onSwing).
+    combo: [
+      // A straight lash: the shackle shoots out far and snaps back.
+      { anim: 'thrust', dmg: 0.9, cd: 0.95, ms: 130, reach: box(42, 12), knockback: 70, cut: 0xc2c3c7 },
+      // A wide sideways sweep of the chain.
+      { anim: 'hook', dmg: 1, cd: 1, ms: 150, reach: box(34, 24), knockback: 100, cut: 0x83769c },
+      // A jerk upward that throws the enemy into the air.
+      { anim: 'uppercut', dmg: 1, cd: 1.05, ms: 150, reach: box(26, 34), knockback: 40, launch: 170, cut: 0xc2c3c7 },
+      // The finisher: the shackle closes on the enemy and he drags it in.
+      { anim: 'thrust', dmg: 1.7, cd: 1.6, ms: 200, reach: box(46, 14), knockback: -210, cut: 0xe0601a, status: { slow: 500 } },
+    ],
+    air: [
+      { anim: 'hook', dmg: 1, cd: 1.05, ms: 140, reach: box(30, 26), knockback: 90, hover: 80, cut: 0x83769c },
+      { anim: 'uppercut', dmg: 1.1, cd: 1.3, ms: 170, reach: box(26, 32), knockback: 60, launch: 150, hover: 70, cut: 0xc2c3c7 },
+    ],
+    dive: {
+      // He drops and phases into the floor (SKILLS.rantaiKamui.onDiveLand: the floor ripples in a spiral and two
+      // chains whip up out of it on both sides).
+      name: 'TEMBUS LANTAI',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 850,
+      reach: box(14, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 30, vy: 480 },
+      slam: 26,
+      trail: 0x83769c,
+      cut: 0xe0601a,
+    },
+    skill: { name: 'KAMUI', desc: '3 MUSUH DISEDOT KE DIMENSI KAMUI, LALU DIMUNTAHKAN SEBAGAI PELURU KE MUSUH LAIN', cd: 7 },
+    fusion: {
+      name: 'RANTAI BELENGGU',
+      desc: 'J+L: RANTAI MENEMBUS 6 MUSUH LALU MEMADAT: 6 DTK SAKIT SATU MUSUH IKUT DIRASAKAN SEMUA',
+      cd: 11,
+    },
+    ult: {
+      name: 'KAMUI: DIMENSI LAIN',
+      desc: 'SEMUA MUSUH KE DIMENSI KAMUI, DIBORGOL DI BALOK MASING-MASING, LALU BALOK DIHIMPIT JADI SATU',
+    },
+  },
+  batangCakra: {
+    id: 'batangCakra',
+    name: 'BATANG CAKRA',
+    desc: 'BATANG PENERIMA CAKRA: TUSUK, SABET, LEMPAR 3 BATANG, LALU HUJAM KE TANAH',
+    dmg: 1,
+    cd: 1,
+    crit: 0.05,
+    projectile: { texture: 'batangCakra', speed: 320, pierce: true },
+    arc: 'slashCakra',
+    arcTint: 0xffffff,
+    cut: 0xb39ddb,
+    combo: [
+      // A straight stab with the rod.
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 130, reach: box(30, 10), knockback: 70, cut: 0xb39ddb },
+      // A backhand swipe.
+      { anim: 'hook', dmg: 1, cd: 1, ms: 150, reach: box(28, 24), knockback: 100, cut: 0xc2c3c7 },
+      // Three receivers thrown in a fan; they pass through what they hit.
+      { anim: 'shoot', dmg: 0.6, cd: 1.1, ms: 120, reach: box(0, 0), knockback: 60, angles: [-0.15, 0, 0.15] },
+      // The finisher: the rod driven down into the enemy, pinning it (slowed).
+      { anim: 'overhead', dmg: 1.8, cd: 1.6, ms: 210, reach: box(30, 30), knockback: 230, cut: 0xb39ddb, status: { slow: 600 } },
+    ],
+    air: [
+      { anim: 'hook', dmg: 1, cd: 1.05, ms: 140, reach: box(28, 26), knockback: 90, hover: 80, cut: 0xb39ddb },
+      // Two receivers thrown down at an angle.
+      { anim: 'shoot', dmg: 0.7, cd: 1.2, ms: 120, reach: box(0, 0), knockback: 60, angles: [0.25, 0.5], hover: 60 },
+    ],
+    dive: {
+      // He drops feet first (SKILLS.batangCakra.onDiveLand: four receivers fall around him and stake the floor).
+      name: 'HUJAN BATANG',
+      anim: 'plunge',
+      dmg: 1.3,
+      cd: 1.2,
+      ms: 850,
+      reach: box(14, 18),
+      knockback: 160,
+      hitbox: 'below',
+      dive: { vx: 20, vy: 470 },
+      slam: 24,
+      trail: 0xb39ddb,
+      cut: 0xb39ddb,
+    },
+    skill: { name: "BANSHO TEN'IN", desc: 'MUSUH TERJAUH (UDARA JUGA) DITARIK KE TANGAN, DITUSUK BATANG CAKRA & DIPAKU 1.5 DTK', cd: 6 },
+    fusion: {
+      name: 'ENAM JALAN PAIN',
+      desc: 'J+L: 5 JALAN TURUN: ASURA ROKET, HEWAN ANJING, MANUSIA CABUT JIWA, PRETA SERAP, NARAKA PULIH',
+      cd: 12,
+    },
+    ult: { name: 'GEDO MAZO', desc: 'PATUNG IBLIS BANGKIT, 9 MATA TERBUKA, NAGA CAKRA MENYEDOT TIAP MUSUH: LEMAH 8 DTK' },
   },
 };
 

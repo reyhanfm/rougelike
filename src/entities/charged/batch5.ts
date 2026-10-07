@@ -251,7 +251,7 @@ function crater(scene: Phaser.Scene, x: number, big: boolean): void {
 
 /** Charged attacks (TAHAN J) of: itachi, jackFrost, naruto, sasuke, gravityMaster. Contract and damage budget: see types.ts. */
 export const BATCH_5: Partial<Record<ClassId, ChargedAttack>> = {
-  // Shurikenjutsu, the blind-spot throw (Amaterasu and Totsuka are already his skill and fusion): the Sharingan reads
+  // Shurikenjutsu, the blind-spot throw (Amaterasu and Izanami are already his skill and fusion): the Sharingan reads
   // every target while he holds still. He throws kunai in pairs on two diverging arcs; each pair meets past its target
   // with a CLANG, and the collision bends both into the target from behind, where it is not looking. Full charge: the
   // Sharingan reads six targets anywhere on the field and a second pair meets low behind each, the last one pinning

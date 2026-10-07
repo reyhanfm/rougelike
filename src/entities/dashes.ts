@@ -21,6 +21,10 @@ import {
   SPECTRUM,
   SOUL,
   RADIANT,
+  KAMUI,
+  kamuiSwirl,
+  RIKUDO,
+  summonBird,
 } from './skills.ts';
 
 /** A class's dash (K): its own movement plus its own hit. ctx.power is stats.dashPower. */
@@ -1000,6 +1004,73 @@ export const DASHES: Record<ClassId, DashStyle> = {
         sparks(scene, p.x, p.y + 8, [RADIANT.gold, RADIANT.white], 2, 6);
       });
       later(scene, 230, () => ring(scene, p.x, p.y, RADIANT.gold, 2, 16, 200, 1));
+    },
+  },
+  obito: {
+    name: 'LOMPATAN KAMUI',
+    desc: 'TERSEDOT KE PUSARAN MATANYA, MUNCUL DARI PUSARAN DI DEPAN; PUSARAN ASAL MEMELINTIR MUSUH',
+    speed: 0,
+    ms: 160,
+    tint: KAMUI.mid,
+    // Kamui warp: Obito's body twists into the swirl of his own mask and is gone, and he steps out of a warp ahead. The
+    // warp he left behind stays open a moment, dragging what is near into its eye, then closes on it and wrings it.
+    start: ({ p, world, scene, power }) => {
+      const { x, y } = p;
+      const f = p.facing;
+      const tx = Phaser.Math.Clamp(x + f * 84, 8, W - 8);
+      const pic = scene.add.image(x, y, p.texture.key).setFlipX(p.flipX).setDepth(12);
+      scene.tweens.add({ targets: pic, angle: f * 360, scale: 0, duration: 200, ease: 'Quad.In', onComplete: () => pic.destroy() });
+      p.body.reset(tx, y);
+      const g = scene.add.graphics().setDepth(12);
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration: 560,
+        onUpdate: (tw) => {
+          const k = tw.getValue() ?? 0;
+          g.clear();
+          kamuiSwirl(g, x, y, 14 * Math.sin(Math.min(1, k * 1.15) * Math.PI), k * 16);
+          if (k < 0.45) kamuiSwirl(g, tx, y, 11 * Math.sin((k / 0.45) * Math.PI), -k * 20, 0.9);
+        },
+        onComplete: () => g.destroy(),
+      });
+      world.pull(x, y, 36, 90);
+      later(scene, 430, () => {
+        world.area(x, y, 26, 0.8 * power, 0, 'skill', { slow: 600 });
+        sparks(scene, x, y, [KAMUI.pale, KAMUI.mid, KAMUI.mask], 8, 14);
+      });
+    },
+  },
+  pain: {
+    name: 'JALAN HEWAN',
+    desc: 'BURUNG PANGGILAN BERMATA RINNEGAN MENYAMBAR & MEMBAWANYA MELAYANG KE DEPAN',
+    speed: 270,
+    vy: -150,
+    ms: 280,
+    tint: RIKUDO.lilac,
+    hit: { mult: 0.8, radius: 14, cut: RIKUDO.lilac },
+    // Animal Path: a summoning cloud bursts under him and a giant bird with the Rinnegan for eyes swoops in beneath his
+    // feet and carries him off, wings beating, its beak tearing what it passes; when the dash ends he steps off and
+    // it wheels away up into the sky.
+    start: ({ p, scene }) => {
+      for (let i = 0; i < 8; i++) puff(scene, p.x + Phaser.Math.Between(-8, 8), p.y + 6 + Phaser.Math.Between(-3, 3), 0xfff1e8, 4, 4, 380);
+      const f = p.facing;
+      const g = scene.add.graphics().setDepth(9.5);
+      let [bx, by] = [p.x, p.y + 9];
+      scene.tweens.addCounter({
+        from: 0,
+        to: 880,
+        duration: 880,
+        onUpdate: (tw) => {
+          const ms = tw.getValue() ?? 0;
+          g.clear();
+          if (ms < 280 && p.active) [bx, by] = [p.x, p.y + 9];
+          else [bx, by] = [bx + f * 2.4, by - 1.5];
+          summonBird(g, bx, by, f, (Math.sin(scene.time.now / 45) + 1) / 2);
+          g.setAlpha(ms > 700 ? 1 - (ms - 700) / 180 : 1);
+        },
+        onComplete: () => g.destroy(),
+      });
     },
   },
 };

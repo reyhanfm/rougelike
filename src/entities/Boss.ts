@@ -136,7 +136,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   /** Flat damage plus a bite of the player's max HP; every attack scales this (shots x0.6 ... laser x1.6). */
   get damage(): number {
-    return Math.round(this.flatDamage + bossBite(this.tier) * this.arena.playerMaxHp);
+    const dmg = Math.round(this.flatDamage + bossBite(this.tier) * this.arena.playerMaxHp);
+    // LEMAH (Obito's Gedo Mazo drank its chakra): it hits at half strength until weakUntil.
+    return this.scene.time.now < (this.getData('weakUntil') ?? 0) ? Math.round(dmg / 2) : dmg;
   }
 
   preUpdate(time: number, delta: number): void {

@@ -35,7 +35,9 @@ export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   /** Elites also bite a share of the player's max HP, so stacking HP never trivialises them. */
   get damage(): number {
-    return this.getData('elite') ? Math.round(this.flatDamage + ELITE.bite * this.arena.playerMaxHp) : this.flatDamage;
+    const dmg = this.getData('elite') ? Math.round(this.flatDamage + ELITE.bite * this.arena.playerMaxHp) : this.flatDamage;
+    // LEMAH (Obito's Gedo Mazo drank its chakra): it hits at half strength until weakUntil.
+    return this.scene.time.now < (this.getData('weakUntil') ?? 0) ? Math.round(dmg / 2) : dmg;
   }
 
   /** Call after adding to a physics group (group.add resets body defaults). */

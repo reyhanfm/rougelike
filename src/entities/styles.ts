@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { ClassId } from '../logic/classes.ts';
 import type { Player } from './Player.ts';
-import { excaliburBare, HELL, HOLY, RADIANT, SOUL, twilightWings } from './skills.ts';
+import { excaliburBare, HELL, HOLY, KAMUI, RADIANT, RIKUDO, SOUL, twilightWings } from './skills.ts';
 
 /**
  * Airborne body motion. flip/backflip: one somersault; roll: two quick ones; spin: a pirouette (turns to face each way);
@@ -337,6 +337,23 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     },
   },
   jackFrost: { stride: 105, lean: 6, jump: 'spin', trail: { shape: 'flake', colors: [0xc2f0ff, 0xfff1e8] }, hold: { angle: -70, dx: -2 } },
+  // Obito as Tobi: a light, almost playful step, a flip on the jump, grey warp streaks behind, the chain hanging low.
+  obito: {
+    stride: 105,
+    lean: 7,
+    jump: 'flip',
+    trail: { shape: 'streak', colors: [KAMUI.mid, KAMUI.pale, KAMUI.mask] },
+    hold: { angle: 70, dx: 1 },
+  },
+  // Pain (the Deva Path): a slow, unhurried walk with no lean, lifted straight up on the jump, lilac wisps of the
+  // Rinnegan's power trailing, a receiver held low and pointed ahead.
+  pain: {
+    stride: 150,
+    lean: 0,
+    jump: 'lift',
+    trail: { shape: 'wisp', colors: [RIKUDO.lilac, RIKUDO.pale, 0x5f574f] },
+    hold: { angle: 20, dx: 1 },
+  },
 };
 
 /** Body angle in the air, `t` ms after the jump, falling at `vy`. */

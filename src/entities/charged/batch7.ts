@@ -1,7 +1,21 @@
 import Phaser from 'phaser';
 import { FLOOR_Y, W, cutMark } from '../../gfx/ui.ts';
 import type { ClassId } from '../../logic/classes.ts';
-import { RADIANT, SOUL, glint, jag, later, ring, rocks, soulGeyser, sparks, starPts } from '../skills.ts';
+import {
+  RADIANT,
+  SOUL,
+  glint,
+  jag,
+  kamuiSwirl,
+  receiverRod,
+  rinnegan,
+  later,
+  ring,
+  rocks,
+  soulGeyser,
+  sparks,
+  starPts,
+} from '../skills.ts';
 import { dist, lift, rel, wa } from './batch6.ts';
 import type { ChargedAttack } from './types.ts';
 
@@ -38,7 +52,19 @@ function soulBlade(g: G, x: number, y: number, a: number, len: number, now: numb
   g.fillStyle(0xfff1e8).fillRect(P(len, 0).x - 0.5, P(len, 0).y - 0.5, 1, 1);
 }
 
-/** Charged attacks (TAHAN J) of: darkLord, lightLord. Contract and damage budget: see types.ts. */
+/** A Katon fireball of radius `r` at (x, y), flickering with `now`: a dark-red rim, orange body, yellow heart, white core. */
+function fireball(g: G, x: number, y: number, r: number, now: number): void {
+  for (let i = 0; i < 5; i++) {
+    const a = now / 90 + i * 1.3;
+    g.fillStyle(0xb3122e, 0.7).fillCircle(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5, r * 0.6);
+  }
+  g.fillStyle(0xb3122e).fillCircle(x, y, r + 1);
+  g.fillStyle(0xffa300).fillCircle(x, y, r);
+  g.fillStyle(0xffec27).fillCircle(x - r * 0.15, y - r * 0.15, r * 0.6);
+  g.fillStyle(0xfff1e8).fillCircle(x - r * 0.2, y - r * 0.2, Math.max(1, r * 0.25));
+}
+
+/** Charged attacks (TAHAN J) of: darkLord, lightLord, obito, pain. Contract and damage budget: see types.ts. */
 export const BATCH_7: Partial<Record<ClassId, ChargedAttack>> = {
   // Titah Pancung (The Beheading Decree): the Dark Lord raises Nokturna and soul fire builds it into a giant blade over
   // his head, taller the longer he holds. On release he brings it down ahead of him like an executioner's axe: it
@@ -251,6 +277,164 @@ export const BATCH_7: Partial<Record<ClassId, ChargedAttack>> = {
           scene.tweens.add({ targets: trail, alpha: 0, duration: 300, onComplete: () => trail.destroy() });
         },
       });
+    },
+  },
+  // Katon: Gokakyu no Jutsu, through Kamui: Obito draws breath and a fireball swells at the mouth of his mask while a
+  // warp turns in front of him. On release he blows it into the warp, and it comes out of another warp that opens
+  // above and behind the nearest enemy ahead, dropping onto it where it is not looking. Full charge: three warps over
+  // up to three enemies (the same one more than once if fewer), the fireballs burning and throwing small fry up.
+  obito: {
+    name: 'KATON: GOKAKYU',
+    desc: 'BOLA API DITIUP KE PUSARAN KAMUI, KELUAR DARI PUSARAN DI ATAS MUSUH; PENUH: 3 PUSARAN',
+    charging({ p, scene }, t01, level, g) {
+      const now = scene.time.now;
+      const f = p.facing;
+      const r = 1.5 + t01 * 3.5;
+      fireball(g, p.x + f * (5 + r), p.y - 3, r, now);
+      kamuiSwirl(g, p.x + f * 20, p.y - 4, 3 + t01 * 5 + (level === 2 ? 1 : 0), now / 90, 0.5 + 0.5 * t01);
+    },
+    fire({ p, world, scene }, level) {
+      const full = level === 2;
+      const f = p.facing;
+      const foes = world
+        .targets(p.x, p.y)
+        .filter((t) => (t.x - p.x) * f > -6 && dist(p.x, p.y, t) < 240)
+        .slice(0, full ? 3 : 1);
+      if (!foes.length) return false;
+      p.lock(260);
+      p.invuln(260);
+      p.setVelocityX(0);
+      const [ix, iy] = [p.x + f * 20, p.y - 4];
+      const R = full ? 5 : 4;
+      // Blown into the warp in front of him.
+      const g = scene.add.graphics().setDepth(13);
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration: 300,
+        onUpdate: (tw) => {
+          const k = tw.getValue() ?? 0;
+          g.clear();
+          kamuiSwirl(g, ix, iy, 9 * Math.sin(Math.min(1, k * 1.2) * Math.PI * 0.5 + (k > 0.5 ? (k - 0.5) * 3 : 0)), k * 14);
+          if (k < 0.4) fireball(g, p.x + f * 6 + (ix - p.x - f * 6) * (k / 0.4), iy, R * (1 - k), scene.time.now);
+        },
+        onComplete: () => g.destroy(),
+      });
+      for (let i = 0; i < (full ? 3 : 1); i++)
+        later(scene, 170 + i * 140, () => {
+          const t = foes[i % foes.length];
+          if (!t.active) return;
+          // The exit warp, above and behind it.
+          const [wx, wy] = [Phaser.Math.Clamp(t.x - f * 22, 6, W - 6), Math.max(10, t.y - 36)];
+          const [tx, ty] = [t.x, t.y];
+          const w = scene.add.graphics().setDepth(13);
+          scene.tweens.addCounter({
+            from: 0,
+            to: 1,
+            duration: 260,
+            onUpdate: (tw) => {
+              const k = tw.getValue() ?? 0;
+              w.clear();
+              kamuiSwirl(w, wx, wy, 9 * Math.sin(k * Math.PI), -k * 14);
+              if (k > 0.25 && k < 0.7) {
+                const q = (k - 0.25) / 0.45;
+                fireball(w, wx + (tx - wx) * q, wy + (ty - wy) * q, R, scene.time.now);
+              }
+            },
+            onComplete: () => w.destroy(),
+          });
+          later(scene, 185, () => {
+            ring(scene, tx, ty, 0xffa300, 3, full ? 20 : 16, 260, 2);
+            sparks(scene, tx, ty, [0xffec27, 0xffa300, 0xb3122e], 12, 16);
+            scene.cameras.main.shake(80, 0.006);
+            if (t.active) world.strike(t, full ? 1.6 : 2.8, 'basic', false, full ? { burn: 0.15 } : undefined, 140);
+            world.area(tx, ty, full ? 18 : 14, 0.5, 80, 'basic');
+            if (full) lift(t, 160);
+          });
+        });
+    },
+  },
+  // Paku Cakra (the receiver nail): Pain draws a long chakra receiver from his sleeve, longer the longer he holds. On
+  // release he hurls it at the nearest enemy ahead: it runs through everything along its line and carries what it
+  // skewers with it until it strikes a wall (or has flown 220 px), where it nails them all in place. A boss or an elite
+  // stops it dead: it lodges there. Full charge: a second rod at the next enemy, nailed longer and harder.
+  pain: {
+    name: 'PAKU CAKRA',
+    desc: 'BATANG CAKRA MENUSUK SEGARIS, MEMBAWA MUSUH & MEMAKUNYA KE DINDING; PENUH: 2 BATANG',
+    charging({ p, scene }, t01, level, g) {
+      const f = p.facing;
+      const len = 6 + t01 * 22;
+      receiverRod(g, p.x - f * 4, p.y - 3, p.x + f * (len - 4), p.y - 5);
+      if (level === 2) rinnegan(g, p.x + f * 2, p.y - 12, 2 + Math.sin(scene.time.now / 60) * 0.5);
+    },
+    fire({ p, world, scene }, level) {
+      const full = level === 2;
+      const f = p.facing;
+      const ahead = world.targets(p.x, p.y).filter((t) => (t.x - p.x) * f > 0 && Math.abs(rel(p.x, p.y - 4, f, t.x, t.y)) < 0.6);
+      if (!ahead.length) return false;
+      p.lock(240);
+      p.invuln(240);
+      p.setVelocityX(0);
+      const pin = (c: Foe, x: number, y: number) => {
+        (c as Foe & { stunUntil: number }).stunUntil = scene.time.now + 100;
+        (c.body as Phaser.Physics.Arcade.Body).reset(x, y);
+      };
+      const throwRod = (t: Foe, delay: number) =>
+        later(scene, delay, () => {
+          // Level with a target on its own height (so it flies on to the wall, not into the floor), else aimed at it.
+          const flat = !t.active || Math.abs(t.y - (p.y - 4)) < 14;
+          const [ox, oy] = [p.x + f * 6, flat && t.active ? t.y : p.y - 4];
+          const a = flat ? (f > 0 ? 0 : Math.PI) : Math.atan2(t.y - oy, t.x - ox);
+          const [ux, uy] = [Math.cos(a), Math.sin(a)];
+          const carried: Foe[] = [];
+          const g = scene.add.graphics().setDepth(12);
+          let [tx, ty] = [ox, oy];
+          let stuck = false;
+          // Nailed: whatever it carries is held at its point for a while, the rod buried in the wall.
+          const nail = () => {
+            stuck = true;
+            const until = scene.time.now + (full ? 1500 : 900);
+            scene.cameras.main.shake(120, 0.012);
+            sparks(scene, tx, ty, [0xfff1e8, 0x5f574f, 0xb39ddb], 10, 12);
+            ring(scene, tx, ty, 0xb39ddb, 2, 14, 220, 2);
+            for (const c of carried) if (c.active) world.strike(c, full ? 2.2 : 1.4, 'basic', full, undefined, 0);
+            const hold = () => {
+              g.clear();
+              if (scene.time.now >= until) {
+                scene.events.off('update', hold);
+                scene.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
+                return;
+              }
+              receiverRod(g, tx - ux * 30, ty - uy * 30, tx, ty);
+              carried.forEach((c, i) => c.active && pin(c, tx - ux * (6 + i * 8), ty - uy * (6 + i * 8)));
+            };
+            scene.events.on('update', hold);
+          };
+          scene.tweens.addCounter({
+            from: 0,
+            to: 220,
+            duration: 380,
+            onUpdate: (tw) => {
+              if (stuck) return;
+              const d = tw.getValue() ?? 0;
+              [tx, ty] = [ox + ux * d, oy + uy * d];
+              g.clear();
+              receiverRod(g, tx - ux * 30, ty - uy * 30, tx, ty);
+              for (const o of world.targets(tx, ty)) {
+                if (carried.includes(o) || dist(tx, ty, o) > 9) continue;
+                world.strike(o, full ? 1.2 : 1.6, 'basic', false, undefined, 0);
+                if (!o.active) continue;
+                if ('tier' in o || o.getData('elite')) return nail();
+                carried.push(o);
+              }
+              carried.forEach((c, i) => c.active && pin(c, tx - ux * (6 + i * 8), ty - uy * (6 + i * 8)));
+              if (tx < 6 || tx > W - 6 || ty < 8 || ty > FLOOR_Y) nail();
+            },
+            onComplete: () => !stuck && nail(),
+          });
+        });
+      throwRod(ahead[0], 0);
+      if (full) throwRod(ahead[1] ?? ahead[0], 140);
     },
   },
 };

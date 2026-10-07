@@ -63,6 +63,10 @@ export const PALETTE: Record<string, number> = {
   E: 0x3dff8f,
   // Extra: the Light Lord's radiant ivory-gold (hair, mantle, armor trim).
   F: 0xffe9a8,
+  // Extra: Obito's spiral mask orange.
+  O: 0xe0601a,
+  // Extra: Pain's Rinnegan lilac.
+  R: 0xb39ddb,
 };
 
 export const COLOR = {
@@ -277,6 +281,49 @@ export const SPRITES: Record<string, string[]> = {
     '.....aa7.7..',
     '...aa7......',
     '.a7.........',
+  ],
+  // Obito: Rantai Kamui, an iron chain of alternating links ending in an open shackle.
+  w_rantaiKamui: ['.......000.', '05656565.0.', '.......000.'],
+  // Its swing: an arc of chain links, a shackle at each end.
+  slashRantai: [
+    '.O0.........',
+    '...560......',
+    '.....650....',
+    '......560...',
+    '.......650..',
+    '........56..',
+    '........650.',
+    '.........56.',
+    '.........65.',
+    '........560.',
+    '........65..',
+    '.......560..',
+    '......650...',
+    '.....560....',
+    '...650......',
+    '.O0.........',
+  ],
+  // Pain: a chakra receiver, a black rod with ringed segments and a lilac-capped butt; thrown, the same rod.
+  w_batangCakra: ['00........', 'R055555556', '00........'],
+  batangCakra: ['0.......', 'R5555556', '0.......'],
+  // Its swing: a thin arc of force, a black core inside a lilac edge.
+  slashCakra: [
+    '..RR........',
+    '....RR7.....',
+    '......R7....',
+    '.......0R7..',
+    '........0R7.',
+    '.........R7.',
+    '.........0R7',
+    '.........0R7',
+    '.........0R7',
+    '.........0R7',
+    '.........R7.',
+    '........0R7.',
+    '.......0R7..',
+    '......R7....',
+    '....RR7.....',
+    '..RR........',
   ],
   // Surya: Bilah Surya, a broad golden greatsword, its edge burning orange.
   w_pedangSurya: ['....i.....S....', 'ii0iaaa7777777S', '....i.....S....'],

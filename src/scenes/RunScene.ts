@@ -548,6 +548,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
         'w_katana',
         'w_sabit',
         'tombakCahaya',
+        'batangCakra',
       ].includes(spec.texture)
     )
       img.setRotation(Math.atan2(spec.vy, spec.vx));
@@ -1522,7 +1523,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.coinText.setText(`${this.coins}`);
     // Small bars over hurt enemies; gold for elites.
     for (const e of this.enemies.getChildren() as Enemy[]) {
-      if (!e.active || e.hp >= e.maxHp) continue;
+      if (!e.active || !e.visible || e.hp >= e.maxHp) continue;
       const y = e.y - e.displayHeight / 2 - 4;
       g.fillStyle(0x000000).fillRect(e.x - 7, y, 14, 3);
       g.fillStyle(e.getData('elite') ? 0xffec27 : COLOR.hp).fillRect(e.x - 6, y + 1, Math.ceil((12 * Math.max(0, e.hp)) / e.maxHp), 1);

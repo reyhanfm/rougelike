@@ -26,6 +26,9 @@ import {
   moonPhase,
   SOUL,
   RADIANT,
+  KAMUI,
+  kamuiSwirl,
+  shinraTensei,
 } from './skills.ts';
 
 export interface PassiveCtx {
@@ -1500,6 +1503,69 @@ export const PASSIVES: Record<ClassId, Passive> = {
           pierce: true,
         });
       }
+    },
+  },
+
+  // KAMUI: TEMBUS: Obito is only solid while he attacks. Every 5 s, a hit that reaches him while he is not swinging
+  // passes straight through him: his body winds into the Kamui spiral for a moment, and the space around the one
+  // that attacked twists and wrings it.
+  obito: {
+    guard: ({ p, world, scene }, _dmg, _fromX, from) => {
+      const s = state(p, () => ({ ready: 0 }));
+      const now = scene.time.now;
+      if (p.swinging || now < s.ready) return false;
+      s.ready = now + 5000;
+      p.parry('TEMBUS', '#e0601a');
+      const g = scene.add.graphics().setDepth(12);
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration: 380,
+        onUpdate: (tw) => {
+          const k = tw.getValue() ?? 0;
+          g.clear();
+          if (!p.active) return;
+          kamuiSwirl(g, p.x, p.y - 1, 5 + k * 9, k * 10, 1 - k);
+          // The blow going through: his outline ripples apart in thin warp lines.
+          for (let i = -1; i <= 1; i++) {
+            const wob = Math.sin(k * 20 + i) * 2;
+            g.lineStyle(1, KAMUI.pale, 0.7 * (1 - k)).lineBetween(p.x + i * 3 + wob, p.y - 8, p.x + i * 3 - wob, p.y + 7);
+          }
+        },
+        onComplete: () => g.destroy(),
+      });
+      if (from?.active) {
+        const [fx, fy] = [from.x, from.y];
+        const w = scene.add.graphics().setDepth(12);
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          duration: 320,
+          onUpdate: (tw) => {
+            const k = tw.getValue() ?? 0;
+            w.clear();
+            kamuiSwirl(w, fx, fy, 11 * Math.sin(k * Math.PI), k * 14);
+          },
+          onComplete: () => w.destroy(),
+        });
+        world.strike(from, 0.8, 'proc', false, { slow: 800 }, 0);
+      }
+      return true;
+    },
+  },
+
+  // DEWA: SHINRA TENSEI: the Deva Path repels whatever closes in. When two enemies crowd him, or an enemy shot is about
+  // to reach him, a Shinra Tensei bursts out of him on its own; then it needs five seconds before it can come again
+  // (the interval Jiraiya found). Enemies flung into a wall slam into it (BENTUR).
+  pain: {
+    tick: ({ p, world, scene }, time) => {
+      const s = state(p, () => ({ ready: 0 }));
+      if (time < s.ready || !p.active) return;
+      const crowd = world.targets(p.x, p.y).filter((t) => dist(t, p) < 28).length;
+      const shot = world.hostiles().some((h) => h.active && dist(h, p) < 20);
+      if (crowd < 2 && !shot) return;
+      s.ready = time + 5000;
+      shinraTensei(world, scene, p.x, p.y, 44, 0.8, 1.5, 'proc');
     },
   },
 };
