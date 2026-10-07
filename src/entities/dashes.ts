@@ -19,6 +19,8 @@ import {
   HELL,
   type SkillCtx,
   SPECTRUM,
+  SOUL,
+  RADIANT,
 } from './skills.ts';
 
 /** A class's dash (K): its own movement plus its own hit. ctx.power is stats.dashPower. */
@@ -908,6 +910,96 @@ export const DASHES: Record<ClassId, DashStyle> = {
         ring(scene, p.x, p.y + 6, 0xc2d4ff, 4, 28, 320, 1);
         glint(scene, p.x, p.y - 4);
       });
+    },
+  },
+  darkLord: {
+    name: 'JUBAH MALAM',
+    desc: 'LENYAP KE DALAM JUBAH YANG TERBANG MAJU; MUSUH DI JALURNYA DITELAN & MELAMBAT',
+    speed: 300,
+    ms: 200,
+    tint: 0x2b2238,
+    hit: { mult: 0.8, radius: 14, status: { slow: 700 }, cut: SOUL[1] },
+    // He sweeps his cloak shut around himself and is gone: only the cloak flies on, a black manta with a crimson
+    // lining and two green eyes in its folds, trailing dark smoke and embers of soul fire. Where it stops it opens
+    // wide like wings, and he steps out of it.
+    start: ({ p, scene }) => {
+      const f = p.facing;
+      const t0 = scene.time.now;
+      const g = scene.add.graphics().setDepth(11);
+      ring(scene, p.x, p.y, SOUL[1], 2, 14, 180, 1);
+      const draw = () => {
+        if (!p.active) return;
+        // Hidden inside it (Player.update shows him again each frame, so this runs after it).
+        p.setAlpha(0);
+        p.held.setAlpha(0);
+        const k = Phaser.Math.Clamp((scene.time.now - t0) / 200, 0, 1);
+        const flap = Math.sin(k * Math.PI * 5) * 3;
+        const [x, y] = [p.x, p.y];
+        const P = (dx: number, dy: number) => new Phaser.Math.Vector2(x + f * dx, y + dy);
+        const Q = (dx: number, dy: number): [number, number] => [x + f * dx, y + dy];
+        const body = [P(9, -1), P(1, -9 - flap), P(-6, -6), P(-13, -1 + flap * 0.3), P(-6, 4), P(1, 7 + flap)];
+        g.clear();
+        g.fillStyle(0x000000).fillPoints(
+          body.map((v) => new Phaser.Math.Vector2(x + (v.x - x) * 1.12, y + (v.y - y) * 1.15)),
+          true,
+        );
+        g.fillStyle(0x2b2238).fillPoints(body, true);
+        g.fillStyle(0xb3122e).fillTriangle(...Q(1, 7 + flap), ...Q(-6, 4), ...Q(3, 3));
+        g.lineStyle(1, 0x4a3d5c).lineBetween(...Q(9, -1), ...Q(1, -9 - flap));
+        g.fillStyle(SOUL[1])
+          .fillRect(x + f * 3, y - 2, 1, 1)
+          .fillRect(x + f * 6, y - 2, 1, 1);
+      };
+      scene.events.on('postupdate', draw);
+      during(scene, 200, 30, (i) => {
+        puff(scene, p.x - f * 10, p.y + Phaser.Math.Between(-3, 3), 0x1a1424, 3, 4, 380);
+        if (i % 2) puff(scene, p.x - f * 8, p.y, SOUL[1], 1, 6, 300);
+      });
+      later(scene, 200, () => {
+        scene.events.off('postupdate', draw);
+        g.destroy();
+        if (!p.active) return;
+        // The cloak opens like wings, and he is there.
+        const open = scene.add.graphics().setPosition(p.x, p.y).setDepth(11);
+        for (const s of [-1, 1]) {
+          open.fillStyle(0x000000).fillTriangle(0, -8, s * 18, -12, s * 12, 8);
+          open.fillStyle(0x2b2238).fillTriangle(0, -7, s * 16, -11, s * 11, 7);
+          open.fillStyle(0xb3122e).fillTriangle(0, -4, s * 10, -6, s * 8, 5);
+        }
+        scene.tweens.add({ targets: open, scaleX: 1.6, scaleY: 0.4, alpha: 0, duration: 260, onComplete: () => open.destroy() });
+        ring(scene, p.x, p.y, SOUL[1], 3, 20, 240, 1);
+        sparks(scene, p.x, p.y, [SOUL[1], SOUL[2], 0xb3122e], 8, 14);
+      });
+    },
+  },
+  lightLord: {
+    name: 'TANGGA CAHAYA',
+    desc: 'BERLARI NAIK DI ATAS ANAK TANGGA CAHAYA KE UDARA, MENYILAUKAN YANG DILEWATI',
+    speed: 250,
+    vy: -230,
+    ms: 230,
+    tint: 0xffe9a8,
+    hit: { mult: 0.8, radius: 14, status: { freeze: 300 }, cut: 0xffec27 },
+    // He runs up into the air on a stair of light: under each stride a step of gold appears beneath his feet, lit on its
+    // tread, and stays a moment after he has passed, so the stair he climbed hangs in the air behind him, fading step by
+    // step from the bottom.
+    start: ({ p, scene }) => {
+      glint(scene, p.x, p.y + 6);
+      during(scene, 230, 38, (i) => {
+        const step = scene.add
+          .graphics()
+          .setPosition(p.x, p.y + 8)
+          .setDepth(9);
+        step.fillStyle(RADIANT.ivory, 0.3).fillRect(-6, -1, 12, 5);
+        step.fillStyle(RADIANT.deep).fillRect(-5, 0, 10, 3);
+        step.fillStyle(RADIANT.gold).fillRect(-5, 0, 10, 1);
+        step.fillStyle(RADIANT.white).fillRect(-4, 0, 3, 1);
+        step.setScale(0.3, 1);
+        scene.tweens.add({ targets: step, scaleX: 1, duration: 80, ease: 'Back.Out' });
+        scene.tweens.add({ targets: step, alpha: 0, delay: 320 + i * 40, duration: 260, onComplete: () => step.destroy() });
+        sparks(scene, p.x, p.y + 8, [RADIANT.gold, RADIANT.white], 2, 6);
+      });
+      later(scene, 230, () => ring(scene, p.x, p.y, RADIANT.gold, 2, 16, 200, 1));
     },
   },
 };

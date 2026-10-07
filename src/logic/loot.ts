@@ -31,7 +31,9 @@ export type WeaponId =
   | 'surgaNeraka'
   | 'foton'
   | 'pedangSurya'
-  | 'sabitCandra';
+  | 'sabitCandra'
+  | 'kelam'
+  | 'bintangFajar';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
@@ -475,8 +477,8 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   tongkat: {
     id: 'tongkat',
     name: 'TONGKAT ELEMEN',
-    desc: 'API, ES, PETIR, LALU BATU BESAR: EMPAT ELEMEN BERGANTIAN',
-    dmg: 0.9,
+    desc: 'API MELEDAK, ES PECAH, PETIR BERANTAI, BATU REMUK: EMPAT ELEMEN BERGANTIAN',
+    dmg: 1,
     cd: 1.1,
     crit: 0,
     projectile: { texture: 'fireball', speed: 200 },
@@ -540,9 +542,9 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0xffa300,
       status: { burn: 0.2 },
     },
-    skill: { name: 'SIKLUS ELEMEN', desc: 'TIAP CAST GANTI ELEMEN: INFERNO, GLACIER, THUNDER, QUAKE', cd: 5 },
+    skill: { name: 'SIKLUS ELEMEN', desc: 'TIAP CAST GANTI ELEMEN: PILAR API, ZAMAN ES, BADAI PETIR, GEMPA SATU ARENA', cd: 6 },
     fusion: { name: 'REAKSI ELEMEN', desc: 'J+L: ELEMEN KINI + BERIKUTNYA BERTABRAKAN: UAP/KRISTAL/PLASMA/MAGMA', cd: 10 },
-    ult: { name: 'KIAMAT ELEMEN', desc: 'LINGKARAN SIHIR RAKSASA: METEOR, PETIR, ES, BUMI, LALU LEDAKAN PRISMA' },
+    ult: { name: 'KIAMAT ELEMEN', desc: 'EMPAT MENARA ELEMEN: HUJAN METEOR, JARING PETIR, BADAI ES, GEMPA, LALU BOLA PRISMA JATUH' },
   },
   katana: {
     id: 'katana',
@@ -1542,6 +1544,100 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     skill: { name: 'SABIT CANDRA', desc: 'SABIT BERPUTAR MENGELILINGI ARENA, JUMLAH = FASE BULAN; PURNAMA MENJATUHKAN BULAN', cd: 5 },
     fusion: { name: 'PASANG BULAN', desc: 'J+L: BULAN MENGANGKAT SEMUA MUSUH KE LANGIT, LALU AIR PASANG MENGHEMPAS MEREKA', cd: 11 },
     ult: { name: 'MALAM SERIBU BULAN', desc: 'MALAM TURUN, BULAN RAKSASA BERGANTI FASE, TIAP FASE MENJATUHKAN SABIT, LALU TERBENAM' },
+  },
+  kelam: {
+    id: 'kelam',
+    name: 'NOKTURNA',
+    desc: 'PEDANG BESAR RAJA KEGELAPAN: TEBASAN BERAT, TUSUKAN PENARIK, TENGKORAK API JIWA',
+    dmg: 1,
+    cd: 1,
+    crit: 0.05,
+    arc: 'slashKelam',
+    arcTint: 0xffffff,
+    cut: 0x3dff8f,
+    combo: [
+      // A heavy diagonal cleave that carries him a step, the edge trailing soul fire.
+      { anim: 'down', dmg: 1.1, cd: 1.05, ms: 150, reach: box(28, 24), knockback: 90, lunge: 90, cut: 0x3dff8f },
+      // A thrust that hooks the soul: the enemy is dragged in toward him, chilled by the grave (negative knockback).
+      { anim: 'thrust', dmg: 0.9, cd: 1, ms: 130, reach: box(36, 12), knockback: -110, cut: 0x7dffb0, status: { slow: 500 } },
+      // The finisher: an overhead execution; a screaming skull of soul fire flies on (SKILLS.kelam.onSwing).
+      { anim: 'overhead', dmg: 2, cd: 1.6, ms: 210, reach: box(32, 32), knockback: 240, cut: 0x3dff8f },
+    ],
+    air: [
+      { anim: 'down', dmg: 1, cd: 1.05, ms: 140, reach: box(26, 26), knockback: 100, hover: 70, cut: 0x3dff8f },
+      // A rising cut that tosses the enemy up into his next blow.
+      { anim: 'up', dmg: 1.1, cd: 1.3, ms: 170, reach: box(28, 30), knockback: 60, hover: 90, launch: 140, cut: 0x7dffb0 },
+    ],
+    dive: {
+      // He drops like a king onto his throne (SKILLS.kelam.onDiveLand: geysers of soul fire burst out of the floor).
+      name: 'TAKHTA RUNTUH',
+      anim: 'plunge',
+      dmg: 1.5,
+      cd: 1.3,
+      ms: 850,
+      reach: box(16, 18),
+      knockback: 200,
+      hitbox: 'below',
+      dive: { vx: 0, vy: 560 },
+      slam: 32,
+      trail: 0x3dff8f,
+      cut: 0x3dff8f,
+    },
+    skill: { name: 'DOMINASI', desc: 'MAHKOTA HITAM MENGUASAI 3 MUSUH: 4 DTK MEREKA MENYERANG KAWAN SENDIRI, LALU DIREMUKKAN', cd: 8 },
+    fusion: {
+      name: 'GAMBIT RAJA',
+      desc: 'J+L: ARENA JADI PAPAN CATUR, MUSUH JADI BIDAK; LANGKAH KUDA MEMAKAN SEMUA, LALU SKAKMAT',
+      cd: 11,
+    },
+    ult: { name: 'TAKHTA KEGELAPAN', desc: 'TAKHTA BANGKIT, JIWA MUSUH DIRENGGUT KE MAHKOTANYA, LALU MAHKOTA RAKSASA MENGHANTAM' },
+  },
+  bintangFajar: {
+    id: 'bintangFajar',
+    name: 'BINTANG FAJAR',
+    desc: 'GADA BINTANG CAHAYA: AYUNAN SAMPING, PENGANGKAT, PUSARAN, LALU HANTAMAN BINTANG',
+    dmg: 1,
+    cd: 1,
+    crit: 0.05,
+    arc: 'slashFajar',
+    arcTint: 0xffffff,
+    cut: 0xffec27,
+    combo: [
+      // A sideways swing of the mace, the star leaving a gold streak.
+      { anim: 'hook', dmg: 1, cd: 1, ms: 140, reach: box(26, 22), knockback: 110, cut: 0xffec27 },
+      // An uppercut with the haft that lifts the enemy into the light.
+      { anim: 'uppercut', dmg: 1, cd: 1.05, ms: 150, reach: box(24, 30), knockback: 40, launch: 180, cut: 0xfff1e8 },
+      // He whirls the morning star around him twice.
+      { anim: 'spin', dmg: 0.5, cd: 1.1, ms: 220, reach: box(32, 28), knockback: 80, hitbox: 'around', hits: 2, cut: 0xffe9a8 },
+      // The finisher: the star comes down and bursts into rays (SKILLS.bintangFajar.onSwing).
+      { anim: 'overhead', dmg: 1.8, cd: 1.6, ms: 220, reach: box(30, 30), knockback: 240, cut: 0xffec27, status: { freeze: 250 } },
+    ],
+    air: [
+      { anim: 'hook', dmg: 1, cd: 1.05, ms: 140, reach: box(26, 26), knockback: 90, hover: 80, cut: 0xffec27 },
+      { anim: 'overhead', dmg: 1.2, cd: 1.3, ms: 190, reach: box(28, 30), knockback: 160, hover: 60, cut: 0xfff1e8 },
+    ],
+    dive: {
+      // He drops with the star first (SKILLS.bintangFajar.onDiveLand: a star sigil flares on the floor and shoots
+      // rays up from its points).
+      name: 'BINTANG JATUH FAJAR',
+      anim: 'plunge',
+      dmg: 1.4,
+      cd: 1.2,
+      ms: 800,
+      reach: box(16, 18),
+      knockback: 180,
+      hitbox: 'below',
+      dive: { vx: 20, vy: 520 },
+      slam: 30,
+      trail: 0xffec27,
+      cut: 0xffe9a8,
+    },
+    skill: { name: 'SUAKA CAHAYA', desc: 'LENTERA EMAS DI ATAS KERUMUNAN: DI DALAM CAHAYANYA MUSUH TAK BISA MENYERANG & TERBAKAR', cd: 7 },
+    fusion: {
+      name: 'KITAB HUKUM',
+      desc: 'J+L: HALAMAN KITAB MENEMPEL DI TIAP MUSUH, VONIS SESUAI KEADAANNYA: JATUH/MUNDUR/BUTA/HAPUS',
+      cd: 11,
+    },
+    ult: { name: 'HARI TANPA BAYANG', desc: 'CAHAYA RENDAH MEMANJANGKAN BAYANGAN MUSUH, PAKU CAHAYA MENANCAPKANNYA, LALU DIBAKAR HABIS' },
   },
 };
 

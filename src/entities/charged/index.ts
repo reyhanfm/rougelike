@@ -10,11 +10,20 @@ import { BATCH_3 } from './batch3.ts';
 import { BATCH_4 } from './batch4.ts';
 import { BATCH_5 } from './batch5.ts';
 import { BATCH_6 } from './batch6.ts';
+import { BATCH_7 } from './batch7.ts';
 
 export { CHARGE, type ChargedAttack, type ChargedCtx } from './types.ts';
 
 /** The charged attacks written so far (each class in exactly one batch file). */
-export const DEFINED: Partial<Record<ClassId, ChargedAttack>> = { ...BATCH_1, ...BATCH_2, ...BATCH_3, ...BATCH_4, ...BATCH_5, ...BATCH_6 };
+export const DEFINED: Partial<Record<ClassId, ChargedAttack>> = {
+  ...BATCH_1,
+  ...BATCH_2,
+  ...BATCH_3,
+  ...BATCH_4,
+  ...BATCH_5,
+  ...BATCH_6,
+  ...BATCH_7,
+};
 
 /** Placeholder for a class whose own attack is not written yet: a heavy lunge that cuts everything along its path. */
 function lungeSlash(color: number): ChargedAttack {

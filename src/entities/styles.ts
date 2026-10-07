@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { ClassId } from '../logic/classes.ts';
 import type { Player } from './Player.ts';
-import { excaliburBare, HELL, HOLY, twilightWings } from './skills.ts';
+import { excaliburBare, HELL, HOLY, RADIANT, SOUL, twilightWings } from './skills.ts';
 
 /**
  * Airborne body motion. flip/backflip: one somersault; roll: two quick ones; spin: a pirouette (turns to face each way);
@@ -256,6 +256,85 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     jump: 'backflip',
     trail: { shape: 'spark', colors: [0xc2d4ff, 0xfff1e8, 0x9fb4ff] },
     hold: { angle: 15, dx: -3 },
+  },
+  // Dark Lord: a slow, measured stride, embers of soul fire rising where he walks, no flourish in the air (he rises
+  // upright, as a king would), the greatsword held low and forward, and a long black cloak with a crimson
+  // lining that hangs from his shoulders and streams out behind him as he moves.
+  darkLord: {
+    stride: 140,
+    lean: 2,
+    jump: 'none',
+    trail: { shape: 'wisp', colors: [SOUL[0], SOUL[1], SOUL[2]] },
+    hold: { angle: 30, dx: 1 },
+    heavy: true,
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(9.6);
+      const draw = () => {
+        g.clear();
+        // Hidden while he is inside the flying cloak of his dash.
+        if (!p.active || p.alpha < 0.05) return;
+        const f = p.flipX ? -1 : 1;
+        const body = p.body as Phaser.Physics.Arcade.Body;
+        const t = scene.time.now;
+        const blow = Phaser.Math.Clamp(Math.abs(body.velocity.x) / 120, 0, 1);
+        const lift = Phaser.Math.Clamp(-body.velocity.y / 300, -0.6, 1);
+        const [x, y] = [p.x, p.y];
+        const P = (dx: number, dy: number) => new Phaser.Math.Vector2(x + f * dx, y + dy);
+        const back = 5 + blow * 7;
+        const wave = Math.sin(t / 160) * (0.6 + blow);
+        // Shoulders, then the hem (above the feet), ragged, swept back by the run and lifted by a fall.
+        const cloak = [
+          P(1, -6),
+          P(-3, -6),
+          P(-back, 4 - blow * 3 + lift * 2 + wave),
+          P(-back + 2, 6 + wave),
+          P(-back + 3, 4.5 + wave),
+          P(-back + 5, 6 + wave * 0.5),
+          P(-1, 5),
+        ];
+        g.fillStyle(0x000000).fillPoints(
+          cloak.map((v) => new Phaser.Math.Vector2(v.x - f * 0.8, v.y + 0.5)),
+          true,
+        );
+        g.fillStyle(0x2b2238).fillPoints(cloak, true);
+        // The crimson lining shows along the trailing edge, a soul-fire clasp at the shoulder.
+        g.lineStyle(1, 0x4a3d5c).lineBetween(cloak[1].x, cloak[1].y, cloak[2].x, cloak[2].y);
+        g.lineStyle(1, 0xb3122e).lineBetween(cloak[1].x + f, cloak[1].y + 2, cloak[2].x + f, cloak[2].y);
+        g.fillStyle(SOUL[1]).fillRect(x - f * 1 - 0.5, y - 5, 1, 1);
+      };
+      scene.events.on('update', draw);
+      scene.events.once('shutdown', () => {
+        scene.events.off('update', draw);
+        g.destroy();
+      });
+    },
+  },
+  // Light Lord: an upright, even stride, motes of gold and white at his heels, an arch of the back into every jump,
+  // the morning star raised over his shoulder, and a gold halo floating above his crown, its light breathing.
+  lightLord: {
+    stride: 115,
+    lean: 3,
+    jump: 'arch',
+    trail: { shape: 'spark', colors: [RADIANT.gold, RADIANT.white, RADIANT.ivory] },
+    hold: { angle: -35, dx: -1 },
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(9.6);
+      const draw = () => {
+        g.clear();
+        if (!p.active || p.alpha < 0.05) return;
+        const t = scene.time.now;
+        const [x, y] = [p.x, p.y - 15 + Math.sin(t / 280) * 0.8];
+        g.lineStyle(3, RADIANT.ivory, 0.25 + Math.sin(t / 200) * 0.1).strokeEllipse(x, y, 11, 4);
+        g.lineStyle(1, RADIANT.gold).strokeEllipse(x, y, 9, 3);
+        const a = t / 300;
+        g.fillStyle(RADIANT.white).fillRect(x + Math.cos(a) * 4.5 - 0.5, y + Math.sin(a) * 1.5 - 0.5, 1, 1);
+      };
+      scene.events.on('update', draw);
+      scene.events.once('shutdown', () => {
+        scene.events.off('update', draw);
+        g.destroy();
+      });
+    },
   },
   jackFrost: { stride: 105, lean: 6, jump: 'spin', trail: { shape: 'flake', colors: [0xc2f0ff, 0xfff1e8] }, hold: { angle: -70, dx: -2 } },
 };

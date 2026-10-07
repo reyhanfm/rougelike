@@ -58,6 +58,11 @@ export const PALETTE: Record<string, number> = {
   S: 0xff8a1f,
   // Extra: the Moon Knight's lunar periwinkle (hood, cloak, the glow of his crescents).
   M: 0x9fb4ff,
+  // Extra: the Dark Lord's obsidian plate and cloak, and the soul fire that burns in his eyes, crown and blade.
+  D: 0x2b2238,
+  E: 0x3dff8f,
+  // Extra: the Light Lord's radiant ivory-gold (hair, mantle, armor trim).
+  F: 0xffe9a8,
 };
 
 export const COLOR = {
@@ -225,6 +230,53 @@ export const SPRITES: Record<string, string[]> = {
     '.....77M....',
     '...77M......',
     '.d7.........',
+  ],
+  // Dark Lord: Nokturna, a black greatsword with a crimson-wrapped grip, a horned guard and soul fire in its fuller.
+  w_kelam: ['....55..........', '.hh5D0DDDDDDDD0.', '0hh50EEEEEEEEEEE', '.hh5D0DDDDDDDD0.', '....55..........'],
+  // A screaming skull of soul fire (the finisher throws it): bone white, green fire in its sockets.
+  tengkorakJiwa: ['.7777.', '777777', '7E77E7', '777777', '.7070.', '.7777.'],
+  // Its swing: a heavy arc, a black core inside a soul-fire edge.
+  slashKelam: [
+    '..EE..........',
+    '....EEE7......',
+    '......EE77....',
+    '.......0EE7...',
+    '........0EE7..',
+    '.........0E7..',
+    '.........0EE7.',
+    '.........00E7.',
+    '.........00E7.',
+    '.........0EE7.',
+    '.........0E7..',
+    '........0EE7..',
+    '.......0EE7...',
+    '......EE77....',
+    '....EEE7......',
+    '..EE..........',
+  ],
+  // Light Lord: Bintang Fajar, a morning star: a gold-banded haft and a head that is a star of light, gold spikes
+  // around a white-hot core.
+  w_bintangFajar: ['...........a...', '..........a7a..', '0ii4444444a7F7a', '..........a7a..', '...........a...'],
+  // A projectile turned back by PANTULAN SUCI: a lance of light, gold barbs and a white shaft.
+  tombakCahaya: ['......a..', 'aF77777aa', '......a..'],
+  // The morning star's swing: a gold arc with white sparkles along it.
+  slashFajar: [
+    '.a7.........',
+    '...aa7......',
+    '.....aa7.7..',
+    '......aa7...',
+    '.......aa7..',
+    '........a7..',
+    '........aa7.',
+    '.......7.a7a',
+    '.........a7.',
+    '........aa7.',
+    '........a7..',
+    '.......aa7..',
+    '......aa7...',
+    '.....aa7.7..',
+    '...aa7......',
+    '.a7.........',
   ],
   // Surya: Bilah Surya, a broad golden greatsword, its edge burning orange.
   w_pedangSurya: ['....i.....S....', 'ii0iaaa7777777S', '....i.....S....'],

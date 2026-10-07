@@ -25,13 +25,13 @@ import type { ChargedAttack } from './types.ts';
 type Foe = Phaser.GameObjects.Sprite;
 type G = Phaser.GameObjects.Graphics;
 const V = (x: number, y: number) => new Phaser.Math.Vector2(x, y);
-const dist = (x: number, y: number, t: { x: number; y: number }) => Phaser.Math.Distance.Between(x, y, t.x, t.y);
+export const dist = (x: number, y: number, t: { x: number; y: number }) => Phaser.Math.Distance.Between(x, y, t.x, t.y);
 /** Angle of (x, y) seen from (ox, oy), mirrored so 0 is straight ahead for a hero facing `f` and negative is up. */
-const rel = (ox: number, oy: number, f: number, x: number, y: number) => Math.atan2(y - oy, (x - ox) * f);
+export const rel = (ox: number, oy: number, f: number, x: number, y: number) => Math.atan2(y - oy, (x - ox) * f);
 /** World angle of a mirrored angle `a` (the inverse of `rel`). */
-const wa = (f: number, a: number) => (f > 0 ? a : Math.PI - a);
+export const wa = (f: number, a: number) => (f > 0 ? a : Math.PI - a);
 /** Throws small fry up; bosses and elites are too heavy. */
-function lift(t: Foe, v: number): void {
+export function lift(t: Foe, v: number): void {
   if (t.active && !('tier' in t) && !t.getData('elite')) (t as Phaser.Physics.Arcade.Sprite).setVelocityY(-v);
 }
 /** How far a ray from (x, y) along `a` runs before it meets a wall, the ceiling or the floor. */

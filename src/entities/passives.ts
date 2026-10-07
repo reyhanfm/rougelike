@@ -24,6 +24,8 @@ import {
   hexMirror,
   lightRay,
   moonPhase,
+  SOUL,
+  RADIANT,
 } from './skills.ts';
 
 export interface PassiveCtx {
@@ -123,6 +125,19 @@ function smoke(scene: Phaser.Scene, x: number, y: number, n: number, colors: num
     });
   }
 }
+
+/** One of the Dark Lord's risen shadows: the slain enemy's own shape in black, standing on its feet (origin at the bottom). */
+interface Thrall {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  flyer: boolean;
+  until: number;
+  next: number;
+  hits: number;
+}
+const thrallState = () => ({ thralls: [] as Thrall[], rising: 0, next: 0 });
+/** BANGKITLAH: shadows serving at once, how long each lasts, how many blows it strikes before it crumbles. */
+const THRALL = { max: 3, ms: 7000, hits: 5, speed: 80, every: 600 } as const;
 
 /** Lumina's floating light crystals (also read by Jaring Cermin as extra mirrors). */
 const crystalState = () => ({ hits: 0, crystals: [] as { x: number; y: number; born: number; next: number }[] });
@@ -1357,6 +1372,134 @@ export const PASSIVES: Record<ClassId, Passive> = {
       moonPhase(g, 4, phase / 4);
       // The full moon breathes a soft halo.
       if (phase >= 4) g.lineStyle(1, 0xc2d4ff, 0.4 + Math.sin(time / 150) * 0.3).strokeCircle(0, 0, 7);
+    },
+  },
+
+  // BANGKITLAH (ARISE): the Dark Lord commands the dead. A foe that falls (any foe but a boss, from any blow) rises a
+  // moment later as his shadow: a pool of darkness opens where it fell, and its own shape climbs out of it, black,
+  // edged in soul fire, with green eyes. Up to three serve him at once. Each hunts the nearest enemy (shadows walk on
+  // the air as easily as on the floor), claws at it every 0.6 s, and after 7 s or five blows it crumbles into soul fire.
+  // Its blows are procs: a kill it makes raises a new shadow in turn, while there is room.
+  darkLord: {
+    onKill: ({ p, scene }, t) => {
+      if (isBoss(t)) return;
+      const s = state(p, thrallState);
+      const now = scene.time.now;
+      if (s.thralls.length + s.rising >= THRALL.max || now < s.next) return;
+      s.next = now + 450;
+      s.rising++;
+      const [key, frame, flip] = [t.texture.key, t.frame.name, t.flipX];
+      const flyer = !!(t as Foe & { flying?: boolean }).flying;
+      const h = t.displayHeight;
+      const x = t.x;
+      // Walkers rise from the floor; flyers from where they fell out of the air.
+      const base = flyer ? t.y + h / 2 : FLOOR_Y;
+      const pool = scene.add.ellipse(x, base, 4, 2, 0x0a0612).setStrokeStyle(1, SOUL[1]).setDepth(9.5);
+      scene.tweens.add({ targets: pool, scaleX: 4, scaleY: 1.6, duration: 300, ease: 'Quad.Out' });
+      later(scene, 380, () => {
+        s.rising--;
+        scene.tweens.add({ targets: pool, alpha: 0, scaleX: 5, duration: 300, onComplete: () => pool.destroy() });
+        if (!p.active) return;
+        const shape = (tint: number) =>
+          scene.add.image(x, base, key, frame).setOrigin(0.5, 1).setFlipX(flip).setTint(tint).setTintMode(Phaser.TintModes.FILL);
+        const glow = shape(SOUL[1]).setAlpha(0.6).setScale(1.25, 0).setDepth(9.7);
+        const img = shape(0x1a1424).setScale(1, 0).setDepth(9.8);
+        scene.tweens.add({ targets: img, scaleY: 1, duration: 280, ease: 'Back.Out' });
+        scene.tweens.add({ targets: glow, scaleY: 1.12, duration: 280, ease: 'Back.Out' });
+        sparks(scene, x, base - h / 2, [SOUL[1], SOUL[2]], 8, 12);
+        ring(scene, x, base - h / 2, SOUL[1], 2, 14, 240, 1);
+        s.thralls.push({ img, glow, flyer, until: scene.time.now + THRALL.ms, next: scene.time.now + 300, hits: 0 });
+      });
+    },
+    tick: (c, _time, delta) => {
+      const { p, world, scene } = c;
+      // Scene clock: thrall timers are set in onKill from it too.
+      const time = scene.time.now;
+      const s = state(p, thrallState);
+      const g = overlay(c, 11);
+      g.clear();
+      s.thralls = s.thralls.filter((th, i) => {
+        const { img, glow } = th;
+        if (!img.active) return false;
+        const h = img.displayHeight;
+        if (time > th.until || th.hits >= THRALL.hits) {
+          // It crumbles into soul fire.
+          sparks(scene, img.x, img.y - h / 2, [SOUL[1], SOUL[2], 0x0a0612], 10, 14);
+          scene.tweens.add({
+            targets: [img, glow],
+            scaleY: 0,
+            alpha: 0,
+            duration: 260,
+            onComplete: () => [img, glow].forEach((o) => o.destroy()),
+          });
+          return false;
+        }
+        const cy = img.y - h / 2;
+        const foe = world.targets(img.x, cy).find((t) => t.active);
+        if (foe) {
+          const [dx, dy] = [foe.x - img.x, foe.y - cy];
+          const step = (THRALL.speed * delta) / 1000;
+          if (Math.abs(dx) > 6) img.x += Phaser.Math.Clamp(dx, -step, step);
+          if (Math.abs(dy) > 4) img.y = Math.min(FLOOR_Y, img.y + Phaser.Math.Clamp(dy, -step, step));
+          img.setFlipX(dx < 0);
+          if (Math.hypot(dx, dy) < 10 + foe.displayWidth / 2 && time >= th.next) {
+            // The claw: three green rakes across the enemy, the shadow lunging into it.
+            th.next = time + THRALL.every;
+            th.hits++;
+            for (const o of [-3, 0, 3]) cutMark(scene, foe.x + o, foe.y, SOUL[1], 10, -1.1);
+            sparks(scene, foe.x, foe.y, [SOUL[1], 0x0a0612], 4, 10);
+            scene.tweens.add({ targets: [img, glow], scaleX: '*=1.25', duration: 70, yoyo: true });
+            world.strike(foe, 0.7, 'proc', false, { slow: 400 }, 50);
+          }
+        } else if (!th.flyer) img.y = Math.min(FLOOR_Y, img.y + (60 * delta) / 1000);
+        glow
+          .setPosition(img.x, img.y + 1)
+          .setFlipX(img.flipX)
+          .setAlpha(0.5 + Math.sin(time / 90 + i) * 0.15);
+        // Eyes of soul fire near the top of the shape, toward where it looks.
+        const fx = img.flipX ? -1 : 1;
+        const ey = img.y - h * 0.72;
+        g.fillStyle(SOUL[2]).fillRect(img.x + fx * img.displayWidth * 0.18 - 0.5, ey, 1, 1);
+        g.fillStyle(SOUL[1]).fillRect(img.x + fx * img.displayWidth * 0.18 - fx * 3 - 0.5, ey, 1, 1);
+        // Wisps rising off it.
+        if (Math.random() < 0.08) {
+          const w = scene.add
+            .rectangle(img.x + Phaser.Math.Between(-4, 4), img.y - Phaser.Math.Between(0, h), 1, 2, SOUL[1], 0.8)
+            .setDepth(11);
+          scene.tweens.add({ targets: w, y: w.y - 10, alpha: 0, duration: 500, onComplete: () => w.destroy() });
+        }
+        return true;
+      });
+    },
+  },
+
+  // PANTULAN SUCI (Holy Reflection): the light around the Light Lord turns back whatever is thrown at him. A hostile
+  // projectile (not a ground wave, nothing bigger than a fist) that comes within reach of him is caught in a flare of
+  // gold and sent back as a lance of light, aimed at the nearest enemy (or straight back where it came from).
+  lightLord: {
+    tick: ({ p, world, scene }) => {
+      for (const h of world.hostiles()) {
+        if (!h.active || h.texture.key === 'wave' || h.displayWidth > 14 || dist(h, p) > 20) continue;
+        const [x, y] = [h.x, h.y];
+        const body = h.body as Phaser.Physics.Arcade.Body;
+        const back = Math.atan2(-body.velocity.y, -body.velocity.x);
+        h.destroy();
+        const foe = world.targets(x, y)[0];
+        const a = foe ? Phaser.Math.Angle.Between(x, y, foe.x, foe.y) : back;
+        ring(scene, x, y, RADIANT.gold, 2, 14, 200, 1);
+        sparks(scene, x, y, [RADIANT.gold, RADIANT.white], 6, 10);
+        glint(scene, x, y);
+        world.shot({
+          x,
+          y,
+          vx: Math.cos(a) * 300,
+          vy: Math.sin(a) * 300,
+          texture: 'tombakCahaya',
+          mult: 1.2,
+          source: 'proc',
+          pierce: true,
+        });
+      }
     },
   },
 };

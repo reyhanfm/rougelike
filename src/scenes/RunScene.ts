@@ -547,6 +547,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
         'w_kapak',
         'w_katana',
         'w_sabit',
+        'tombakCahaya',
       ].includes(spec.texture)
     )
       img.setRotation(Math.atan2(spec.vy, spec.vx));
@@ -720,6 +721,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     // The blow comes from behind the shot along its flight (a fast shot may already overlap the target's center).
     this.attack(t, spec.mult, spec.source, spec.knockback ?? 80, false, shot.x - Math.sign(vx) * 8, shot.y);
     this.applyStatus(t, spec.status);
+    spec.onHit?.(shot.x, shot.y, t);
     if (spec.explode) {
       shot.destroy();
       burst(this, shot.x, shot.y, 0x29adff, 14);

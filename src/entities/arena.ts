@@ -46,6 +46,8 @@ export interface ShotSpec {
   spin?: boolean;
   /** Blows up on the first hit: area damage of this radius (80% of mult). */
   explode?: number;
+  /** Runs after the shot's own hit landed on `t` at (x, y) (a weapon's impact effect, SKILLS[id].onShotHit). */
+  onHit?: (x: number, y: number, t: Phaser.GameObjects.Sprite) => void;
 }
 
 /** What the player's attacks and skills may do to the world. RunScene implements it. */

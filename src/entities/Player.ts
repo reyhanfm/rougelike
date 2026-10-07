@@ -756,6 +756,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
             )[0]
         : undefined;
     const aimed = mark ? Math.atan2(mark.y - this.y, Math.abs(mark.x - this.x)) : 0;
+    const impact = SKILLS[this.weapon.id].onShotHit;
     for (const [i, a0] of (projectile ? [...(m.angles ?? []), ...extra] : []).entries()) {
       const a = mark ? aimed : a0;
       if (gate) {
@@ -780,6 +781,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         homing: projectile!.homing || (this.stats.homingArrows > 0 && i === lead),
         returning: projectile!.returning,
         spin: projectile!.spin,
+        onHit: impact && ((x, y, t) => impact(this.chargeCtx, m, x, y, t)),
       });
       // Short-range moves (shotgun pellets) die out after `range` px.
       if (m.range) {

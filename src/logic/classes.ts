@@ -31,7 +31,9 @@ export type ClassId =
   | 'nephalem'
   | 'lumina'
   | 'surya'
-  | 'candra';
+  | 'candra'
+  | 'darkLord'
+  | 'lightLord';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -1163,6 +1165,83 @@ export const CLASSES: Record<ClassId, GameClass> = {
       apply: (s) => {
         s.critChance += 0.06;
         s.skillPower *= 1.2;
+      },
+    },
+  },
+  darkLord: {
+    id: 'darkLord',
+    name: 'DARK LORD',
+    weapon: 'kelam',
+    color: 'D',
+    legs: { kind: 'coat', pant: 'D', boot: 'j' },
+    hair: 'D',
+    // The Dark Lord: a crown of black iron whose spikes burn with soul fire, a green soul gem in its band, long black
+    // hair framing a pale face with eyes of green flame, a high crimson-lined collar, obsidian plate with a soul gem
+    // on the chest, steel gauntlets and a gold belt.
+    head: [
+      '.E..EE..E.',
+      '0D0.DD.0D0',
+      '0DDDEEDDD0',
+      '.0D6666D0.',
+      '.0DE66ED0.',
+      '.0D6556D0.',
+      '.h0DDDD0h.',
+      '.0DDEEDD0.',
+      '05DDEEDD50',
+      '050DDDD050',
+      '..0iEEi0..',
+    ],
+    passive: { name: 'BANGKITLAH', desc: 'MUSUH YANG TEWAS BANGKIT JADI BAYANGAN PENGIKUT (MAKS 3) YANG MEMBURU MUSUH LAIN' },
+    trait: 'TAKHTA TEROR: DAMAGE +12%, DITERIMA -10%, +2 HP/KILL',
+    apply: (s) => {
+      s.damage *= 1.12;
+      s.damageTaken *= 0.9;
+      s.healOnKill += 2;
+    },
+    synergy: {
+      name: 'RAJA SEGALA ARWAH',
+      desc: 'SKILL +20%, CURI NYAWA 4%',
+      apply: (s) => {
+        s.skillPower *= 1.2;
+        s.lifesteal += 0.04;
+      },
+    },
+  },
+  lightLord: {
+    id: 'lightLord',
+    name: 'LIGHT LORD',
+    weapon: 'bintangFajar',
+    color: 'F',
+    legs: { kind: 'robe', pant: 'F', boot: 'i' },
+    hair: 'F',
+    // The Light Lord, the Dark Lord's opposite: a crown of gold rays with a white gem, long ivory-gold hair, eyes of
+    // gold light, a white high collar, white plate trimmed in gold with a sun-gold sigil on the chest, a gold belt.
+    head: [
+      '.a.a77a.a.',
+      '.aaaaaaaa.',
+      '0FFFFFFFF0',
+      '.0FffffF0.',
+      '.0faffaf0.',
+      '.0ffffff0.',
+      '..0F77F0..',
+      '.07FaaF70.',
+      '0f7FaaF7f0',
+      '0f07FF70f0',
+      '..0aiia0..',
+    ],
+    passive: { name: 'PANTULAN SUCI', desc: 'PROYEKTIL MUSUH YANG MENDEKAT BERBALIK JADI TOMBAK CAHAYA KE MUSUH TERDEKAT' },
+    trait: 'MAHKOTA FAJAR: HP +15%, PULIH 1 HP/DTK, DAMAGE +5%',
+    apply: (s) => {
+      s.maxHp *= 1.15;
+      s.regen += 1;
+      s.damage *= 1.05;
+    },
+    synergy: {
+      name: 'RAJA SIANG',
+      desc: 'SKILL +20%, KRITIS +5%',
+      apply: (s) => {
+        s.skillPower *= 1.2;
+        s.critChance += 0.05;
       },
     },
   },
