@@ -81,20 +81,21 @@ export const SPECIAL_STATS: Record<SpecialBoss, { hp: number; dmg: number; soul:
 };
 
 /**
- * Mahoraga: every `turnMs` the wheel turns and it adapts one step to every kind of attack that hit it since the last
- * turn (ADAPT_MULT: share of damage that still lands; the last step is immunity). Each turn also heals `heal` of its max
- * HP (adapting mends the wound) and sends a shockwave out. From `blitzAt` turns it blinks behind the player, from
- * `barrageAt` it chases them with strikes, from `doubleCutAt` the Sword of Extermination cuts twice. Below `frenzy` of
- * its HP it rages: the wheel turns `frenzyTurn` times as often. Not beaten within `leaveMs`, it goes back into the shadows.
+ * Mahoraga: it watches what hurts it. Every `turnMs` the wheel turns and it adapts to the last kind of attack that hit
+ * it before the turn: from then on it is immune to that kind for good (adaptations stack, one per turn), and it can use
+ * that attack back (the 'mimic' pattern: the player's own weapon, skill or ult turned on them). Each turn also heals
+ * `heal` of its max HP and sends a shockwave out. From `blitzAt` turns it blinks behind the player, from `barrageAt` it
+ * chases them with strikes, from `doubleCutAt` the Sword of Extermination cuts twice. Below `frenzy` of its HP it
+ * rages: the wheel turns `frenzyTurn` times as often. Not beaten within `leaveMs`, it goes back into the shadows.
  */
 export const MAHORAGA = {
-  turnMs: 3200,
+  turnMs: 5500,
   heal: 0.04,
   blitzAt: 1,
   barrageAt: 2,
   doubleCutAt: 3,
   frenzy: 0.4,
-  frenzyTurn: 0.6,
+  frenzyTurn: 0.7,
   leaveMs: 75000,
 } as const;
 
@@ -126,8 +127,8 @@ export const LEVIATHAN = {
 /** What Mahoraga adapts to: each kind of player hit, plus burn and freeze. */
 export type AdaptKind = 'basic' | 'skill' | 'ult' | 'proc' | 'burn' | 'freeze';
 
-/** Damage (or freeze time) that still lands after 0, 1, 2... adaptation steps to one kind; the last step is immunity. */
-export const ADAPT_MULT = [1, 0.6, 0.3, 0.1, 0] as const;
+/** Damage (or freeze time) that still lands before and after Mahoraga adapts to a kind: one turn and it is immune. */
+export const ADAPT_MULT = [1, 0] as const;
 
 /** Which special bosses (if any) turn this round into a bonus round: one, two, three or all four of them. */
 export function rollSpecials(round: number, rand: () => number = Math.random): SpecialBoss[] {
@@ -282,6 +283,8 @@ export function pickEnemies(round: number, count: number, rand: () => number = M
 export type BossKind = 'knight' | 'slimeKing' | 'lich' | 'demonLord' | 'mahoraga' | 'leviathan' | 'godzilla' | 'kaguya';
 export type BossPattern =
   | 'charge'
+  // Mahoraga: an attack it adapted to, used back on the player.
+  | 'mimic'
   | 'slam'
   | 'fan'
   | 'hop'

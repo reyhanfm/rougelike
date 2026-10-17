@@ -99,6 +99,8 @@ const RETURN_SPEED = 300;
 const BURN_MS = 3000;
 const BURN_TICK_MS = 500;
 const ICE_TINT = 0x29adff;
+/** Asleep (Oberon's sleep dust): dimmed into the blue of a dream. */
+const SLEEP_TINT = 0x8a90c8;
 /** Top speed (px/s) of a slowed enemy or boss; falling stays normal. */
 const CHILL_SPEED = 30;
 const NO_CAP = 10000;
@@ -605,10 +607,14 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       t.setData('freezeUntil', Math.max(t.getData('freezeUntil') ?? 0, now + (t instanceof Boss ? t.resist('freeze', ms) : ms)));
     }
     if (s.slow) t.setData('slowUntil', Math.max(t.getData('slowUntil') ?? 0, now + s.slow));
+    // Asleep: held like frozen (half as long on bosses and elites); Oberon's passive wakes it on the next blow.
+    if (s.sleep)
+      t.setData('sleepUntil', Math.max(t.getData('sleepUntil') ?? 0, now + s.sleep * (t instanceof Boss || t.getData('elite') ? 0.5 : 1)));
   }
 
   private frozen(t: Hittable): boolean {
-    return this.time.now < (t.getData('freezeUntil') ?? 0);
+    const now = this.time.now;
+    return now < (t.getData('freezeUntil') ?? 0) || now < (t.getData('sleepUntil') ?? 0);
   }
 
   /** Burn ticks and freeze hold. True when the target must skip its AI this frame (frozen or dead). */
@@ -631,11 +637,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (this.frozen(t)) {
       t.setVelocityX(0);
       if (!t.body.allowGravity) t.setVelocityY(0);
-      t.setTint(ICE_TINT);
+      t.setTint(time < (t.getData('freezeUntil') ?? 0) ? ICE_TINT : SLEEP_TINT);
       return true;
     }
-    if (t.getData('freezeUntil')) {
-      t.setData('freezeUntil', 0);
+    if (t.getData('freezeUntil') || t.getData('sleepUntil')) {
+      t.setData({ freezeUntil: 0, sleepUntil: 0 });
       t.setTint(t instanceof Boss ? t.baseTint : 0xffffff);
     }
     return false;

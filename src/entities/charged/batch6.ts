@@ -4,7 +4,12 @@ import type { ClassId } from '../../logic/classes.ts';
 import {
   HELL,
   HOLY,
+  RAI,
+  RAIJIN,
   SPECTRUM,
+  boom,
+  stormArc,
+  taiko,
   TWILIGHT,
   bestLine,
   explosion,
@@ -15,7 +20,6 @@ import {
   onLine,
   solarBeam,
   ring,
-  rocks,
   sparks,
   sunDisc,
   twilightWings,
@@ -45,12 +49,12 @@ function toEdge(x: number, y: number, a: number): number {
   return d;
 }
 
-/** Lightning drawn into `g` along `pts`: a cyan fringe, a gold body and (width >= 1) a white-hot core. */
+/** Raijin's lightning drawn into `g` along `pts`: a violet fringe, a lilac body and (width >= 1) a white-hot core. */
 function crackle(g: G, pts: [number, number][], width: number, alpha = 1): void {
   for (const [w, c, a] of [
-    [2 + width * 2, 0x7fe6ff, 0.35],
-    [1 + width, 0xffec27, 1],
-    [width, 0xfff1e8, 1],
+    [2 + width * 2, RAIJIN.fringe, 0.35],
+    [1 + width, RAIJIN.bolt, 1],
+    [width, RAIJIN.core, 1],
   ] as const) {
     if (!w) continue;
     g.lineStyle(w, c, a * alpha)
@@ -119,132 +123,78 @@ function greatWing(g: G, holy: boolean, L: number): void {
 
 /** Charged attacks (TAHAN J) of: lightningLord, nephalem, lumina, surya, candra. Contract and damage budget: see types.ts. */
 export const BATCH_6: Partial<Record<ClassId, ChargedAttack>> = {
-  // Tebasan Plasma (Plasma Cleave): the Lightning Lord raises Vajra Badai as a lightning rod and lets the storm feed it
-  // until the halberd's head is a knot of white plasma. On release the plasma runs out along the blade into an edge of
-  // living lightning several times the halberd's length, and he brings it round in one great arc from behind his
-  // shoulder, over his head (flyers too), down into the floor ahead, which it splits in sparks and stone.
-  // Full charge: his stored STATIK is poured into the blade (each charge makes it longer), and after the downstroke
-  // he rips it back up through the same arc, hurling everything it catches into the air.
-  // Not the suggested hammer slam: his dive already drops a lightning pillar with arcs running both ways along the
-  // floor, and his ult ends in floor cracks to both walls, so his hold attack is a sweep through the air instead.
+  // Gelegar Odaiko (Thunder of the Great Drum): as he holds the attack, the Lightning Lord beats a roll on the air in
+  // front of him and an odaiko, the great festival drum, crackles into being there, swelling as the roll quickens with
+  // arcs snapping off its rim. On release he brings both bachi down on it with everything he has: the skin flares white
+  // and a wall of thunder-sound rolls out ahead of him, from the floor up to the flyers, striking all in its cone.
+  // Full charge: a bigger drum and three blows, DON-DON-DON: three fronts roll out one after another, each farther
+  // than the last, and on the third every enemy it reaches is also struck by a bolt from the sky and thrown up.
+  // Not a blade or a slam: his dive already turns the floor into a drumhead, so his hold attack is a cone of sound.
   lightningLord: {
-    name: 'TEBASAN PLASMA',
-    desc: 'BILAH PETIR RAKSASA MENYAPU DARI BELAKANG, ATAS, KE LANTAI; PENUH: STATIK + SAPUAN BALIK',
-    // The storm answers the raised halberd: leaders crackle down out of the sky onto its head, more and more often,
-    // and the head swells into a knot of plasma; at full charge arcs also run down the shaft to the floor.
+    name: 'GELEGAR ODAIKO',
+    desc: 'GENDERANG RAKSASA DIPUKUL: GELOMBANG GUNTUR MENYAPU KE DEPAN; PENUH: TIGA DENTUM & PETIR',
+    // The drum swells in front of him, its skin throbbing with the roll, arcs snapping off its rim.
     charging({ p, scene }, t01, level, g) {
-      const [hx, hy] = [p.x + p.facing * 5, p.y - 16];
-      const r = 2 + t01 * 3 + Math.sin(scene.time.now / (level === 2 ? 30 : 70)) * 0.6;
-      g.fillStyle(0x7fe6ff, 0.25).fillCircle(hx, hy, r + 3);
-      g.fillStyle(0xffec27).fillCircle(hx, hy, r);
-      g.fillStyle(0xfff1e8).fillCircle(hx, hy, r * 0.5);
-      if (Math.random() < 0.15 + 0.45 * t01) crackle(g, jag(hx + Phaser.Math.Between(-40, 40), 0, hx, hy - r, 6), level ? 1 : 0, 0.9);
-      if (level === 2 && Math.random() < 0.5) crackle(g, jag(hx, hy, hx + Phaser.Math.Between(-8, 8), FLOOR_Y, 3), 0, 0.8);
+      const f = p.facing;
+      const r = 3 + t01 * 4;
+      const [x, y] = [p.x + f * (10 + r), p.y - 4];
+      const lit = level ? 0.3 + 0.3 * Math.abs(Math.sin(scene.time.now / (level === 2 ? 40 : 90))) : 0;
+      taiko(g, x, y, r, scene.time.now / 300, lit);
+      if (Math.random() < 0.2 + 0.4 * t01) {
+        const a = Math.random() * Math.PI * 2;
+        const [c, s] = [Math.cos(a), Math.sin(a)];
+        crackle(g, jag(x + c * (r + 2), y + s * (r + 2), x + c * (r + 9), y + s * (r + 9), 2), level ? 1 : 0);
+      }
     },
     fire({ p, world, scene }, level) {
       const full = level === 2;
       const f = p.facing;
-      const [ox, oy] = [p.x, p.y - 3];
-      const stat = full ? ((p.getData('static') as number | undefined) ?? 0) : 0;
-      const R = (full ? 92 : 64) + stat * 6;
-      const [A0, A1] = [-2.3, 0.75];
-      const ahead = (t: Foe) => dist(ox, oy, t) < 16 && (t.x - ox) * f > -4;
-      const inArc = (t: Foe) => {
-        const a = rel(ox, oy, f, t.x, t.y);
-        return (a >= A0 - 0.1 && a <= A1 && dist(ox, oy, t) <= R + 6) || ahead(t);
-      };
-      if (!world.targets(ox, oy).some(inArc)) return false;
-      // The STATIK pours into the blade: the pips over his crown are spent (staticCrown redraws from this).
-      if (stat) {
-        p.setData('static', 0);
-        sparks(scene, ox, oy - 12, [0xffec27, 0x7fe6ff, 0xfff1e8], stat * 2, 14);
-      }
+      const r = full ? 7 : 5;
+      const [ox, oy] = [p.x + f * (10 + r), p.y - 4];
+      const R0 = 100;
+      const inCone = (t: Foe, R: number) => (t.x - ox) * f > -r - 4 && Math.abs(rel(ox, oy, f, t.x, t.y)) < 0.95 && dist(ox, oy, t) <= R;
+      if (!world.targets(ox, oy).some((t) => inCone(t, full ? 170 : R0))) return false;
       p.setVelocityX(0);
       p.lock(full ? 560 : 300);
       p.invuln(full ? 560 : 300);
       const cam = scene.cameras.main;
-      const reach = (a: number) => (Math.sin(a) > 0 ? Math.min(R, (FLOOR_Y - 1 - oy) / Math.sin(a)) : R);
-      const at = (a: number, d: number): [number, number] => [ox + f * Math.cos(a) * d, oy + Math.sin(a) * d];
-
-      // One stroke of the plasma blade from angle `from` to `to`: the blade is redrawn every frame with the arc it
-      // has just swept glowing behind it, and whatever the arc passes is struck once.
-      const stroke = (from: number, to: number, ms: number, ease: string, hit: (t: Foe) => void, done: () => void) => {
-        const g = scene.add.graphics().setDepth(14);
-        const struck = new Set<Foe>();
-        const dir = Math.sign(to - from);
-        scene.tweens.addCounter({
-          from,
-          to,
-          duration: ms,
-          ease,
-          onUpdate: (tw) => {
-            const a = tw.getValue() ?? from;
-            const tail = Phaser.Math.Clamp(a - dir * 1.1, Math.min(from, to), Math.max(from, to));
-            const arc = Array.from({ length: 11 }, (_, i) => V(...at(tail + ((a - tail) * i) / 10, reach(tail + ((a - tail) * i) / 10))));
-            g.clear();
-            g.fillStyle(0x7fe6ff, 0.14).fillPoints([V(ox, oy), ...arc], true);
-            g.lineStyle(1, 0xffec27, 0.6).strokePoints(arc);
-            crackle(g, jag(...at(a, 6), ...at(a, reach(a)), 3), 2);
-            g.fillStyle(0xfff1e8).fillCircle(...at(a, reach(a)), 2);
-            for (const t of world.targets(ox, oy)) {
-              if (struck.has(t) || !t.active) continue;
-              const ta = rel(ox, oy, f, t.x, t.y);
-              const swept = dir > 0 ? ta >= from - 0.1 && ta <= a : ta <= from + 0.1 && ta >= a;
-              if ((swept && dist(ox, oy, t) <= R + 6) || ahead(t)) {
-                struck.add(t);
-                hit(t);
-              }
-            }
-          },
-          onComplete: () => {
-            scene.tweens.add({ targets: g, alpha: 0, duration: 140, onComplete: () => g.destroy() });
-            done();
-          },
-        });
+      // The drum stays while he plays it.
+      const d = scene.add.graphics().setDepth(12);
+      let lit = 0;
+      const drawDrum = () => {
+        d.clear();
+        taiko(d, ox, oy, r, scene.time.now / 300, lit);
+        lit = Math.max(0, lit - 0.05);
       };
-
-      // The downstroke: from behind his shoulder, over his head, into the floor ahead.
-      stroke(
-        A0,
-        A1,
-        full ? 240 : 270,
-        'Quad.In',
-        (t) => {
-          world.strike(t, full ? 2.7 : 3, 'basic', false, { freeze: full ? 300 : 250 }, 160);
-          cutMark(scene, t.x, t.y, 0xffec27);
-          sparks(scene, t.x, t.y, [0xffec27, 0xfff1e8, 0x7fe6ff], 6, 14);
-          cam.shake(50, 0.005);
-        },
-        () => {
-          // The blade bites the floor: stone and sparks fly and the crack glows.
-          const [fx] = at(A1, reach(A1));
-          rocks(scene, fx, FLOOR_Y, full ? 6 : 4);
-          sparks(scene, fx, FLOOR_Y - 2, [0xffec27, 0xfff1e8, 0x7fe6ff], 12, 22);
-          ring(scene, fx, FLOOR_Y - 2, 0xffec27, 3, 20, 220, 2);
-          cam.shake(90, 0.008);
-          if (!full) return;
-          // Full: the blade is ripped back up through the same arc, hurling everything it meets skyward.
-          let first = true;
-          later(scene, 40, () =>
-            stroke(
-              A1,
-              -1.9,
-              230,
-              'Quad.Out',
-              (t) => {
-                if (first) cam.flash(70, 255, 236, 39);
-                first = false;
-                world.strike(t, 2.7, 'basic', false, { freeze: 200 }, 120);
-                lift(t, 240);
-                cutMark(scene, t.x, t.y, 0x7fe6ff);
-                ring(scene, t.x, t.y, 0xfff1e8, 3, 18, 200, 1);
-                cam.shake(60, 0.006);
-              },
-              () => undefined,
-            ),
-          );
-        },
-      );
+      scene.events.on('update', drawDrum);
+      const blows = full ? 3 : 1;
+      for (let i = 0; i < blows; i++)
+        later(scene, i * 170, () => {
+          lit = 1;
+          const reach = full ? 110 + i * 30 : R0;
+          const last = i === blows - 1;
+          cam.shake(80 + i * 40, 0.008 + i * 0.004);
+          if (full && last) cam.flash(80, 192, 128, 255);
+          boom(scene, ox, oy, f > 0 ? 0 : Math.PI, 4, reach, 360);
+          sparks(scene, ox, oy, [RAIJIN.bolt, RAIJIN.spark, RAIJIN.core], 8, 14);
+          // The front reaches each enemy in the cone as it passes.
+          for (const t of world.targets(ox, oy)) {
+            if (!inCone(t, reach)) continue;
+            later(scene, (dist(ox, oy, t) / reach) * 300, () => {
+              if (!t.active) return;
+              sparks(scene, t.x, t.y, [RAIJIN.bolt, RAIJIN.core], 5, 10);
+              world.strike(t, full ? (last ? 2.2 : 1.6) : 3, 'basic', false, { freeze: 250 }, last ? 200 : 90);
+              if (!(full && last)) return;
+              stormArc(scene, t.x + Phaser.Math.Between(-8, 8), 0, t.x, t.y, 240, 2, 2, RAI);
+              world.strike(t, 0.8, 'basic', false, undefined, 0);
+              lift(t, 230);
+            });
+          }
+        });
+      later(scene, (blows - 1) * 170 + 380, () => {
+        scene.events.off('update', drawDrum);
+        scene.tweens.add({ targets: d, alpha: 0, duration: 160, onComplete: () => d.destroy() });
+      });
     },
   },
 

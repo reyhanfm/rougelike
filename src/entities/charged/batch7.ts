@@ -2,11 +2,13 @@ import Phaser from 'phaser';
 import { FLOOR_Y, W, cutMark } from '../../gfx/ui.ts';
 import type { ClassId } from '../../logic/classes.ts';
 import {
+  ABYSS,
   RADIANT,
   SOUL,
   glint,
   jag,
   kamuiSwirl,
+  plantRod,
   receiverRod,
   rinnegan,
   later,
@@ -64,7 +66,44 @@ function fireball(g: G, x: number, y: number, r: number, now: number): void {
   g.fillStyle(0xfff1e8).fillCircle(x - r * 0.2, y - r * 0.2, Math.max(1, r * 0.25));
 }
 
-/** Charged attacks (TAHAN J) of: darkLord, lightLord, obito, pain. Contract and damage budget: see types.ts. */
+/**
+ * A rhinoceros-beetle horn of Vortigern's brood standing on (0, 0) and curving up to -h, bent toward +x: a black
+ * outline, the dark chitin, a blue sheen down its back, a forked tip and a pale glint at the point. Drawn into a
+ * container at its foot so it can burst up (scaleY) out of the abyss.
+ */
+function beetleHorn(g: G, h: number): void {
+  const w = Math.max(4, h * 0.16);
+  const spine = (k: number): [number, number] => [Math.sin(k * 1.4) * h * 0.28, -k * h];
+  const left: Phaser.Math.Vector2[] = [];
+  const right: Phaser.Math.Vector2[] = [];
+  for (let i = 0; i <= 10; i++) {
+    const k = i / 10;
+    const [x, y] = spine(k);
+    const hw = w * (1 - k * 0.85);
+    left.push(new Phaser.Math.Vector2(x - hw, y));
+    right.push(new Phaser.Math.Vector2(x + hw, y));
+  }
+  const body = [...left, ...right.reverse()];
+  g.fillStyle(0x000000).fillPoints(
+    body.map((v) => new Phaser.Math.Vector2(v.x + Math.sign(v.x) * 1, v.y)),
+    true,
+  );
+  g.fillStyle(ABYSS.wing).fillPoints(body, true);
+  g.lineStyle(1, ABYSS.sheen).strokePoints(
+    Array.from({ length: 9 }, (_, i) => {
+      const [x, y] = spine(i / 10);
+      return new Phaser.Math.Vector2(x - w * (1 - (i / 10) * 0.85) * 0.4, y);
+    }),
+    false,
+  );
+  // The fork near the tip, and the glint at the point.
+  const [fx, fy] = spine(0.78);
+  g.fillStyle(0x000000).fillTriangle(fx, fy, fx + w * 0.6, fy - 1, fx + w * 1.8, fy - h * 0.12);
+  const [tx, ty] = spine(1);
+  g.fillStyle(ABYSS.glow).fillRect(tx - 0.5, ty - 0.5, 1, 2);
+}
+
+/** Charged attacks (TAHAN J) of: darkLord, lightLord, obito, pain, oberon. Contract and damage budget: see types.ts. */
 export const BATCH_7: Partial<Record<ClassId, ChargedAttack>> = {
   // Titah Pancung (The Beheading Decree): the Dark Lord raises Nokturna and soul fire builds it into a giant blade over
   // his head, taller the longer he holds. On release he brings it down ahead of him like an executioner's axe: it
@@ -426,6 +465,7 @@ export const BATCH_7: Partial<Record<ClassId, ChargedAttack>> = {
                 if (!o.active) continue;
                 if ('tier' in o || o.getData('elite')) return nail();
                 carried.push(o);
+                plantRod(world, scene, o);
               }
               carried.forEach((c, i) => c.active && pin(c, tx - ux * (6 + i * 8), ty - uy * (6 + i * 8)));
               if (tx < 6 || tx > W - 6 || ty < 8 || ty > FLOOR_Y) nail();
@@ -435,6 +475,96 @@ export const BATCH_7: Partial<Record<ClassId, ChargedAttack>> = {
         });
       throwRod(ahead[0], 0);
       if (full) throwRod(ahead[1] ?? ahead[0], 140);
+    },
+  },
+
+  // Tanduk Kumbang (the beetle's horn): one of the great beetles of Vortigern's brood waits in the abyss under the
+  // floor. While he holds, the floor ahead darkens. On release a pit tears open under the nearest enemy ahead and a
+  // black horn bursts up out of it, impaling what stands over it, then sinks back and the pit bites as it closes.
+  // Full: a horn twice as tall (it reaches flyers) that throws the small fry into the air, with two smaller horns
+  // breaking out beside it.
+  oberon: {
+    name: 'TANDUK KUMBANG',
+    desc: 'TANDUK KUMBANG MENEMBUS DARI JURANG DI BAWAH MUSUH; PENUH: 3 TANDUK TINGGI, MELONTARKAN',
+    charging({ p, scene }, t01, level, g) {
+      const f = p.facing;
+      const x = p.x + f * (30 + 20 * t01);
+      const gy = p.grounded ? p.y + 8 : FLOOR_Y;
+      const r = 4 + 8 * t01;
+      g.fillStyle(ABYSS.void, 0.4 + 0.4 * t01).fillEllipse(x, gy, r * 2, 2 + 2 * t01);
+      g.lineStyle(1, ABYSS.sheen, 0.4 + 0.5 * t01).strokeEllipse(x, gy, r * 2, 2 + 2 * t01);
+      if (level >= 1) {
+        const k = (Math.sin(scene.time.now / 60) + 1) / 2;
+        g.fillStyle(ABYSS.glow, 0.5 + 0.5 * k).fillRect(x - 0.5, gy - 2 - level * 2, 1, level * 2);
+      }
+    },
+    fire(c, level) {
+      const { p, world, scene } = c;
+      const full = level === 2;
+      const f = p.facing;
+      const gy = p.grounded ? p.y + 8 : FLOOR_Y;
+      const reach = full ? 70 : 40;
+      const t = world
+        .targets(p.x, p.y)
+        .find((e) => (e.x - p.x) * f > -4 && Math.abs(e.x - p.x) < 150 && e.y < gy + 6 && e.y > gy - reach - 10);
+      if (!t) return false;
+      p.lock(full ? 380 : 300);
+      p.invuln(full ? 380 : 280);
+      p.setVelocityX(0);
+      const x0 = Phaser.Math.Clamp(t.x, 6, W - 6);
+      const horns = full
+        ? [
+            { x: x0, h: 66, mult: 4.4 },
+            { x: x0 - 22, h: 34, mult: 2 },
+            { x: x0 + 22, h: 34, mult: 2 },
+          ]
+        : [{ x: x0, h: 36, mult: 2.2 }];
+      const hit = new Set<Foe>();
+      horns.forEach((hn, i) =>
+        later(scene, i * 70, () => {
+          if (hn.x < 4 || hn.x > W - 4) return;
+          // The pit opens.
+          const pit = scene.add.graphics().setDepth(11);
+          pit.fillStyle(ABYSS.void).fillEllipse(hn.x, gy, 16, 4);
+          pit.lineStyle(1, ABYSS.sheen).strokeEllipse(hn.x, gy, 16, 4);
+          const hg = scene.add.graphics();
+          beetleHorn(hg, hn.h);
+          const horn = scene.add
+            .container(hn.x, gy + 1, [hg])
+            .setScale(f, 0)
+            .setDepth(11);
+          later(scene, 90, () => {
+            scene.tweens.add({ targets: horn, scaleY: 1, duration: 90, ease: 'Back.Out' });
+            scene.cameras.main.shake(full && !i ? 160 : 90, full && !i ? 0.014 : 0.008);
+            rocks(scene, hn.x, gy - 1, full ? 6 : 4);
+            for (const e of world.targets(hn.x, gy)) {
+              if (hit.has(e) || Math.abs(e.x - hn.x) > 9 || e.y < gy - hn.h - 8 || e.y > gy + 6) continue;
+              hit.add(e);
+              world.strike(e, hn.mult, 'basic', false, undefined, full ? 60 : 120);
+              cutMark(scene, e.x, e.y, ABYSS.glow, 18, -Math.PI / 2 + f * 0.3);
+              sparks(scene, e.x, e.y, [ABYSS.sheen, ABYSS.glow, 0xfff1e8], 6, 12);
+              if (full) lift(e, 280);
+            }
+          });
+          // It sinks back and the pit bites as it closes.
+          later(scene, 380, () =>
+            scene.tweens.add({
+              targets: horn,
+              scaleY: 0,
+              duration: 140,
+              ease: 'Quad.In',
+              onComplete: () => {
+                horn.destroy();
+                if (!i)
+                  for (const e of world.targets(hn.x, gy))
+                    if (Math.abs(e.x - hn.x) < 14 && Math.abs(e.y - (gy - 6)) < 14)
+                      world.strike(e, full ? 1 : 0.8, 'basic', false, undefined, 0);
+                scene.tweens.add({ targets: pit, alpha: 0, duration: 200, onComplete: () => pit.destroy() });
+              },
+            }),
+          );
+        }),
+      );
     },
   },
 };

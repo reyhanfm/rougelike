@@ -67,6 +67,10 @@ export const PALETTE: Record<string, number> = {
   O: 0xe0601a,
   // Extra: Pain's Rinnegan lilac.
   R: 0xb39ddb,
+  // Extra: Heracles' ashen-grey giant's skin (light enough to read against the night).
+  G: 0x9a8f86,
+  // Extra: the iridescent blue sheen on Oberon Vortigern's black moth wings.
+  V: 0x5b6ee1,
 };
 
 export const COLOR = {
@@ -172,8 +176,19 @@ export const SPRITES: Record<string, string[]> = {
   ]),
   // Gae Bolg: the crimson spear.
   w_tombak: ['................88..', '22222222222222228887', '................88..'],
-  // Heracles' stone axe-sword.
-  w_kapak: ['........555.', '.......55665', '444444455665', '.......55665', '........555.'],
+  // Oberon's wing-blade: a black moth wing held like a scythe, blue veins and a pale edge; and one of his moths.
+  w_vortigern: ['.......000...', '.....00VVV0..', 'jjj00ssssyVV0', '.....00sssV0.', '.......000...'],
+  blancaMoth: ['6...6', '76.67', '.707.', '76.67', '6...6'],
+  // Heracles' axe-sword: a crude slab of hewn stone, broadening to a chipped tip, on a leather-bound grip.
+  w_kapak: [
+    '........00000..',
+    '......005666700',
+    '......056666770',
+    '404040056666670',
+    '......056666770',
+    '......005666700',
+    '........00.00..',
+  ],
   // Archer's black bow.
   // Kanshou: the black falchion with the red hexagon mark; Bakuya: its white twin with the blue mark.
   w_busur: ['...8....000.', '222805585550', '...80555550.', '.....0000...'],
@@ -204,14 +219,9 @@ export const SPRITES: Record<string, string[]> = {
   // Gravity Master: a black scepter crowned by a tiny singularity in a violet ring; his gravity orb.
   w_gravitasi: ['.........g0g.', 'xxxxxxxxg000g', '.........g0g.'],
   gravOrb: ['.ggg.', 'g000g', 'g070g', 'g000g', '.ggg.'],
-  // Lightning Lord: Vajra Badai, a dark halberd with a gold guard and a lightning-gold head with a white-hot edge.
-  w_halilintar: [
-    '.................a...',
-    '..............iaa7a..',
-    'jjjjjjjjjjjjjji77777a',
-    '..............iaa7a..',
-    '.................a...',
-  ],
+  // Lightning Lord: a bachi, the club-like taiko drumstick of the thunder god: a cord-wrapped grip, dark wood, and a
+  // knob of violet lightning with a white-hot heart crackling at its tip (he carries two).
+  w_halilintar: ['.........g.g', '055lllll4ggy', '0554llllg7gg', '.........gy.'],
   // Candra: Sabit Candra, a long glaive whose head is a crescent moon of white steel.
   w_sabitCandra: ['...........77..', '............7M.', '0dddddddddd6d7M', '............7M.', '...........77..'],
   // A thrown crescent: white steel with a lunar edge, bulging forward.

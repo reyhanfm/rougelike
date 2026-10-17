@@ -25,6 +25,11 @@ import {
   kamuiSwirl,
   RIKUDO,
   summonBird,
+  RAI,
+  RAIJIN,
+  boom,
+  ABYSS,
+  bug,
 } from './skills.ts';
 
 /** A class's dash (K): its own movement plus its own hit. ctx.power is stats.dashPower. */
@@ -146,21 +151,44 @@ export const DASHES: Record<ClassId, DashStyle> = {
   },
   berserker: {
     name: 'TERJANG RAKSASA',
-    desc: 'TERJANGAN PANJANG, HANTAMAN BAHU MENGGEMPA',
+    desc: 'TERJANGAN BANTENG, LANTAI RETAK TIAP LANGKAH, HANTAMAN BAHU MELEMPAR MUSUH',
     speed: 240,
     ms: 320,
     cd: 1.2,
-    tint: 0xff004d,
+    tint: 0xb3122e,
     hit: { mult: 1.3, radius: 14, cut: 0xffa300 },
-    // A roaring bull charge: the ground tears up under each step, and it ends in a shoulder slam that quakes.
+    // A roaring bull charge: steam blasts off his shoulders, every stride cracks the floor and kicks up earth, the air
+    // tears ahead of him; it ends in a shoulder slam that quakes and throws the small fry into the air.
     start: ({ p, world, scene, power }) => {
+      const f = p.facing;
       floatText(scene, p.x, p.y - 20, 'RRAAH!', '#ff004d');
-      ring(scene, p.x, p.y, 0xff004d, 4, 24, 200, 2);
-      during(scene, 320, 60, () => rocks(scene, p.x, FLOOR_Y - 2, 2));
+      ring(scene, p.x, p.y, 0xb3122e, 4, 24, 200, 2);
+      for (const side of [-1, 1]) puff(scene, p.x + side * 4, p.y - 6, 0xb3122e, 3, 10, 400);
+      const cracks = scene.add.graphics().setDepth(5);
+      scene.tweens.add({ targets: cracks, alpha: 0, delay: 500, duration: 400, onComplete: () => cracks.destroy() });
+      during(scene, 320, 40, (i) => {
+        if (!p.active) return;
+        puff(scene, p.x - f * 3, p.y - 6, i % 2 ? 0xb3122e : 0x5f574f, 2, 10, 380);
+        const line = scene.add.rectangle(p.x + f * 14, p.y + Phaser.Math.Between(-6, 6), 10, 1, 0xfff1e8, 0.7).setDepth(12);
+        scene.tweens.add({ targets: line, x: line.x - f * 24, alpha: 0, duration: 160, onComplete: () => line.destroy() });
+        if (i % 2) return;
+        rocks(scene, p.x, FLOOR_Y - 2, 2);
+        // A crack where his foot came down.
+        const x = p.x;
+        cracks
+          .lineStyle(1, 0x1d0f0a)
+          .lineBetween(x - 3, FLOOR_Y + 1, x, FLOOR_Y + 2)
+          .lineBetween(x, FLOOR_Y + 2, x + 3, FLOOR_Y + 1);
+        cracks.fillStyle(0xffa300).fillRect(x, FLOOR_Y + 1, 1, 1);
+      });
       later(scene, 320, () => {
         if (!p.active) return;
-        world.area(p.x + p.facing * 10, p.y, 26, 0.6 * power, 260, 'skill');
-        ring(scene, p.x + p.facing * 10, p.y, 0xab5236, 4, 32, 260, 3);
+        const sx = p.x + p.facing * 10;
+        world.area(sx, p.y, 26, 0.6 * power, 260, 'skill');
+        for (const t of world.targets(sx, p.y))
+          if (t.active && !('tier' in t) && !t.getData('elite') && Phaser.Math.Distance.Between(sx, p.y, t.x, t.y) < 26)
+            (t as Phaser.Physics.Arcade.Sprite).setVelocityY(-220);
+        ring(scene, sx, p.y, 0xab5236, 4, 32, 260, 3);
         rocks(scene, p.x, FLOOR_Y - 2, 8);
         scene.cameras.main.shake(140, 0.015);
       });
@@ -785,29 +813,28 @@ export const DASHES: Record<ClassId, DashStyle> = {
     },
   },
   lightningLord: {
-    name: 'LANGKAH KILAT',
-    desc: 'MENJADI KILAT: MELESAT RENDAH, JEJAK PETIR MENYETRUM MUSUH DI JALUR',
+    name: 'LANGKAH GUNTUR',
+    desc: 'DENTUM GENDERANG & IA MENJADI KILAT UNGU, JEJAK PETIR DI JALUR MENYETRUM MUSUH',
     speed: 560,
     ms: 130,
     cd: 0.9,
-    tint: 0xffec27,
-    hit: { mult: 0.6, radius: 14, status: { freeze: 300 }, cut: 0xffec27 },
-    // He becomes the lightning: a thunderclap where he stood, then he is simply further on, a gold bolt laid along the
-    // ground behind him. The path stays charged for a heartbeat and zaps whatever is still standing on it.
+    tint: RAIJIN.bolt,
+    hit: { mult: 0.6, radius: 14, status: { freeze: 300 }, cut: RAIJIN.bolt },
+    // A drumbeat, and he is the lightning: a boom of sound where he stood, then he is simply further on, a violet bolt
+    // laid along the ground behind him. The path stays charged for a heartbeat and zaps whatever still stands on it.
     start: ({ p, world, scene, power }) => {
       const { x, y } = p;
-      ring(scene, x, y, 0xffec27, 4, 22, 220, 2);
-      sparks(scene, x, y, [0xffec27, 0x7fe6ff, 0xfff1e8], 8, 14);
-      glint(scene, x, y - 4);
+      boom(scene, x, y - 4, null, 2, 22, 240);
+      sparks(scene, x, y, [RAIJIN.bolt, RAIJIN.spark, RAIJIN.core], 8, 14);
       later(scene, 130, () => {
         const [ex, ey] = [p.x, p.y];
-        stormArc(scene, x, y + 2, ex, ey + 2, 420, 2, 3);
+        stormArc(scene, x, y + 2, ex, ey + 2, 420, 2, 3, RAI);
         const lo = Math.min(x, ex);
         const hi = Math.max(x, ex);
         later(scene, 160, () => {
           for (const t of world.targets(ex, ey)) {
             if (t.x < lo - 6 || t.x > hi + 6 || Math.abs(t.y - y) > 18) continue;
-            sparks(scene, t.x, t.y, [0xffec27, 0x7fe6ff], 5, 10);
+            sparks(scene, t.x, t.y, [RAIJIN.bolt, RAIJIN.spark], 5, 10);
             world.strike(t, 0.3 * power, 'skill', false, { freeze: 250 });
           }
         });
@@ -815,38 +842,42 @@ export const DASHES: Record<ClassId, DashStyle> = {
     },
   },
   nephalem: {
-    name: 'BELAH SENJA',
-    desc: 'TERBELAH JADI CAHAYA & API YANG MENYILANG, LALU BERSATU LAGI DENGAN TEBASAN SILANG',
-    speed: 340,
-    ms: 200,
+    name: 'LANGKAH DUA ALAM',
+    desc: 'SIGIL NERAKA DITINGGAL & MELETUS DI BELAKANG, TIBA DALAM LEDAKAN BULU CAHAYA',
+    speed: 360,
+    ms: 190,
     tint: 0xc080ff,
-    // He splits in two: his angel half arcs ahead high in a trail of gold light, his demon half low in a trail of
-    // hellfire. Where they meet again, he is whole, and the two trails close on that spot as a gold-and-crimson cross.
+    hit: { mult: 0.6, radius: 12, cut: 0xc080ff },
+    // He leaves by hell and arrives by heaven. Where he stood, his demon half stamps a sigil of hellfire on the floor
+    // (or in the air) and it erupts a moment after he is gone; he crosses as a streak of gold afterimages; where he
+    // stops his angel half bursts open in a flurry of gold feathers that pins whatever is close.
     start: ({ p, world, scene, power }) => {
-      const f = p.facing;
-      const x0 = p.x;
-      const y0 = p.y;
-      const x1 = Phaser.Math.Clamp(x0 + f * 68, 8, W - 8);
-      const trail = scene.add.graphics().setDepth(11);
-      scene.tweens.addCounter({
-        from: 0,
-        to: 1,
-        duration: 200,
-        onUpdate: (tw) => {
-          const v = tw.getValue() ?? 0;
-          const x = x0 + (x1 - x0) * v;
-          const off = Math.sin(v * Math.PI) * 16;
-          trail.fillStyle(HOLY).fillRect(x, y0 - off, 2, 2);
-          trail.fillStyle(HELL).fillRect(x, y0 + off * 0.6, 2, 2);
-        },
+      const [x0, y0] = [p.x, p.y];
+      const sig = scene.add.graphics().setDepth(11);
+      sig.lineStyle(3, HELL, 0.3).strokeCircle(0, 0, 9);
+      sig.lineStyle(1, HELL).strokeCircle(0, 0, 9).strokeCircle(0, 0, 5);
+      for (let i = 0; i < 5; i++) {
+        const [a, b] = [(i / 5) * Math.PI * 2 - Math.PI / 2, ((i + 2) / 5) * Math.PI * 2 - Math.PI / 2];
+        sig.lineStyle(1, 0xffa300).lineBetween(Math.cos(a) * 9, Math.sin(a) * 9, Math.cos(b) * 9, Math.sin(b) * 9);
+      }
+      const c = scene.add
+        .container(x0, y0 + 2, [sig])
+        .setDepth(11)
+        .setScale(1, 0.45);
+      scene.tweens.add({ targets: c, angle: 120, duration: 380 });
+      during(scene, 190, 30, () => afterimage(scene, p, p.x, p.y, 0.5, HOLY));
+      later(scene, 380, () => {
+        c.destroy();
+        for (const dx of [-6, 0, 6]) flameTongue(scene, x0 + dx, y0 + 8, dx ? 14 : 20, 380, FIRE);
+        sparks(scene, x0, y0, [HELL, 0xffa300, 0x1d0f2e], 8, 14);
+        world.area(x0, y0, 22, 0.9 * power, 120, 'skill', { burn: 0.2 });
       });
-      scene.tweens.add({ targets: trail, alpha: 0, delay: 260, duration: 240, onComplete: () => trail.destroy() });
-      later(scene, 200, () => {
+      later(scene, 190, () => {
         const { x, y } = p;
-        bladeLine(scene, x - 12, y - 12, x + 12, y + 12, HOLY, 80);
-        bladeLine(scene, x - 12, y + 12, x + 12, y - 12, HELL, 80);
-        feathers(scene, x, y - 6, 3, 10, 12);
-        world.area(x, y, 26, 1 * power, 140, 'skill', { burn: 0.1, slow: 500 });
+        glint(scene, x, y - 4);
+        ring(scene, x, y, HOLY, 3, 20, 220, 1);
+        feathers(scene, x, y - 4, 8, 18, 20);
+        world.area(x, y, 20, 0.7 * power, 60, 'skill', { slow: 600 });
       });
     },
   },
@@ -1070,6 +1101,58 @@ export const DASHES: Record<ClassId, DashStyle> = {
           g.setAlpha(ms > 700 ? 1 - (ms - 700) / 180 : 1);
         },
         onComplete: () => g.destroy(),
+      });
+    },
+  },
+  // Tarian Ngengat (the moth's dance): he lifts off on his black wings and flutters ahead in a rising arc, like a moth
+  // around a lamp, shedding scale dust; whatever he passes over is cut by the wings and grows heavy with sleep (slowed).
+  oberon: {
+    name: 'TARIAN NGENGAT',
+    desc: 'MELAYANG MELENGKUNG SEPERTI NGENGAT, SERBUK SAYAP MEMBERATKAN MUSUH YANG DILEWATI',
+    speed: 250,
+    vy: -120,
+    ms: 260,
+    gravity: true,
+    tint: ABYSS.sheen,
+    hit: { mult: 0.9, radius: 14, status: { slow: 900 }, cut: ABYSS.glow },
+    start: ({ p, scene }) => {
+      const f = p.facing;
+      sparks(scene, p.x, p.y + 4, [ABYSS.sheen, ABYSS.glow], 6, 10);
+      const g = scene.add.graphics().setDepth(12);
+      const moths = [0, 1, 2].map((i) => ({ x: p.x, y: p.y, dx: -f * (8 + i * 6), dy: -6 - i * 5 }));
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration: 600,
+        onUpdate: (tw) => {
+          const v = tw.getValue() ?? 1;
+          g.clear();
+          moths.forEach((m, i) =>
+            bug(
+              g,
+              m.x + m.dx * v + Math.sin(v * 12 + i) * 3,
+              m.y + m.dy * v,
+              (Math.sin(scene.time.now / 30 + i) + 1) / 2,
+              ABYSS.glow,
+              1 - v,
+            ),
+          );
+        },
+        onComplete: () => g.destroy(),
+      });
+      during(scene, 260, 30, (i) => {
+        if (!p.active) return;
+        const d = scene.add
+          .rectangle(p.x - f * 3 + Phaser.Math.Between(-3, 3), p.y + 2, 1, 1, i % 2 ? ABYSS.scale : ABYSS.sheen)
+          .setDepth(11);
+        scene.tweens.add({
+          targets: d,
+          y: d.y + Phaser.Math.Between(8, 18),
+          x: d.x - f * 4,
+          alpha: 0,
+          duration: 600,
+          onComplete: () => d.destroy(),
+        });
       });
     },
   },

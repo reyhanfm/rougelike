@@ -29,6 +29,13 @@ import {
   KAMUI,
   kamuiSwirl,
   shinraTensei,
+  ophanEye,
+  RAI,
+  RAIJIN,
+  beatOf,
+  boom,
+  onBeat,
+  ABYSS,
 } from './skills.ts';
 
 export interface PassiveCtx {
@@ -1225,23 +1232,37 @@ export const PASSIVES: Record<ClassId, Passive> = {
     modify: ({ p }, t) => (dist(t, p) < 50 ? { mult: 1.15 } : undefined),
   },
 
-  // KILAT BERANTAI: when the Lightning Lord lands a critical, the blow is too much for one body: the lightning leaps
-  // on to the two nearest enemies.
+  // IRAMA GUNTUR (Rhythm of Thunder): the drums on his back keep the storm's time, one beat every 0.6 s (the lit drum
+  // flashes on it). A basic blow that lands ON the beat is answered from the sky: a violet bolt cracks down onto
+  // what he hit and the drum booms (once per beat). Four beats in a row played true and the fourth bolt is a GELEGAR:
+  // it splits and leaps on to the two nearest enemies.
   lightningLord: {
     onHit: ({ p, world, scene }, t, h) => {
-      const s = state(p, () => ({ ready: 0 }));
-      if (!h.crit || scene.time.now < s.ready) return;
-      s.ready = scene.time.now + 250;
+      const now = scene.time.now;
+      if (h.source !== 'basic' || !onBeat(now)) return;
+      const s = state(p, () => ({ beat: -9, streak: 0 }));
+      const b = beatOf(now);
+      if (b === s.beat) return;
+      s.streak = b === s.beat + 1 ? s.streak + 1 : 1;
+      s.beat = b;
+      const big = s.streak >= 4;
+      if (big) s.streak = 0;
+      stormArc(scene, t.x + Phaser.Math.Between(-10, 10), 0, t.x, t.y, 220, big ? 3 : 1, big ? 3 : 1, RAI);
+      boom(scene, t.x, t.y, null, big ? 3 : 1, big ? 30 : 18, 260);
+      sparks(scene, t.x, t.y, [RAIJIN.bolt, RAIJIN.spark, RAIJIN.core], big ? 10 : 5, big ? 18 : 10);
+      world.strike(t, big ? 1.2 : 0.7, 'proc', false, { freeze: big ? 400 : 200 });
+      if (!big) return;
+      scene.cameras.main.shake(120, 0.01);
       const { x, y } = t;
       world
         .targets(x, y)
-        .filter((o) => o !== t && dist(o, { x, y }) < 90)
+        .filter((o) => o !== t && dist(o, { x, y }) < 100)
         .slice(0, 2)
         .forEach((o, i) =>
-          later(scene, 50 + i * 60, () => {
+          later(scene, 60 + i * 60, () => {
             if (!o.active) return;
-            stormArc(scene, x, y, o.x, o.y, 200, 1, 1);
-            world.strike(o, 0.6, 'proc', false, { freeze: 150 });
+            stormArc(scene, x, y, o.x, o.y, 200, 1, 1, RAI);
+            world.strike(o, 0.7, 'proc', false, { freeze: 300 });
           }),
         );
     },
@@ -1476,9 +1497,10 @@ export const PASSIVES: Record<ClassId, Passive> = {
     },
   },
 
-  // PANTULAN SUCI (Holy Reflection): the light around the Light Lord turns back whatever is thrown at him. A hostile
-  // projectile (not a ground wave, nothing bigger than a fist) that comes within reach of him is caught in a flare of
-  // gold and sent back as a lance of light, aimed at the nearest enemy (or straight back where it came from).
+  // TIADA YANG LUPUT (Nothing Escapes): the eyes on the Light Lord's wheels see everything thrown at him. A hostile
+  // projectile (not a ground wave, nothing bigger than a fist) that comes within reach of him is met by an eye that
+  // opens in the air where it is, and the thing is sent back as a lance of light, aimed at the nearest enemy (or
+  // straight back where it came from).
   lightLord: {
     tick: ({ p, world, scene }) => {
       for (const h of world.hostiles()) {
@@ -1491,7 +1513,18 @@ export const PASSIVES: Record<ClassId, Passive> = {
         const a = foe ? Phaser.Math.Angle.Between(x, y, foe.x, foe.y) : back;
         ring(scene, x, y, RADIANT.gold, 2, 14, 200, 1);
         sparks(scene, x, y, [RADIANT.gold, RADIANT.white], 6, 10);
-        glint(scene, x, y);
+        // The eye that saw it: opens wide, looks along the lance's way, and shuts.
+        const eye = scene.add.graphics().setDepth(14);
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          duration: 320,
+          onUpdate: (tw) => {
+            eye.clear();
+            ophanEye(eye, x, y - 6, 9, Math.sin((tw.getValue() ?? 0) * Math.PI), a);
+          },
+          onComplete: () => eye.destroy(),
+        });
         world.shot({
           x,
           y,
@@ -1560,12 +1593,81 @@ export const PASSIVES: Record<ClassId, Passive> = {
   pain: {
     tick: ({ p, world, scene }, time) => {
       const s = state(p, () => ({ ready: 0 }));
-      if (time < s.ready || !p.active) return;
+      // Held back while his own Bansho Ten'in / Chibaku Tensei gathers enemies at his hand on purpose.
+      if (time < s.ready || !p.active || time < ((p.getData('shinraHeld') as number) ?? 0)) return;
       const crowd = world.targets(p.x, p.y).filter((t) => dist(t, p) < 28).length;
       const shot = world.hostiles().some((h) => h.active && dist(h, p) < 20);
       if (crowd < 2 && !shot) return;
       s.ready = time + 5000;
       shinraTensei(world, scene, p.x, p.y, 44, 0.8, 1.5, 'proc');
+    },
+  },
+
+  // LUKA INI BOHONG (this wound is a lie): Oberon cannot say anything true, not even about his own pain. Every 5 s, a
+  // blow that would not kill him outright lands as a lie: "it doesn't hurt". The wound is only felt over the next
+  // 3 s, a sliver at a time, seeping out of him as blue moth scales; kill an enemy before then and it never happened.
+  // His sleep is here too: a sleeping enemy (SAYAP BLANCA, LIE LIKE VORTIGERN) dreams under a drift of Zs, and the
+  // first blow that lands on it is a nightmare: a crit that wakes it.
+  oberon: {
+    guard: ({ p, scene }, dmg) => {
+      const s = state(p, () => ({ ready: 0, debt: 0, ticks: 0, next: 0 }));
+      const time = scene.time.now;
+      const real = incoming(p, dmg);
+      if (time < s.ready || real >= p.hp) return false;
+      s.ready = time + 5000;
+      s.debt = real;
+      s.ticks = 6;
+      s.next = time + 500;
+      p.parry('TIDAK SAKIT', '#9fb4ff');
+      sparks(scene, p.x, p.y - 2, [ABYSS.glow, ABYSS.scale, 0xffec27], 10, 14);
+      return true;
+    },
+    tick: (c, time) => {
+      const { p, world, scene } = c;
+      const s = state(p, () => ({ ready: 0, debt: 0, ticks: 0, next: 0 }));
+      // The lie wears off: the wound is felt a sliver at a time (never the last of his HP).
+      if (s.ticks > 0 && time >= s.next) {
+        s.next = time + 500;
+        const pay = Math.ceil(s.debt / s.ticks);
+        s.debt -= pay;
+        s.ticks--;
+        p.hp = Math.max(1, p.hp - pay);
+        for (let i = 0; i < 3; i++) {
+          const d = scene.add.rectangle(p.x + Phaser.Math.Between(-3, 3), p.y, 1, 1, i % 2 ? ABYSS.sheen : ABYSS.scale).setDepth(11);
+          scene.tweens.add({ targets: d, y: d.y + 8, alpha: 0, duration: 400, onComplete: () => d.destroy() });
+        }
+      }
+      // Sleepers dream under a drift of Zs.
+      const g = overlay(c);
+      g.clear();
+      for (const t of world.targets(p.x, p.y)) {
+        if (time >= ((t.getData('sleepUntil') as number | undefined) ?? 0)) continue;
+        for (let k = 0; k < 2; k++) {
+          const ph = (((time / 900 + k * 0.5 + t.x * 0.01) % 1) + 1) % 1;
+          const z = 2 + k;
+          const [zx, zy] = [t.x + 4 + ph * 4 + k * 3, head(t) - 2 - ph * 10];
+          g.lineStyle(1, k ? ABYSS.glow : ABYSS.scale, 1 - ph);
+          g.lineBetween(zx, zy, zx + z, zy)
+            .lineBetween(zx + z, zy, zx, zy + z)
+            .lineBetween(zx, zy + z, zx + z, zy + z);
+        }
+      }
+    },
+    onKill: ({ p, scene }) => {
+      const s = state(p, () => ({ ready: 0, debt: 0, ticks: 0, next: 0 }));
+      if (s.ticks <= 0) return;
+      s.debt = 0;
+      s.ticks = 0;
+      floatText(scene, p.x, p.y - 22, 'CUMA MIMPI', '#c8d4ff');
+      sparks(scene, p.x, p.y - 4, [ABYSS.scale, 0xfff1e8], 10, 18);
+    },
+    // The nightmare: the first blow on a sleeper is a crit and wakes it (an expired, non-zero sleepUntil lets the
+    // scene clear its dream tint).
+    modify: ({ scene }, t) => {
+      if (scene.time.now >= ((t.getData('sleepUntil') as number | undefined) ?? 0)) return;
+      t.setData('sleepUntil', 1);
+      sparks(scene, t.x, t.y - 6, [ABYSS.glow, 0xfff1e8], 6, 10);
+      return { crit: true };
     },
   },
 };

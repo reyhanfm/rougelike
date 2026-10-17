@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { FLOOR_Y, W, burst, floatText } from '../gfx/ui.ts';
+import { FLOOR_Y, W, burst, cutMark, floatText, text } from '../gfx/ui.ts';
+import type { Weapon } from '../logic/loot.ts';
 import {
-  ADAPT_MULT,
   GODZILLA,
   KAGUYA,
   LEVIATHAN,
@@ -42,7 +42,19 @@ const BODY: Record<BossKind, { texture: string; w: number; h: number; ox: number
 /** Wide attacks: they stay dangerous until the warning ends, so the boss waits longer after them. */
 const WIDE: readonly BossPattern[] = ['pillars', 'laser', 'quake', 'sweep'];
 /** Patterns followed by the long recovery. */
-const LONG: readonly BossPattern[] = [...WIDE, 'exterminate', 'blitz', 'barrage', 'dive', 'breath', 'tail', 'truth', 'portal', 'dimension'];
+const LONG: readonly BossPattern[] = [
+  ...WIDE,
+  'mimic',
+  'exterminate',
+  'blitz',
+  'barrage',
+  'dive',
+  'breath',
+  'tail',
+  'truth',
+  'portal',
+  'dimension',
+];
 const ADAPT_LABEL: Record<AdaptKind, string> = { basic: 'SERANGAN', skill: 'SKILL', ult: 'ULTI', proc: 'EFEK', burn: 'API', freeze: 'ES' };
 const PHASE_TINTS = [0xffffff, 0xffb0b0, 0xff6060];
 
@@ -67,10 +79,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private mode: Mode = 'idle';
   private modeAt: number;
   private next: BossPattern;
-  /** Mahoraga: adaptation steps per kind of attack (index into ADAPT_MULT). */
-  private readonly adaptation = new Map<AdaptKind, number>();
-  /** Mahoraga: kinds of attack that hit it since the last wheel turn. */
-  private readonly felt = new Set<AdaptKind>();
+  /** Mahoraga: kinds of attack it has adapted to, in order; it is immune to each for good and can use it back. */
+  private readonly adapted: AdaptKind[] = [];
+  /** Mahoraga: the last kind of attack (not yet adapted to) that hit it: what the next wheel turn adapts to. */
+  private lastFelt?: AdaptKind;
+  /** Mahoraga: over its head, what it is immune to and what it is analyzing, and the wheel's clock. */
+  private scan?: Phaser.GameObjects.Text;
+  private scanBar?: Phaser.GameObjects.Graphics;
   /** Mahoraga: wheel turns so far; each one makes it faster. */
   private turns = 0;
   private wheel?: Phaser.GameObjects.Image;
@@ -128,7 +143,16 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     }
     if (kind === 'mahoraga') {
       this.wheel = scene.add.image(x, y - 19, 'mWheel').setDepth(8);
-      this.once(Phaser.GameObjects.Events.DESTROY, () => this.wheel?.destroy());
+      this.scan = text(scene, x, y - 40, '', '#ffec27', 6)
+        .setOrigin(0.5, 1)
+        .setAlign('center')
+        .setDepth(60);
+      this.scanBar = scene.add.graphics().setDepth(60);
+      this.once(Phaser.GameObjects.Events.DESTROY, () => {
+        this.wheel?.destroy();
+        this.scan?.destroy();
+        this.scanBar?.destroy();
+      });
     }
     if (kind === 'leviathan' || kind === 'godzilla') scene.cameras.main.shake(800, 0.012);
     if (kind === 'kaguya') scene.cameras.main.flash(500, 192, 128, 255);
@@ -136,9 +160,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   /** Flat damage plus a bite of the player's max HP; every attack scales this (shots x0.6 ... laser x1.6). */
   get damage(): number {
-    const dmg = Math.round(this.flatDamage + bossBite(this.tier) * this.arena.playerMaxHp);
-    // LEMAH (Obito's Gedo Mazo drank its chakra): it hits at half strength until weakUntil.
-    return this.scene.time.now < (this.getData('weakUntil') ?? 0) ? Math.round(dmg / 2) : dmg;
+    return Math.round(this.flatDamage + bossBite(this.tier) * this.arena.playerMaxHp);
   }
 
   preUpdate(time: number, delta: number): void {
@@ -151,16 +173,17 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Special bosses reshape what hits them (damage, freeze ms). Mahoraga: whatever share its adaptation to that kind
-   * still lets through (0 once immune); the kind counts toward the next wheel turn. Leviathan's scales soak it until
-   * they break. Other bosses take everything unchanged.
+   * Special bosses reshape what hits them (damage, freeze ms). Mahoraga: nothing at all of a kind it has adapted to;
+   * any other kind lands in full and becomes what the wheel is analyzing (the last one before the turn is the one it
+   * adapts to). Leviathan's scales soak it until they break. Other bosses take everything unchanged.
    */
   resist(kind: AdaptKind, value: number): number {
     if (this.kind === 'leviathan') return this.scales(kind, value);
     if (this.kind !== 'mahoraga') return value;
-    this.felt.add(kind);
-    const share = ADAPT_MULT[this.adaptation.get(kind) ?? 0];
-    if (share) return Math.max(1, Math.round(value * share));
+    if (!this.adapted.includes(kind)) {
+      this.lastFelt = kind;
+      return value;
+    }
     const now = this.scene.time.now;
     if (now - this.immuneShownAt > 500) {
       this.immuneShownAt = now;
@@ -201,9 +224,26 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     const s = this.scene;
     this.wheel?.setPosition(this.x, this.y - 19 + Math.sin(now / 260)).setAngle(this.wheelAngle + Math.sin(now / 420) * 4);
     if (!this.raging && this.hp < this.maxHp * MAHORAGA.frenzy) this.rage();
+    const turnMs = MAHORAGA.turnMs * (this.raging ? MAHORAGA.frenzyTurn : 1);
     if (now >= this.nextTurnAt) {
-      this.nextTurnAt = now + MAHORAGA.turnMs * (this.raging ? MAHORAGA.frenzyTurn : 1);
-      if (this.felt.size) this.turnWheel();
+      this.nextTurnAt = now + turnMs;
+      if (this.lastFelt) this.turnWheel();
+    }
+    // Over its head: what it is immune to, what it is analyzing (the last kind that hurt it) and the wheel's clock.
+    const top = this.y - 34;
+    const immune = this.adapted.length ? `KEBAL: ${this.adapted.map((k) => ADAPT_LABEL[k]).join(' ')}` : '';
+    const watching = this.lastFelt ? `ANALISIS: ${ADAPT_LABEL[this.lastFelt]}` : '';
+    if (this.scan) {
+      this.scan.setText([immune, watching].filter(Boolean).join('\n'));
+      const half = this.scan.width / 2 + 2;
+      this.scan.setPosition(Phaser.Math.Clamp(this.x, half, W - half), top - 2);
+    }
+    this.scanBar?.clear();
+    if (this.lastFelt && this.scanBar) {
+      const k = Phaser.Math.Clamp(1 - (this.nextTurnAt - now) / turnMs, 0, 1);
+      const bx = Phaser.Math.Clamp(this.x, 14, W - 14);
+      this.scanBar.fillStyle(0x000000).fillRect(bx - 13, top, 26, 3);
+      this.scanBar.fillStyle(0xffec27).fillRect(bx - 12, top + 1, 24 * k, 1);
     }
     if (now >= this.nextMoteAt) {
       this.nextMoteAt = now + (this.raging ? 45 : 110);
@@ -238,21 +278,16 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * The wheel turns: one more step of adaptation to every kind that hit it since the last turn. The clunk heals it
+   * The wheel turns: it adapts to the last kind of attack that hit it, immune to it for good. The clunk heals it
    * (adapting mends the wound), shakes off burn and freeze and throws a shockwave out both ways: the eight spokes
    * flare, a gold ring rolls out and light is drawn back into the body.
    */
   private turnWheel(): void {
     const s = this.scene;
     this.turns++;
-    const adapted: string[] = [];
-    const immune: string[] = [];
-    for (const k of this.felt) {
-      const step = Math.min(ADAPT_MULT.length - 1, (this.adaptation.get(k) ?? 0) + 1);
-      this.adaptation.set(k, step);
-      (ADAPT_MULT[step] ? adapted : immune).push(ADAPT_LABEL[k]);
-    }
-    this.felt.clear();
+    const kind = this.lastFelt!;
+    this.adapted.push(kind);
+    this.lastFelt = undefined;
     this.setData({ burnUntil: 0, burn: 0, freezeUntil: s.time.now });
     const heal = Math.min(this.maxHp - this.hp, Math.round(this.maxHp * MAHORAGA.heal));
     this.hp += heal;
@@ -286,8 +321,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     s.cameras.main.flash(150, 255, 236, 39);
     s.cameras.main.shake(160, 0.01);
     this.arena.shockwave(this.x, this.body.bottom, Math.round(this.damage * 0.6));
-    if (adapted.length) floatText(s, W / 2, 56, `ADAPTASI: ${adapted.join(' ')}`, '#ffec27');
-    if (immune.length) floatText(s, W / 2, 68, `KEBAL: ${immune.join(' ')}`, '#ff004d');
+    floatText(s, W / 2, 56, `ADAPTASI: ${ADAPT_LABEL[kind]}`, '#ffec27');
+    floatText(s, W / 2, 68, `KEBAL PERMANEN: ${ADAPT_LABEL[kind]}`, '#ff004d');
+    // What it has adapted to, it can now use.
+    if (!this.patterns.includes('mimic')) this.patterns = [...this.patterns, 'mimic'];
     for (const [p, at] of [
       ['blitz', MAHORAGA.blitzAt],
       ['barrage', MAHORAGA.barrageAt],
@@ -705,6 +742,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
           });
         break;
       }
+      case 'mimic':
+        // Mostly what it adapted to last.
+        this.mimic(Phaser.Math.RND.pick([...this.adapted, this.adapted[this.adapted.length - 1]]), toward);
+        break;
       case 'blitz': {
         // Adapted to the player's footwork: it melts into its own shadow, comes out right behind them with the fist
         // already drawn back, and the punch lands an instant later.
@@ -837,6 +878,89 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         }
         break;
       }
+    }
+  }
+
+  /**
+   * Mahoraga uses an attack it adapted to back on the player, shaped by the player's own weapon. SERANGAN: it takes up
+   * a copy of the player's weapon and swings it in three lunging cuts (a ranged weapon: three volleys of its own
+   * shots). SKILL: it calls the player's skill by name and brings down three pillars in the weapon's color around
+   * them, a ring of their own shots with it. ULTI: it calls the player's ult and the whole floor erupts while a beam
+   * crosses at their height. EFEK, API, ES: a fan of shots that weaken, burn or freeze.
+   */
+  private mimic(kind: AdaptKind, toward: number): void {
+    const s = this.scene;
+    const p = this.arena.player;
+    const w = (p as unknown as { weapon: Weapon }).weapon;
+    const cut = w.cut ?? 0xfff1e8;
+    const hex = `#${cut.toString(16).padStart(6, '0')}`;
+    const shot = w.projectile?.texture ?? 'orb';
+    const dmg = this.damage;
+    const aim = () => Phaser.Math.Angle.Between(this.x, this.y, p.x, p.y);
+    ring(s, this.x, this.y - 19, cut, 4, 30, 320, 2);
+    if (kind === 'basic') {
+      floatText(s, W / 2, 44, `MENIRU: ${w.name}`, hex);
+      if (w.projectile) {
+        for (let i = 0; i < 3; i++)
+          s.time.delayedCall(250 + i * 260, () => {
+            if (!this.active) return;
+            for (const d of [-0.15, 0, 0.15]) this.shoot(aim() + d, 200, shot, Math.round(dmg * 0.6));
+          });
+        return;
+      }
+      // The copied weapon in its hand, twice the size, for the three cuts.
+      const blade = s.add.image(this.x, this.y, `w_${w.id}`).setScale(2).setDepth(9);
+      const hold = s.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          const f = this.flipX ? -1 : 1;
+          blade.setPosition(this.x + f * 10, this.y - 2).setScale(2 * f, 2);
+        },
+      });
+      for (let i = 0; i < 3; i++)
+        s.time.delayedCall(i * 300, () => {
+          if (!this.active) return;
+          const dir = Math.sign(p.x - this.x) || toward;
+          this.setFlipX(dir < 0);
+          const zx = Phaser.Math.Clamp(dir > 0 ? this.x : this.x - 44, 0, W - 44);
+          this.arena.zone(zx, this.y - 26, 44, 40, 220, Math.round(dmg * 0.8), cut);
+          s.tweens.add({ targets: blade, angle: { from: -100 * dir, to: 60 * dir }, duration: 160, delay: 200 });
+          s.time.delayedCall(220, () => {
+            if (!this.active) return;
+            cutMark(s, this.x + dir * 22, this.y - 6, cut, 30, (i - 1) * 0.6);
+            this.setVelocityX(dir * 200);
+          });
+        });
+      s.time.delayedCall(1000, () => (hold.remove(), blade.destroy()));
+      return;
+    }
+    if (kind === 'skill') {
+      floatText(s, W / 2, 44, `${w.skill.name}!`, '#29adff');
+      [-44, 0, 44].forEach((d, i) => {
+        const x = Phaser.Math.Clamp(p.x + d, 12, W - 12);
+        s.time.delayedCall(i * 120, () => this.active && this.arena.zone(x - 12, 0, 24, FLOOR_Y, 520, dmg, cut));
+      });
+      for (let i = 0; i < 8; i++) this.shoot((i / 8) * Math.PI * 2, 90, shot, Math.round(dmg * 0.5));
+      return;
+    }
+    if (kind === 'ult') {
+      floatText(s, W / 2, 44, `${w.ult.name}!`, '#ffec27');
+      const c = Phaser.Display.Color.IntegerToColor(cut);
+      s.cameras.main.flash(220, c.red, c.green, c.blue);
+      s.cameras.main.shake(700, 0.01);
+      this.arena.zone(0, FLOOR_Y - 12, W, 12, 750, Math.round(dmg * 1.2), cut);
+      s.time.delayedCall(450, () => {
+        if (this.active) this.arena.zone(0, Phaser.Math.Clamp(p.y - 7, 20, FLOOR_Y - 26), W, 14, 700, Math.round(dmg * 1.2), cut);
+      });
+      return;
+    }
+    // EFEK / API / ES: a fan of shots carrying it.
+    const debuff = kind === 'burn' ? 'burn' : kind === 'freeze' ? 'freeze' : 'weak';
+    floatText(s, W / 2, 44, `MENIRU: ${ADAPT_LABEL[kind]}`, hex);
+    for (let i = -2; i <= 2; i++) {
+      const a = aim() + i * 0.2;
+      this.arena.fire(this.x, this.y, Math.cos(a) * 150, Math.sin(a) * 150, shot, Math.round(dmg * 0.5), false, debuff);
     }
   }
 

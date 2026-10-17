@@ -35,7 +35,8 @@ export type ClassId =
   | 'darkLord'
   | 'lightLord'
   | 'obito'
-  | 'pain';
+  | 'pain'
+  | 'oberon';
 
 /** AMARAH (fury): each stack adds `step` damage and attack speed; all stacks drop after `decayMs` without a hit. */
 export const FURY = { step: 0.05, decayMs: 2500 } as const;
@@ -185,20 +186,21 @@ export const CLASSES: Record<ClassId, GameClass> = {
     name: 'HERACLES',
     weapon: 'kapak',
     color: 'l',
-    legs: { kind: 'pants', pant: '5', boot: '5' },
-    // Wild black mane, burning red eyes, huge grey-skinned body, bronze loincloth.
+    legs: { kind: 'armor', pant: 'G', boot: 'j' },
+    // Fate's Berserker: a wild black mane falling past the shoulders, a heavy brow over burning red eyes, a snarl of
+    // bared teeth, an ash-grey giant's body with bronze pauldrons, iron bracers and a bronze war belt; iron greaves.
     head: [
       '0.0.00.0.0',
-      '.00000000.',
-      '0000000000',
-      '.05555550.',
-      '.05855850.',
-      '.05555550.',
-      '0555555550',
-      '55l5555l55',
-      '5555005555',
-      '55.5555.55',
-      '..0llll0..',
+      '0050000500',
+      '0500000050',
+      '00GGGGGG00',
+      '00G8GG8G00',
+      '00GG77GG00',
+      '0l0GGGG0l0',
+      'llGGGGGGll',
+      'GGG5GG5GGG',
+      'jjG5GG5Gjj',
+      '.00l99l00.',
     ],
     hair: '0',
     passive: { name: 'TUBUH SETENGAH DEWA', desc: 'TIAP 4 DTK, SERANGAN DI BAWAH 20% HP TIDAK MEMPAN & PENYERANGNYA TERPENTAL' },
@@ -987,22 +989,23 @@ export const CLASSES: Record<ClassId, GameClass> = {
     color: 'z',
     legs: { kind: 'coat', pant: 'z', boot: '0' },
     hair: '7',
-    // The Lightning Lord: a jagged gold crown of lightning on storm-white hair streaked electric cyan, burning gold eyes,
-    // a storm-blue royal coat with gold trim and a charged core glowing at the belt.
+    // The Lightning Lord, heir of Raijin: two oni horns of bone through wild storm-white hair streaked violet, eyes
+    // lit electric cyan, a fanged grin, a storm-blue coat thrown open over a bare chest, a violet sash and the
+    // tiger-skin belt of the thunder gods. His ring of taiko drums floats behind him (STYLES.lightningLord.attach).
     head: [
-      '.a.a..a.a.',
-      '.aa7777aa.',
-      '7777y77777',
-      '.07y77y70.',
-      '.0faffaf0.',
-      '.0ffffff0.',
-      '.z0aaaa0z.',
-      '.0zazzaz0.',
-      '0fzz00zzf0',
-      '0f0zaaz0f0',
-      '..0ayya0..',
+      '.m......m.',
+      '.mm7g77mm.',
+      '77777g7777',
+      '.700ff007.',
+      '.0fyffyf0.',
+      '.0ff77ff0.',
+      '.zz0ff0zz.',
+      '.0zffffz0.',
+      '0fzffffzf0',
+      '0f0zggz0f0',
+      '..0909090.',
     ],
-    passive: { name: 'KILAT BERANTAI', desc: 'TIAP SERANGAN KRITIS MELOMPATKAN PETIR KE 2 MUSUH TERDEKAT' },
+    passive: { name: 'IRAMA GUNTUR', desc: 'GENDERANG BERDENTUM TIAP KETUKAN: PUKULAN TEPAT DI KETUKAN MEMANGGIL PETIR' },
     trait: 'TUBUH PETIR: GERAK +10%, KRITIS +5%, DASH -15% CD',
     apply: (s) => {
       s.speed *= 1.1;
@@ -1216,22 +1219,23 @@ export const CLASSES: Record<ClassId, GameClass> = {
     color: 'F',
     legs: { kind: 'robe', pant: 'F', boot: 'i' },
     hair: 'F',
-    // The Light Lord, the Dark Lord's opposite: a crown of gold rays with a white gem, long ivory-gold hair, eyes of
-    // gold light, a white high collar, white plate trimmed in gold with a sun-gold sigil on the chest, a gold belt.
+    // The Light Lord, the Dark Lord's opposite: he is blind, and needs no eyes. Long ivory-gold hair, no crown, a band
+    // of gold bound over his eyes with its ends fluttering; he sees through the Ophanim, the wheels of eyes turning over
+    // his head (STYLES.lightLord.attach). A white high collar, white plate trimmed in gold, a sun-gold sigil, gold belt.
     head: [
-      '.a.a77a.a.',
-      '.aaaaaaaa.',
-      '0FFFFFFFF0',
-      '.0FffffF0.',
-      '.0faffaf0.',
-      '.0ffffff0.',
+      '...FFFF...',
+      '..FFFFFF..',
+      '.FFFFFFFF.',
+      '.FFffffFF.',
+      '.FaaaaaaFa',
+      '.FffffffFa',
       '..0F77F0..',
       '.07FaaF70.',
       '0f7FaaF7f0',
       '0f07FF70f0',
       '..0aiia0..',
     ],
-    passive: { name: 'PANTULAN SUCI', desc: 'PROYEKTIL MUSUH YANG MENDEKAT BERBALIK JADI TOMBAK CAHAYA KE MUSUH TERDEKAT' },
+    passive: { name: 'TIADA YANG LUPUT', desc: 'MATA RODANYA MELIHAT PROYEKTIL MUSUH: DIBALIKKAN JADI TOMBAK CAHAYA KE MUSUH TERDEKAT' },
     trait: 'MAHKOTA FAJAR: HP +15%, PULIH 1 HP/DTK, DAMAGE +5%',
     apply: (s) => {
       s.maxHp *= 1.15;
@@ -1320,6 +1324,47 @@ export const CLASSES: Record<ClassId, GameClass> = {
       apply: (s) => {
         s.skillCdMult *= 0.9;
         s.damageTaken *= 0.9;
+      },
+    },
+  },
+  oberon: {
+    id: 'oberon',
+    name: 'OBERON',
+    weapon: 'vortigern',
+    color: 'V',
+    legs: { kind: 'coat', pant: 's', boot: 'j' },
+    hair: '7',
+    // Oberon Vortigern (Fate/Grand Order, Pretender): the Fairy King's white hair under a thin gold crown, a pair of
+    // moth antennae, pale glowing eyes, the high black collar and the coat of Vortigern with its blue sheen.
+    head: [
+      'V........V',
+      '.V.0aa0.V.',
+      '..077770..',
+      '.07777770.',
+      '.7fyffyf7.',
+      '.7ffffff7.',
+      '.07sVVs70.',
+      '0fsVssVsf0',
+      '0fssVVssf0',
+      '.0ssssss0.',
+      '..0sVVs0..',
+    ],
+    passive: {
+      name: 'LUKA INI BOHONG',
+      desc: 'TIAP 5 DTK, 1 SERANGAN BARU TERASA PERLAHAN 3 DTK; BUNUH MUSUH DULU = LUKA TAK PERNAH ADA',
+    },
+    trait: 'RAJA PERI: SKILL +15%, CD SKILL -10%, ULTI +15% CEPAT',
+    apply: (s) => {
+      s.skillPower *= 1.15;
+      s.skillCdMult *= 0.9;
+      s.ultGainMult *= 1.15;
+    },
+    synergy: {
+      name: 'PRETENDER',
+      desc: 'HINDAR 10%, CURI 3% DAMAGE',
+      apply: (s) => {
+        s.dodge += 0.1;
+        s.lifesteal += 0.03;
       },
     },
   },

@@ -408,7 +408,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.nextStep = time + style.stride;
       emitTrail(this.scene, this.x - this.facing * 3, this.y + 6, -this.facing, style.trail);
     }
-    this.setAlpha(time < this.invulnUntil && !dashing && Math.floor(time / 60) % 2 ? 0.3 : 1);
+    // 'hidden': an ult has taken him off the screen (Nephalem's Senjakala splits him in two); his weapons follow alpha.
+    this.setAlpha(this.getData('hidden') ? 0 : time < this.invulnUntil && !dashing && Math.floor(time / 60) % 2 ? 0.3 : 1);
     this.poseWeapon(time);
     this.tintDebuffs(time);
   }

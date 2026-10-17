@@ -1,7 +1,22 @@
 import Phaser from 'phaser';
 import type { ClassId } from '../logic/classes.ts';
 import type { Player } from './Player.ts';
-import { excaliburBare, HELL, HOLY, KAMUI, RADIANT, RIKUDO, SOUL, twilightWings } from './skills.ts';
+import {
+  ABYSS,
+  BEAT,
+  drumRing,
+  excaliburBare,
+  HELL,
+  HOLY,
+  KAMUI,
+  ophanim,
+  RADIANT,
+  RAIJIN,
+  RIKUDO,
+  SOUL,
+  twilightWings,
+  vortigernWing,
+} from './skills.ts';
 
 /**
  * Airborne body motion. flip/backflip: one somersault; roll: two quick ones; spin: a pirouette (turns to face each way);
@@ -91,7 +106,9 @@ export const STYLES: Record<ClassId, MoveStyle> = {
   },
   // Cu Chulainn: the fastest runner, blue speed lines, somersaults, spear level.
   dragoon: { stride: 75, lean: 12, jump: 'flip', trail: { shape: 'streak', colors: [0x2a4bd7, 0x29adff] }, hold: { angle: 15 } },
-  // Heracles: stomping gait, dirt kicked up, axe-sword on the shoulder, the ground shakes when he lands.
+  // Heracles: stomping gait, dirt kicked up, axe-sword on the shoulder, the ground shakes when he lands. The madness
+  // is always on him: thin blood-red steam rises off his shoulders, and his red eyes smear a streak of light behind
+  // him whenever he moves fast.
   berserker: {
     stride: 170,
     lean: 4,
@@ -99,6 +116,41 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     trail: { shape: 'puff', colors: [0x7a5c44, 0x5f574f] },
     hold: { angle: -120, dx: -2, dy: -3 },
     heavy: true,
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(10.5);
+      const eyes: [number, number][] = [];
+      let steamAt = 0;
+      const draw = () => {
+        g.clear();
+        if (!p.active || p.alpha < 0.05 || p.getData('hidden')) return void (eyes.length = 0);
+        const now = scene.time.now;
+        if (now >= steamAt) {
+          steamAt = now + 320;
+          const side = Math.random() < 0.5 ? -1 : 1;
+          const s = scene.add.circle(p.x + side * 4, p.y - 1, 1, 0xb3122e, 0.3).setDepth(9);
+          scene.tweens.add({
+            targets: s,
+            x: s.x + side * 3,
+            y: s.y - 9,
+            scale: 1.8,
+            alpha: 0,
+            duration: 650,
+            onComplete: () => s.destroy(),
+          });
+        }
+        eyes.unshift([p.x, p.y - 3]);
+        eyes.length = Math.min(eyes.length, 7);
+        const [x0, y0] = eyes[0];
+        const [x1, y1] = eyes[eyes.length - 1];
+        if (Math.hypot(x0 - x1, y0 - y1) < 10) return;
+        for (let i = 1; i < eyes.length; i++) g.lineStyle(1, 0xff004d, 0.7 * (1 - i / eyes.length)).lineBetween(...eyes[i - 1], ...eyes[i]);
+      };
+      scene.events.on('update', draw);
+      scene.events.once('shutdown', () => {
+        scene.events.off('update', draw);
+        g.destroy();
+      });
+    },
   },
   // EMIYA: backflips, red after-streaks, Kanshou and Bakuya held low and crossed.
   pemburu: { stride: 95, lean: 8, jump: 'backflip', trail: { shape: 'streak', colors: [0xff004d, 0xc2c3c7] }, hold: { angle: 35 } },
@@ -160,14 +212,39 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     trail: { shape: 'wisp', colors: [0xc080ff, 0xfff1e8] },
     hold: { angle: -45, dx: -1 },
   },
-  // Lightning Lord: a king's quick, upright stride, gold sparks and cyan crackle at his heels, rising regally into his
-  // jumps; Vajra Badai held raised across his body.
+  // Lightning Lord, heir of Raijin: a wide, swaggering stride, a forward flip into each jump, violet sparks and cyan
+  // crackle at his heels, the bachi held low and ready. On his back hangs the thunder god's arch of five taiko on a
+  // black hoop; it keeps the beat of IRAMA GUNTUR: on every beat (BEAT) the next drum flares and the arch jolts.
+  // Drums thrown by TAIKO PETIR or lifted into the sky by the ult are missing from it (`drumsOut`).
   lightningLord: {
-    stride: 90,
-    lean: 8,
-    jump: 'lift',
-    trail: { shape: 'spark', colors: [0xffec27, 0x7fe6ff] },
-    hold: { angle: -30, dx: 1 },
+    stride: 85,
+    lean: 10,
+    jump: 'flip',
+    trail: { shape: 'spark', colors: [RAIJIN.bolt, RAIJIN.spark, RAIJIN.fringe] },
+    hold: { angle: 40, dx: 1 },
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(9.6);
+      const N = 5;
+      const draw = () => {
+        g.clear();
+        if (!p.active || p.alpha < 0.05 || p.getData('hidden')) return;
+        const now = scene.time.now;
+        const out = (p.getData('drumsOut') as number | undefined) ?? 0;
+        if (out >= N) return;
+        const k = Math.max(0, 1 - (now % BEAT) / 180);
+        const on = Math.floor(now / BEAT) % (N - out);
+        // The arch over his shoulders, from one side of his back to the other.
+        const [x, y] = [p.x - (p.flipX ? -1 : 1), p.y - 3 - k];
+        const span = ((N - out) / N) * (Math.PI - 0.3);
+        const mid = -Math.PI / 2;
+        drumRing(g, x, y, 9, N - out, 1, 0, (i) => (i === on ? k : 0), mid - span / 2, mid + span / 2);
+      };
+      scene.events.on('update', draw);
+      scene.events.once('shutdown', () => {
+        scene.events.off('update', draw);
+        g.destroy();
+      });
+    },
   },
   // Nephalem: half angel, half demon. A light, gliding step; white feathers and crimson embers drift from him; he rises
   // into his jumps on his wings. Small wings (white feathered on the angel's side, black bat wing on the demon's) and a
@@ -182,7 +259,7 @@ export const STYLES: Record<ClassId, MoveStyle> = {
       const g = scene.add.graphics().setDepth(9.6);
       const draw = () => {
         g.clear();
-        if (!p.active) return;
+        if (!p.active || p.getData('hidden')) return;
         const angel = p.flipX ? 1 : -1;
         g.setPosition(p.x, p.y - 4);
         twilightWings(g, angel, 9, Math.sin(scene.time.now / 240) * 0.25);
@@ -310,7 +387,9 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     },
   },
   // Light Lord: an upright, even stride, motes of gold and white at his heels, an arch of the back into every jump,
-  // the morning star raised over his shoulder, and a gold halo floating above his crown, its light breathing.
+  // the morning star raised over his shoulder. Over his blindfolded head turn the Ophanim, two small gold wheels crossed
+  // through each other, their rims set with eyes that look where he faces and blink now and then. They leave him
+  // during WUJUD SEJATI (`wheelsOut`).
   lightLord: {
     stride: 115,
     lean: 3,
@@ -321,13 +400,12 @@ export const STYLES: Record<ClassId, MoveStyle> = {
       const g = scene.add.graphics().setDepth(9.6);
       const draw = () => {
         g.clear();
-        if (!p.active || p.alpha < 0.05) return;
+        if (!p.active || p.alpha < 0.05 || p.getData('wheelsOut')) return;
         const t = scene.time.now;
-        const [x, y] = [p.x, p.y - 15 + Math.sin(t / 280) * 0.8];
-        g.lineStyle(3, RADIANT.ivory, 0.25 + Math.sin(t / 200) * 0.1).strokeEllipse(x, y, 11, 4);
-        g.lineStyle(1, RADIANT.gold).strokeEllipse(x, y, 9, 3);
-        const a = t / 300;
-        g.fillStyle(RADIANT.white).fillRect(x + Math.cos(a) * 4.5 - 0.5, y + Math.sin(a) * 1.5 - 0.5, 1, 1);
+        const [x, y] = [p.x, p.y - 16 + Math.sin(t / 280) * 0.8];
+        const blink = t % 3200 < 140 ? 0 : 1;
+        g.fillStyle(RADIANT.ivory, 0.15 + Math.sin(t / 200) * 0.05).fillCircle(x, y, 7);
+        ophanim(g, x, y, 6, 2, t / 900, 3, 2, blink, () => (p.flipX ? Math.PI : 0));
       };
       scene.events.on('update', draw);
       scene.events.once('shutdown', () => {
@@ -353,6 +431,32 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     jump: 'lift',
     trail: { shape: 'wisp', colors: [RIKUDO.lilac, RIKUDO.pale, 0x5f574f] },
     hold: { angle: 20, dx: 1 },
+  },
+  // Oberon Vortigern: an unhurried, princely walk, lifted into the jump on his wings, blue moth scales drifting down
+  // behind him, the wing-blade held low. Vortigern's black moth wings are always on his back, slowly opening and
+  // closing, beating faster while he runs or flies.
+  oberon: {
+    stride: 125,
+    lean: 3,
+    jump: 'lift',
+    trail: { shape: 'flake', colors: [ABYSS.glow, ABYSS.scale, ABYSS.sheen] },
+    hold: { angle: 30, dx: 1 },
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(9.6);
+      const draw = () => {
+        g.clear();
+        if (!p.active || p.alpha < 0.05 || p.getData('hidden')) return;
+        const fast = Math.abs(p.body.velocity.x) > 40 || !p.body.blocked.down;
+        const flap = (Math.sin(scene.time.now / (fast ? 70 : 320)) + 1) / 2;
+        const back = p.flipX ? 1 : -1;
+        for (const side of [-1, 1]) vortigernWing(g, p.x + back * 1, p.y - 2, side, side === back ? 0.8 : 0.66, flap);
+      };
+      scene.events.on('update', draw);
+      scene.events.once('shutdown', () => {
+        scene.events.off('update', draw);
+        g.destroy();
+      });
+    },
   },
 };
 

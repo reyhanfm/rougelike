@@ -35,7 +35,8 @@ export type WeaponId =
   | 'kelam'
   | 'bintangFajar'
   | 'rantaiKamui'
-  | 'batangCakra';
+  | 'batangCakra'
+  | 'vortigern';
 
 /** Elemental effects on hit. burn: damage mult per tick for a few seconds; freeze: ms without moving or acting; slow: ms at a crawl. */
 export interface Status {
@@ -43,6 +44,8 @@ export interface Status {
   freeze?: number;
   /** ms moving at a crawl (gravity, blizzards). */
   slow?: number;
+  /** ms asleep: held like freeze, without the ice; Oberon's passive wakes it with a crit on the next blow. */
+  sleep?: number;
 }
 
 /** cross: a down cut and an up cut in one move, each hitting (Tsubame Gaeshi). */
@@ -270,27 +273,31 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   kapak: {
     id: 'kapak',
     name: 'PEDANG BATU',
-    desc: 'KAPAK-PEDANG BATU, TEBASAN LEBAR',
+    desc: 'KAPAK-PEDANG BATU RAKSASA, COMBO 4, J+L: BANTENG KRETA',
     dmg: 1.8,
     cd: 1.7,
     crit: 0,
     arc: 'slashWide',
-    arcTint: 0xd08a50,
+    arcTint: 0xb3122e,
     cut: 0xffa300,
     combo: [
-      { anim: 'down', dmg: 1.1, cd: 1.1, ms: 200, reach: box(26, 30), knockback: 240 },
-      // The stone axe-sword whirled all the way around him.
-      { anim: 'spin', dmg: 1, cd: 1.2, ms: 260, reach: box(44, 30), knockback: 200, hitbox: 'around' },
-      // Brought down so hard the floor heaves: a wave of rock runs on ahead (SKILLS.kapak.onSwing).
-      { anim: 'overhead', dmg: 1.5, cd: 1.6, ms: 260, reach: box(28, 34), knockback: 300, lunge: 60 },
+      // A berserker's rhythm, every blow heavier than the last: a chop from the shoulder...
+      { anim: 'down', dmg: 1, cd: 1, ms: 190, reach: box(28, 30), knockback: 200 },
+      // ...the backhand that comes up under it and throws the small fry into the air...
+      { anim: 'up', dmg: 0.9, cd: 1.1, ms: 190, reach: box(28, 36), knockback: 90, launch: 230 },
+      // ...a shoulder charge that bowls through them (SKILLS.kapak.onSwing: dust and steam behind him)...
+      { anim: 'thrust', dmg: 1.1, cd: 1.2, ms: 200, reach: box(26, 24), knockback: 300, lunge: 260, trail: 0xb3122e },
+      // ...and the axe-sword buried in the floor: a crater, and the broken floor flung ahead into the air (onSwing).
+      { anim: 'overhead', dmg: 1.6, cd: 1.7, ms: 280, reach: box(32, 36), knockback: 280, lunge: 40 },
     ],
     air: [
-      // The stone axe-sword chopped down, then whirled all the way round.
-      { anim: 'down', dmg: 1.1, cd: 1.2, ms: 200, reach: box(26, 30), knockback: 220, hover: 50 },
-      { anim: 'spin', dmg: 1, cd: 1.3, ms: 240, reach: box(40, 30), knockback: 200, hitbox: 'around', hover: 50 },
+      // In the air: a rising cleave that keeps him up with the flyers, then a hammer blow that drives them down.
+      { anim: 'up', dmg: 1, cd: 1.1, ms: 190, reach: box(28, 32), knockback: 160, hover: 70, cut: 0xffa300 },
+      { anim: 'overhead', dmg: 1.3, cd: 1.5, ms: 240, reach: box(30, 32), knockback: 240, hover: 40, cut: 0xff004d },
     ],
     dive: {
-      name: 'HANTAMAN METEOR',
+      // He drops like a falling mountain; the floor caves and its slabs tip up and fling (SKILLS.kapak.onDiveLand).
+      name: 'JATUH TITAN',
       anim: 'plunge',
       dmg: 1.4,
       cd: 1.5,
@@ -298,12 +305,13 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       reach: box(14, 18),
       knockback: 250,
       hitbox: 'below',
-      dive: { vx: 0, vy: 420 },
-      slam: 32,
+      dive: { vx: 0, vy: 440 },
+      slam: 30,
+      trail: 0xb3122e,
     },
-    skill: { name: 'SINGA NEMEA', desc: 'ROH SINGA NEMEA MENERKAM 3 MUSUH (UDARA JUGA), MENCAKAR, LALU MENGAUM', cd: 6 },
-    fusion: { name: 'GOD HAND', desc: 'J+L: KEBAL, MENERJANG ARENA, MELOMPAT KE MUSUH UDARA, MENGHANTAM BUMI', cd: 11 },
-    ult: { name: 'NINE LIVES', desc: 'SEMBILAN PUKULAN KE MUSUH YANG DITANDAI, LALU JATUH MENGHANCURKAN ARENA' },
+    skill: { name: 'PILAR HERAKLES', desc: 'DUA TIANG RAKSASA MENGURUNG KERUMUNAN, LALU DIROBOHKAN MENGGILAS (UDARA JUGA)', cd: 7 },
+    fusion: { name: 'BANTENG KRETA', desc: 'J+L: 1 MUSUH DIAYUN JADI GADA, DIBANTING 2X, LALU DILEMPAR KE MUSUH TERTINGGI', cd: 10 },
+    ult: { name: 'NINE LIVES', desc: 'SEMBILAN KEPALA HYDRA MENGGIGIT YANG TERKUAT (TAK ADA YANG MELESET), LALU RAHANG RAKSASA' },
   },
   busur: {
     id: 'busur',
@@ -1309,29 +1317,35 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   },
   halilintar: {
     id: 'halilintar',
-    name: 'VAJRA BADAI',
-    desc: 'HALBERD PETIR EMAS: TIAP HIT MENGISI STATIK, KE-6 MEMANGGIL PETIR',
-    dmg: 1.1,
-    cd: 1.05,
+    name: 'BACHI GUNTUR',
+    desc: 'SEPASANG PEMUKUL TAIKO PETIR: DON, DON, GELEDUK GENDERANG, LALU DENTUM YANG MELONTARKAN',
+    twin: 'w_halilintar',
+    dmg: 1.05,
+    cd: 1,
     crit: 0.05,
     arc: 'slashStorm',
-    arcTint: 0xffec27,
-    cut: 0xffec27,
+    arcTint: 0xc080ff,
+    cut: 0xc080ff,
     combo: [
-      // A royal thrust, then a rising sweep that trails sparks.
-      { anim: 'thrust', dmg: 1, cd: 1, ms: 120, reach: box(32, 10), knockback: 120, lunge: 90 },
-      { anim: 'up', dmg: 1.1, cd: 1, ms: 150, reach: box(28, 26), knockback: 150, trail: 0x7fe6ff },
-      // The judgement: an overhead slam that cracks a bolt down onto whatever it hits (see SKILLS.halilintar.onHit).
-      { anim: 'overhead', dmg: 1.5, cd: 1.5, ms: 220, reach: box(30, 30), knockback: 240, status: { freeze: 250 } },
+      // DON: the right bachi comes down like a stroke on the drumhead.
+      { anim: 'down', dmg: 0.9, cd: 0.8, ms: 110, reach: box(24, 22), knockback: 90, cut: 0xc080ff },
+      // DON: the left answers from below.
+      { anim: 'up', dmg: 0.9, cd: 0.8, ms: 110, reach: box(24, 24), knockback: 90, cut: 0x7fe6ff },
+      // Geleduk: a drum roll on the enemy itself, both sticks rattling as he presses in.
+      { anim: 'jab', dmg: 0.4, hits: 3, cd: 1.1, ms: 240, reach: box(22, 18), knockback: 30, lunge: 70, cut: 0xc080ff },
+      // DON!: both bachi crash down together; the blow booms out in rings of sound and throws the enemy up
+      // (SKILLS.halilintar.onSwing).
+      { anim: 'overhead', dmg: 1.6, cd: 1.5, ms: 220, reach: box(28, 28), knockback: 200, launch: 170, status: { freeze: 200 } },
     ],
     air: [
-      // A royal thrust, then the rising sweep trailing sparks.
-      { anim: 'thrust', dmg: 1, cd: 1, ms: 120, reach: box(32, 10), knockback: 120, hover: 60 },
-      { anim: 'up', dmg: 1.1, cd: 1.2, ms: 150, reach: box(28, 28), knockback: 150, hover: 60, trail: 0x7fe6ff },
+      // In the air he beats crosswise with both sticks, then rattles a short roll.
+      { anim: 'cross', dmg: 1, cd: 1, ms: 130, reach: box(26, 24), knockback: 100, hover: 70, cut: 0xc080ff },
+      { anim: 'jab', dmg: 0.5, hits: 2, cd: 1.2, ms: 180, reach: box(24, 24), knockback: 80, hover: 60, cut: 0x7fe6ff },
     ],
     dive: {
-      // He falls like a lightning strike, the halberd point-first; the landing discharges into the ground.
-      name: 'SAMBARAN JATUH',
+      // He drops both bachi first onto the floor as if it were a drumhead (SKILLS.halilintar.onDiveLand: the floor
+      // ripples like a struck skin and bounces everything standing on it into the air).
+      name: 'DENTUM JATUH',
       anim: 'plunge',
       dmg: 1.3,
       cd: 1.1,
@@ -1339,19 +1353,23 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       reach: box(14, 18),
       knockback: 120,
       hitbox: 'below',
-      dive: { vx: 60, vy: 420 },
-      slam: 36,
-      trail: 0xffec27,
-      status: { freeze: 300 },
+      dive: { vx: 30, vy: 440 },
+      slam: 30,
+      trail: 0xc080ff,
+      status: { freeze: 250 },
     },
-    skill: { name: 'TOMBAK HALILINTAR', desc: 'TOMBAK PETIR DIBIDIK KE KERUMUNAN, MENANCAP & MELOMPAT KE MUSUH LAIN', cd: 6 },
-    fusion: { name: 'MAHKOTA BADAI', desc: 'J+L: MAHKOTA BOLA PETIR MENGORBIT, LALU MENYAMBAR TIAP MUSUH DARI LANGIT', cd: 11 },
-    ult: { name: 'PENGHAKIMAN GUNTUR', desc: 'LANGIT BADAI, JARING PETIR MENGIKAT SEMUA MUSUH, LALU SAMBARAN RAKSASA' },
+    skill: { name: 'TAIKO PETIR', desc: 'TIGA GENDERANG DILEMPAR KE KERUMUNAN, BERDENTUM TIAP KETUKAN & MENYAMBAR MUSUH TERDEKAT', cd: 7 },
+    fusion: {
+      name: 'SAMBARAN BALIK',
+      desc: 'J+L: AWAN BADAI, PETIR MERAYAP TURUN KE TIAP MUSUH, LALU SEMUA DISAMBAR SEKALIGUS & GUNTUR',
+      cd: 11,
+    },
+    ult: { name: 'GENDERANG LANGIT', desc: 'CINCIN GENDERANG RAKSASA DI LANGIT, IRAMA MAKIN CEPAT, TIAP KETUKAN SAMBARAN, LALU DON!' },
   },
   surgaNeraka: {
     id: 'surgaNeraka',
     name: 'SURGA & NERAKA',
-    desc: 'PEDANG SUCI & PEDANG NERAKA: TEBASAN EMAS, MERAH, LALU SILANG SENJA',
+    desc: 'PEDANG SUCI & PEDANG NERAKA: TEBASAN NAIK, TEBASAN TURUN, GUNTING SILANG, LALU RODA SENJA',
     twin: 'w_neraka',
     dmg: 1,
     cd: 0.95,
@@ -1359,12 +1377,16 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arc: 'slashDual',
     arcTint: 0xffffff,
     cut: 0xc080ff,
+    // Both halves of him in turn (SKILLS.surgaNeraka.onSwing): gold cuts fill CAHAYA, crimson KEGELAPAN, violet both.
     combo: [
-      // The holy blade (gold cut: CAHAYA), then the hellblade (crimson cut, burns: KEGELAPAN).
-      { anim: 'down', dmg: 1, cd: 0.9, ms: 120, reach: box(24, 22), knockback: 110, cut: 0xffec27 },
-      { anim: 'up', dmg: 1, cd: 0.9, ms: 120, reach: box(24, 24), knockback: 110, cut: 0xff004d, status: { burn: 0.1 } },
-      // Both blades at once in a cross: the twilight cut that feeds both halves.
-      { anim: 'cross', dmg: 1.2, cd: 1.5, ms: 240, reach: box(28, 28), knockback: 220, cut: 0xc080ff },
+      // The holy blade cuts upward and lifts its target into the air.
+      { anim: 'uppercut', dmg: 1, cd: 0.9, ms: 130, reach: box(24, 30), knockback: 60, launch: 170, cut: 0xffec27 },
+      // The hellblade chops down and drags its target back in, burning.
+      { anim: 'down', dmg: 1, cd: 0.9, ms: 130, reach: box(28, 26), knockback: -110, cut: 0xff004d, status: { burn: 0.1 } },
+      // Both blades crossed like shears: two cuts at once.
+      { anim: 'cross', dmg: 0.6, cd: 1, ms: 190, reach: box(28, 26), knockback: 70, hits: 2, cut: 0xc080ff },
+      // The twilight wheel: he spins with both blades out, cutting all round him.
+      { anim: 'spin', dmg: 0.55, cd: 1.6, ms: 270, reach: box(38, 30), knockback: 220, hitbox: 'around', hits: 3, cut: 0xc080ff },
     ],
     air: [
       // The holy blade, the hellblade, then the wing dance with both.
@@ -1385,9 +1407,13 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       slam: 30,
       cut: 0xc080ff,
     },
-    skill: { name: 'SAYAP SENJA', desc: 'SAYAP MENGEPAK: TOMBAK CAHAYA KE SISI MALAIKAT, API NERAKA KE SISI IBLIS', cd: 6 },
-    fusion: { name: 'GERBANG SURGA & NERAKA', desc: 'J+L: CAHAYA DARI LANGIT & API DARI BUMI BERTEMU MENYILANG DI TIAP MUSUH', cd: 11 },
-    ult: { name: 'SENJAKALA', desc: 'LANGIT TERBELAH, SAYAP RAKSASA MENGHAKIMI TIAP MUSUH, LALU GELOMBANG SENJA' },
+    skill: { name: 'SAYAP SENJA', desc: 'SAYAP MENGEPAK 2X & BERTUKAR SISI: CAHAYA + API DI MUSUH YANG SAMA = SENJA MENGOYAKNYA', cd: 6 },
+    fusion: {
+      name: 'ANTARA SURGA & NERAKA',
+      desc: 'J+L: MUSUH DILEMPAR NAIK KE SURGA & DISERET KE NERAKA BERULANG, LALU TERBELAH',
+      cd: 11,
+    },
+    ult: { name: 'SENJAKALA', desc: 'TERBELAH JADI MALAIKAT & IBLIS YANG MENEBAS TIAP MUSUH DARI ATAS & BAWAH, LALU DUNIA TEROBEK' },
   },
   foton: {
     id: 'foton',
@@ -1587,11 +1613,11 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     },
     skill: { name: 'DOMINASI', desc: 'MAHKOTA HITAM MENGUASAI 3 MUSUH: 4 DTK MEREKA MENYERANG KAWAN SENDIRI, LALU DIREMUKKAN', cd: 8 },
     fusion: {
-      name: 'GAMBIT RAJA',
-      desc: 'J+L: ARENA JADI PAPAN CATUR, MUSUH JADI BIDAK; LANGKAH KUDA MEMAKAN SEMUA, LALU SKAKMAT',
+      name: 'LEGIUN KEMATIAN',
+      desc: 'J+L: BARISAN PRAJURIT MATI MENYERBU SELEBAR ARENA, MENYAPU MUSUH & MEREMUKKANNYA DI DINDING',
       cd: 11,
     },
-    ult: { name: 'TAKHTA KEGELAPAN', desc: 'TAKHTA BANGKIT, JIWA MUSUH DIRENGGUT KE MAHKOTANYA, LALU MAHKOTA RAKSASA MENGHANTAM' },
+    ult: { name: 'TAKHTA KEGELAPAN', desc: 'RANTAI JIWA MENYERET SEMUA MUSUH BERLUTUT DI DEPAN TAKHTA, DIEKSEKUSI, JIWANYA DICABUT' },
   },
   bintangFajar: {
     id: 'bintangFajar',
@@ -1633,13 +1659,17 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0xffec27,
       cut: 0xffe9a8,
     },
-    skill: { name: 'SUAKA CAHAYA', desc: 'LENTERA EMAS DI ATAS KERUMUNAN: DI DALAM CAHAYANYA MUSUH TAK BISA MENYERANG & TERBAKAR', cd: 7 },
+    skill: {
+      name: 'MATA PENGAWAS',
+      desc: 'MATA RAKSASA MENGIKUTI KERUMUNAN: DI BAWAH TATAPANNYA MUSUH TAK BISA MENYERANG & TERBAKAR',
+      cd: 7,
+    },
     fusion: {
-      name: 'KITAB HUKUM',
-      desc: 'J+L: HALAMAN KITAB MENEMPEL DI TIAP MUSUH, VONIS SESUAI KEADAANNYA: JATUH/MUNDUR/BUTA/HAPUS',
+      name: 'RASI BINTANG FAJAR',
+      desc: 'J+L: TIAP MUSUH JADI BINTANG, DIHUBUNGKAN JADI RASI, CAHAYA MENYUSURINYA; RASI BESAR = LEBIH SAKIT',
       cd: 11,
     },
-    ult: { name: 'HARI TANPA BAYANG', desc: 'CAHAYA RENDAH MEMANJANGKAN BAYANGAN MUSUH, PAKU CAHAYA MENANCAPKANNYA, LALU DIBAKAR HABIS' },
+    ult: { name: 'WUJUD SEJATI', desc: 'RODA-RODA PENUH MATA MEMENUHI LANGIT: SEMUA MUSUH TERLIHAT, DITAHAN, DITOMBAK CAHAYA' },
   },
   rantaiKamui: {
     id: 'rantaiKamui',
@@ -1696,7 +1726,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   batangCakra: {
     id: 'batangCakra',
     name: 'BATANG CAKRA',
-    desc: 'BATANG PENERIMA CAKRA: TUSUK, SABET, LEMPAR 3 BATANG, LALU HUJAM KE TANAH',
+    desc: 'TUSUK BATANG, TARIK (BANSHO), LEMPAR 3 BATANG, TOLAK (SHINRA); BATANG TERTANCAP DI MUSUH',
     dmg: 1,
     cd: 1,
     crit: 0.05,
@@ -1704,15 +1734,18 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     arc: 'slashCakra',
     arcTint: 0xffffff,
     cut: 0xb39ddb,
+    // Push and pull, the Deva Path's rhythm. Every stab and every thrown rod leaves a receiver in the enemy
+    // (SKILLS.batangCakra.onHit / onShotHit: BATANG PENERIMA, up to 3), what Bansho Ten'in later pulls on.
     combo: [
-      // A straight stab with the rod.
-      { anim: 'thrust', dmg: 1, cd: 1, ms: 130, reach: box(30, 10), knockback: 70, cut: 0xb39ddb },
-      // A backhand swipe.
-      { anim: 'hook', dmg: 1, cd: 1, ms: 150, reach: box(28, 24), knockback: 100, cut: 0xc2c3c7 },
-      // Three receivers thrown in a fan; they pass through what they hit.
-      { anim: 'shoot', dmg: 0.6, cd: 1.1, ms: 120, reach: box(0, 0), knockback: 60, angles: [-0.15, 0, 0.15] },
-      // The finisher: the rod driven down into the enemy, pinning it (slowed).
-      { anim: 'overhead', dmg: 1.8, cd: 1.6, ms: 210, reach: box(30, 30), knockback: 230, cut: 0xb39ddb, status: { slow: 600 } },
+      // A straight stab with the rod: it stays in.
+      { anim: 'thrust', dmg: 1, cd: 1, ms: 130, reach: box(30, 10), knockback: 60, cut: 0xb39ddb },
+      // A small Bansho Ten'in: the open palm drags everything ahead in toward him.
+      { anim: 'jab', dmg: 0.9, cd: 1, ms: 160, reach: box(46, 24), knockback: -150, cut: 0xe8e0ff },
+      // Three receivers thrown in a fan at what he just pulled in; they pass through and stay in what they hit.
+      { anim: 'shoot', dmg: 0.6, cd: 1.1, ms: 120, reach: box(0, 0), knockback: 40, angles: [-0.15, 0, 0.15] },
+      // The finisher, a small Shinra Tensei: the palm thrust out, a half-dome of repulsion hurls them away (the
+      // receivers already in them ring with it).
+      { anim: 'cross', dmg: 1.7, cd: 1.6, ms: 200, reach: box(34, 32), knockback: 280, cut: 0xe8e0ff },
     ],
     air: [
       { anim: 'hook', dmg: 1, cd: 1.05, ms: 140, reach: box(28, 26), knockback: 90, hover: 80, cut: 0xb39ddb },
@@ -1734,13 +1767,69 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0xb39ddb,
       cut: 0xb39ddb,
     },
-    skill: { name: "BANSHO TEN'IN", desc: 'MUSUH TERJAUH (UDARA JUGA) DITARIK KE TANGAN, DITUSUK BATANG CAKRA & DIPAKU 1.5 DTK', cd: 6 },
+    skill: {
+      name: "BANSHO TEN'IN",
+      desc: 'SEMUA MUSUH BERBATANG DITARIK KE TANGAN, DITUSUK (TIAP BATANG +DMG), LALU DITOLAK SHINRA TENSEI',
+      cd: 7,
+    },
     fusion: {
       name: 'ENAM JALAN PAIN',
       desc: 'J+L: 5 JALAN TURUN: ASURA ROKET, HEWAN ANJING, MANUSIA CABUT JIWA, PRETA SERAP, NARAKA PULIH',
       cd: 12,
     },
-    ult: { name: 'GEDO MAZO', desc: 'PATUNG IBLIS BANGKIT, 9 MATA TERBUKA, NAGA CAKRA MENYEDOT TIAP MUSUH: LEMAH 8 DTK' },
+    ult: { name: 'CHIBAKU TENSEI', desc: 'INTI GRAVITASI DI LANGIT MENYEDOT TANAH & SEMUA MUSUH JADI BULAN, LALU DIHANCURKAN' },
+  },
+  vortigern: {
+    id: 'vortigern',
+    name: 'SAYAP VORTIGERN',
+    desc: 'SAYAP NGENGAT MALAM, COMBO 4: NGENGAT MEMBURU, KAKI SERANGGA DARI JURANG',
+    dmg: 1.1,
+    cd: 1,
+    crit: 0.05,
+    arc: 'slashMoon',
+    arcTint: 0x5b6ee1,
+    cut: 0x9fb4ff,
+    // A fairy king's dance turned cruel: light wing cuts that flutter, then the abyss behind him reaches through.
+    combo: [
+      // The black wing swept down like a blade.
+      { anim: 'down', dmg: 0.9, cd: 0.9, ms: 120, reach: box(24, 22), knockback: 90 },
+      // Up again; two of his moths are shaken loose and hunt (SKILLS.vortigern.onSwing).
+      { anim: 'up', dmg: 0.9, cd: 1, ms: 130, reach: box(24, 26), knockback: 80 },
+      // Both wings shut on the enemy like scissors (two cuts).
+      { anim: 'cross', dmg: 0.7, cd: 1.1, ms: 170, reach: box(28, 24), knockback: 110, cut: 0xc8d4ff },
+      // A void opens behind him and one of Vortigern's legs lances out past him, far ahead (onSwing).
+      { anim: 'thrust', dmg: 1.6, cd: 1.5, ms: 200, reach: box(34, 12), knockback: 220, status: { slow: 500 } },
+    ],
+    air: [
+      // In the air he turns on his wings, cutting all around, then beats them down hard.
+      { anim: 'spin', dmg: 0.8, cd: 1.1, ms: 200, reach: box(30, 30), knockback: 100, hitbox: 'around', hover: 80, cut: 0x9fb4ff },
+      { anim: 'down', dmg: 1, cd: 1.2, ms: 150, reach: box(26, 26), knockback: 140, hover: 50, cut: 0x5b6ee1, status: { slow: 600 } },
+    ],
+    dive: {
+      // He drops into the floor (SKILLS.vortigern.onDiveLand: a pit opens and insect legs drag the near ones to it).
+      name: 'JATUH KE JURANG',
+      anim: 'plunge',
+      dmg: 1.2,
+      cd: 1.2,
+      ms: 900,
+      reach: box(14, 18),
+      knockback: 120,
+      hitbox: 'below',
+      dive: { vx: 30, vy: 400 },
+      slam: 24,
+      trail: 0x5b6ee1,
+      cut: 0x9fb4ff,
+    },
+    skill: {
+      name: 'RAJA SERANGGA',
+      desc: 'KAWANAN SERANGGA MELAHAP MUSUH SATU PER SATU, MEMBESAR TIAP MANGSA, LALU JADI NGENGAT RAKSASA',
+      cd: 7,
+    },
+    fusion: { name: 'SAYAP BLANCA', desc: 'J+L: BLANCA MEMBESAR: KEPAK ANGIN MENEBAS, LALU SERBUKNYA MENIDURKAN SEMUA MUSUH', cd: 11 },
+    ult: {
+      name: 'LIE LIKE VORTIGERN',
+      desc: 'JURANG TANPA DASAR: SEMUA MUSUH JATUH TANPA HENTI, MATA MIMPI TERPEJAM, LALU MEREKA TERTIDUR',
+    },
   },
 };
 
