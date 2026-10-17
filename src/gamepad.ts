@@ -7,7 +7,7 @@ import { sendKey, type KeyName } from './keys.ts';
  * Gamepad API every frame and presses the same keys the keyboard would (see keys.ts),
  * with a per-screen button layout:
  *
- *   play:   stick/D-pad move, A jump, X attack (hold X: charged attack), B/LB dash, Y/LT skill, RB/RT ult, X+Y fusion,
+ *   play:   stick/D-pad move, A jump, X attack (hold X: charged attack), B dash, LB swap hero, Y/LT skill, RB/RT ult, X+Y fusion,
  *           down + A drop through a platform, down + X in the air dive, START pause
  *   paused: START/B resume, SELECT surrender
  *   menus:  stick/D-pad choose, A confirm, B back (class picker), Y reroll, START start/pause
@@ -29,7 +29,7 @@ const LAYOUTS: Record<PadMode, Layout> = {
     [BTN.A]: 'SPACE',
     [BTN.X]: 'J',
     [BTN.B]: 'K',
-    [BTN.LB]: 'K',
+    [BTN.LB]: 'U',
     [BTN.Y]: 'L',
     [BTN.LT]: 'L',
     [BTN.RB]: 'I',
@@ -40,7 +40,7 @@ const LAYOUTS: Record<PadMode, Layout> = {
   paused: { [BTN.START]: 'ESC', [BTN.B]: 'ESC', [BTN.SELECT]: 'Q', [BTN.Y]: 'M' },
   // Rewards screen (and the brief game-over screen, where these do nothing).
   menu: { [BTN.UP]: 'W', [BTN.DOWN]: 'S', [BTN.A]: 'J', [BTN.Y]: 'R', [BTN.START]: 'ESC', [BTN.SELECT]: 'M' },
-  hub: { [BTN.UP]: 'W', [BTN.DOWN]: 'S', [BTN.A]: 'J', [BTN.START]: 'SPACE', [BTN.SELECT]: 'M' },
+  hub: { [BTN.UP]: 'W', [BTN.DOWN]: 'S', [BTN.LEFT]: 'A', [BTN.RIGHT]: 'D', [BTN.A]: 'J', [BTN.START]: 'SPACE', [BTN.SELECT]: 'M' },
   class: {
     [BTN.UP]: 'W',
     [BTN.DOWN]: 'S',

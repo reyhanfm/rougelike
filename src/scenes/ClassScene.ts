@@ -3,7 +3,7 @@ import { ambience } from '../gfx/scenery.ts';
 import { COLOR } from '../gfx/sprites.ts';
 import { text, W } from '../gfx/ui.ts';
 import { CLASS_IDS, CLASSES } from '../logic/classes.ts';
-import { WEAPONS, type WeaponId } from '../logic/loot.ts';
+import { ITEM_IDS, ITEMS, WEAPONS, type ItemId, type Rarity, type WeaponId } from '../logic/loot.ts';
 import { DASHES } from '../entities/dashes.ts';
 import { CHARGED } from '../entities/charged/index.ts';
 import { loadSave, writeSave } from '../logic/save.ts';
@@ -149,9 +149,16 @@ export class ClassScene extends Phaser.Scene {
     // Dev shortcuts: ?round=10 jumps to a boss, ?weapon=busur overrides the class weapon, ?mahoraga / ?leviathan / ?godzilla / ?kaguya (any mix) force the bonus round, ?elite an elite round, ?invade=<boss> an invasion.
     const q = new URLSearchParams(import.meta.env.DEV ? location.search : '');
     const weapon = q.get('weapon');
+    // WARISAN perks: starting coins, starting relics, a random second hero.
+    const any = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)];
+    const relic = (rarity: Rarity): ItemId => any(ITEM_IDS.filter((id) => ITEMS[id].rarity === rarity));
+    const items = [...(save.perks.bekal >= 1 ? [relic('biasa')] : []), ...(save.perks.bekal >= 2 ? [relic('rare')] : [])];
     this.scene.start('run', {
       round: Number(q.get('round')) || 1,
       cls,
+      coins: 5 * save.perks.modal,
+      items,
+      bench: save.perks.sahabat ? any(CLASS_IDS.filter((c) => c !== cls)) : undefined,
       weapon: weapon && weapon in WEAPONS ? (weapon as WeaponId) : undefined,
       specials: (['mahoraga', 'leviathan', 'godzilla', 'kaguya'] as const).filter((k) => q.has(k)),
       eliteRound: q.has('elite'),

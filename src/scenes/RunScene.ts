@@ -5,33 +5,41 @@ import { Boss } from '../entities/Boss.ts';
 import { INTROS, invasionBanner } from '../entities/invasions.ts';
 import { createEnemy, Enemy } from '../entities/Enemy.ts';
 import { Player } from '../entities/Player.ts';
-import { SKILLS } from '../entities/skills.ts';
+import { ring, SKILLS, sparks } from '../entities/skills.ts';
 import { CHARGED } from '../entities/charged/index.ts';
 import { PASSIVES, type PassiveCtx } from '../entities/passives.ts';
 import { padConnected } from '../gamepad.ts';
 import { duckMusic, playMusic, sfx, soundLabel, stopMusic, toggleSound } from '../audio.ts';
-import { COLOR } from '../gfx/sprites.ts';
+import { COLOR, PALETTE } from '../gfx/sprites.ts';
 import { burst, cutMark, flash, floatText, FLOOR_Y, H, text, TILE, W } from '../gfx/ui.ts';
 import {
-  activePairs,
+  activeTiers,
+  ITEM_TAGS,
   ITEMS,
   MAX_ITEMS,
-  pairOf,
   RARITY_COLOR,
   takeItem,
   rewardInfo,
   rewardRarity,
+  rollHeroes,
   rollRewards,
+  rollShop,
   coinReward,
   rerollCost,
   runStats,
   HITSTOP,
   hitstopMs,
+  tagCounts,
+  TAG_TIERS,
+  TAGS,
+  tierOf,
+  TIER_MARK,
   ULT_GAIN,
   WEAPONS,
   type ItemId,
   type Reward,
   type Status,
+  type Tag,
   type WeaponId,
 } from '../logic/loot.ts';
 import { loadSave, writeSave, type SaveData } from '../logic/save.ts';
@@ -47,9 +55,13 @@ import {
   LAYOUTS,
   BOSS_EVERY,
   BOSSES,
+  CURSE,
+  GATES,
+  isBossRound,
+  rollGates,
   rollSpecials,
-  rollEliteRound,
   rollInvasion,
+  type Gate,
   INVASION,
   eliteRoundConfig,
   SPECIAL_STATS,
@@ -84,6 +96,12 @@ export interface RunData {
   eliteRound?: boolean;
   /** Invasion: this hidden boss crashes into the (normal) round partway through. */
   invasion?: SpecialBoss;
+  /** The door taken into this round: what it pays when cleared (and KUTUKAN's curse while it lasts). */
+  gate?: Gate;
+  /** The second hero of the party, off the field until swapped in (U). */
+  bench?: ClassId;
+  /** NYAWA KEDUA already spent this run. */
+  revived?: boolean;
 }
 
 type Hittable = Enemy | Boss;
@@ -107,8 +125,17 @@ const CHILL_SPEED = 30;
 const NO_CAP = 10000;
 const REWARD_Y = 56;
 const REWARD_H = 24;
-/** Index of the extra "take nothing" row after the three rewards. */
-const SKIP_ROW = 3;
+/** Shop panels have more rows: smaller and starting higher. */
+const SHOP_Y = 46;
+const SHOP_H = 16;
+/** Time between hero swaps (ms). */
+const SWAP_MS = 6000;
+/** DARAH II: chance a kill leaves a blood orb, the share of max HP it heals, how long it lies there (ms). */
+const BLOOD_ORB = { chance: 0.4, heal: 0.04, ms: 7000 } as const;
+/** ARCANA II: empowered basic hits after a skill, and their damage multiplier. */
+const SPELLBLADE = { hits: 3, mult: 1.6 } as const;
+/** PETIR II: every n-th basic hit calls the strike. */
+const STORM_EVERY = 5;
 
 const pauseHint = (): string => (padConnected() ? 'START LANJUT  SELECT MENYERAH' : 'ESC LANJUT  Q MENYERAH');
 
@@ -128,7 +155,30 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private shots!: Phaser.Physics.Arcade.Group;
   /** Living bosses; a bonus round may bring two. */
   private bosses: Boss[] = [];
-  private portal?: Phaser.Physics.Arcade.Image;
+  /** Doors out of a cleared round (one when a boss is next), each with the gate it leads to. */
+  private doors: { img: Phaser.Physics.Arcade.Image; gate?: Gate }[] = [];
+  private doorsArmAt = 0;
+  /** Bonus bosses already rolled for the next round (the door shows them). */
+  private nextSpecials: SpecialBoss[] = [];
+  private gate: Gate = 'item';
+  /** Relic slots this run (MAX_ITEMS + SLOT RELIK perk). */
+  private slots = MAX_ITEMS;
+  /** The party's second hero (class), its Player once it has been on the field this round, and the swap cooldown. */
+  private bench?: ClassId;
+  private benchPlayer?: Player;
+  private swapReadyAt = 0;
+  private benchIcon?: Phaser.GameObjects.Image;
+  /** KUTUKAN kills still needed to lift the curse (0 = not cursed). */
+  private curseLeft = 0;
+  private revived = false;
+  /** Tag mechanics: PETIR's hit counter, ARCANA's empowered hits left, BESI's quake cooldown, DARAH's orbs. */
+  private stormHits = 0;
+  private spellCharges = 0;
+  private quakeReady = 0;
+  private orbs: { obj: Phaser.GameObjects.Container; until: number }[] = [];
+  /** Open panel kind, and the shop rows already bought. */
+  private panel: 'reward' | 'shop' | 'hero' = 'reward';
+  private sold = new Set<number>();
   private runSouls = 0;
   private coins = 0;
   /** Refreshes bought on the current reward panel. */
@@ -141,12 +191,14 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private waveSize = 0;
   private invading = false;
   private floorBody!: Phaser.GameObjects.TileSprite;
+  private platforms: Phaser.GameObjects.GameObject[] = [];
   private over = false;
   private paused = false;
   private rewards?: Reward[];
   private rewardSel = 0;
-  /** Replace step of the reward panel: the item waiting for a relic slot. */
+  /** Replace step of the reward panel: the item waiting for a relic slot (and its row, for the shop). */
   private replacing?: ItemId;
+  private replacingRow = 0;
   private regenAcc = 0;
   private lifestealAcc = 0;
   /** Hitstop (game-loop ms): the fight holds still until `hitstopUntil`, and may not freeze again before `hitstopReady`. */
@@ -203,7 +255,19 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.regenAcc = this.lifestealAcc = this.hitstopUntil = this.hitstopReady = 0;
     this.bosses = [];
     this.bossLeft = false;
-    this.portal = this.rewards = this.rewardUi = this.inventory = this.elite = this.eliteTitle = this.replacing = undefined;
+    this.rewards = this.rewardUi = this.inventory = this.elite = this.eliteTitle = this.replacing = undefined;
+    this.doors = [];
+    this.nextSpecials = [];
+    this.gate = data.gate ?? 'item';
+    this.slots = MAX_ITEMS + this.save.perks.slot;
+    this.bench = data.bench;
+    this.benchPlayer = this.benchIcon = undefined;
+    this.swapReadyAt = this.stormHits = this.spellCharges = this.quakeReady = 0;
+    this.orbs = [];
+    this.curseLeft = this.gate === 'kutukan' && !this.cfg.boss ? CURSE.kills : 0;
+    this.revived = !!data.revived;
+    this.panel = 'reward';
+    this.sold = new Set();
     if (data.round > this.save.bestRound) {
       this.save.bestRound = data.round;
       writeSave(this.save);
@@ -231,28 +295,32 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     });
 
     const stats = this.currentStats();
-    this.godHandLeft = stats.godHand;
-    this.player = new Player(this, this, 24, FLOOR_Y - 10, stats, WEAPONS[this.weaponId], data.hp ?? stats.maxHp, data.ult ?? 0, this.cls);
+    // God Hand (Heracles): one count per round for the party, only usable while he is the one on the field.
+    this.godHandLeft = Math.max(stats.godHand, this.bench ? this.heroStats(this.bench).godHand : 0);
+    this.platforms = platforms;
     this.enemies = this.physics.add.group();
     this.hazards = this.physics.add.group({ allowGravity: false });
     this.shots = this.physics.add.group({ allowGravity: false });
+    this.player = new Player(this, this, 24, FLOOR_Y - 10, stats, WEAPONS[this.weaponId], data.hp ?? stats.maxHp, data.ult ?? 0, this.cls);
+    this.wirePlayer(this.player);
 
-    this.physics.add.collider(this.player, floor);
-    this.physics.add.collider(this.player, platforms, undefined, () => this.time.now >= this.player.dropUntil);
     // Phaser may pass (floor, enemy) here, so find the enemy in either slot.
     this.physics.add.collider(this.enemies, [floor, ...platforms], undefined, (a, b) => !(a instanceof Enemy ? a : (b as Enemy)).flying);
-    this.physics.add.overlap(this.player, this.enemies, (_p, e) => {
-      const en = e as Enemy;
-      const affix = en.getData('elite') as EliteAffix | undefined;
-      const debuff = (affix && ELITE_AFFIXES[affix].debuff) ?? ENEMIES[en.kind].debuff;
-      if (!en.untargetable && !this.frozen(en)) this.hurtPlayer(en.damage, en.x, en, debuff);
-    });
-    this.physics.add.overlap(this.player, this.hazards, (_p, h) => {
-      const hz = h as Phaser.Physics.Arcade.Image;
-      this.hurtPlayer(hz.getData('dmg') as number, hz.x, undefined, hz.getData('debuff') as Debuff | undefined);
-      if (hz.texture.key !== 'wave') hz.destroy();
-    });
     this.physics.add.overlap(this.shots, this.enemies, (a, b) => this.shotHit(a, b));
+    // Item tags that answer the hero's own moves (BAYANG's shadow on a dash, ARCANA's charged blade on a cast).
+    const onDash = (p: Player) => this.stats.shadowClone && this.shadowClone(p.x, p.y, p);
+    const onCast = () => {
+      if (!this.stats.spellblade) return;
+      this.spellCharges = SPELLBLADE.hits;
+      ring(this, this.player.x, this.player.y, 0xc080ff, 3, 18, 260);
+      sparks(this, this.player.x, this.player.y, [0xc080ff, 0xfff1e8], 8, 14);
+    };
+    this.events.on('hero-dash', onDash);
+    this.events.on('hero-cast', onCast);
+    this.events.once('shutdown', () => {
+      this.events.off('hero-dash', onDash);
+      this.events.off('hero-cast', onCast);
+    });
 
     playMusic(this.cfg.specials?.length ? 'special' : this.cfg.boss ? 'boss' : 'run');
     duckMusic(false);
@@ -289,6 +357,18 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
         const intro = text(this, W / 2, 44, 'RONDE ELIT!', COLOR.gold, 16).setOrigin(0.5);
         this.tweens.add({ targets: intro, alpha: 0, delay: 1500, duration: 500, onComplete: () => intro.destroy() });
       }
+      if (this.curseLeft) {
+        this.cameras.main.flash(400, 126, 37, 83);
+        const intro = text(this, W / 2, 44, 'KUTUKAN!', COLOR.red, 16).setOrigin(0.5);
+        const sub = text(this, W / 2, 56, `DAMAGE DITERIMA X${CURSE.taken} SAMPAI ${CURSE.kills} KILL`, COLOR.red, 6).setOrigin(0.5);
+        this.tweens.add({
+          targets: [intro, sub],
+          alpha: 0,
+          delay: 1800,
+          duration: 500,
+          onComplete: () => [intro, sub].forEach((o) => o.destroy()),
+        });
+      }
       // A hidden boss may crash in once enough of the wave has fallen (or after a while).
       if (data.invasion && !all) {
         this.invasion = data.invasion;
@@ -308,6 +388,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     kb.on('keydown-J', () => this.takeReward());
     kb.on('keydown-ENTER', () => this.takeReward());
     kb.on('keydown-R', () => this.reroll());
+    kb.on('keydown-U', () => this.swap());
     kb.on('keydown-M', () => {
       const label = toggleSound();
       // Paused: time is frozen, so the label goes into the pause box instead of floating.
@@ -326,11 +407,14 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.tweens.resumeAll();
       this.physics.resume();
     }
+    // The benched hero stays out of sight whatever its leftover effects do to it.
+    this.benchPlayer?.hideGear();
     if (this.rewards) {
       this.player.setVelocityX(0);
       return;
     }
     this.player.update(time);
+    this.tickOrbs(time);
     if (!this.cleared) this.passive.tick?.(this.pctx, time, delta);
     if (!this.cleared && this.player.tickDebuffs(time) && this.player.hp <= 0) return this.playerDown();
     this.regenerate(delta);
@@ -369,7 +453,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     )
       this.invade(this.invasion);
     if (!this.cleared && this.enemies.countActive() === 0 && !this.bosses.length && !this.invasion) this.clearRound();
-    if (this.portal && this.physics.overlap(this.player, this.portal)) this.nextRound();
+    if (time >= this.doorsArmAt) for (const d of this.doors) if (this.physics.overlap(this.player, d.img)) return this.nextRound(d.gate);
     this.drawHud();
   }
 
@@ -526,6 +610,83 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
 
   private currentStats(): Derived {
     return runStats(this.base, WEAPONS[this.weaponId], this.items, this.cls);
+  }
+
+  /** Stats of a party hero with its own weapon. */
+  private heroStats(cls: ClassId): Derived {
+    return runStats(this.base, WEAPONS[CLASSES[cls].weapon], this.items, cls);
+  }
+
+  /** Floor, platforms, and what hurts the hero (each hero of the party gets its own; a benched one has no body). */
+  private wirePlayer(p: Player): void {
+    this.physics.add.collider(p, this.floorBody);
+    this.physics.add.collider(p, this.platforms, undefined, () => this.time.now >= p.dropUntil);
+    this.physics.add.overlap(p, this.enemies, (_p, e) => {
+      const en = e as Enemy;
+      const affix = en.getData('elite') as EliteAffix | undefined;
+      const debuff = (affix && ELITE_AFFIXES[affix].debuff) ?? ENEMIES[en.kind].debuff;
+      if (!en.untargetable && !this.frozen(en)) this.hurtPlayer(en.damage, en.x, en, debuff);
+    });
+    this.physics.add.overlap(p, this.hazards, (_p, h) => {
+      const hz = h as Phaser.Physics.Arcade.Image;
+      this.hurtPlayer(hz.getData('dmg') as number, hz.x, undefined, hz.getData('debuff') as Debuff | undefined);
+      if (hz.texture.key !== 'wave') hz.destroy();
+    });
+    for (const boss of this.bosses) this.wireBossTo(p, boss);
+  }
+
+  /**
+   * Hero swap (Skul): the benched hero bursts in with its own class dash and an entrance blow in its color; HP keeps
+   * its share of max HP, the ult meter carries over. The one leaving goes to sleep and takes its passive with it.
+   */
+  private swap(): void {
+    const out = this.player;
+    if (!this.bench || this.rewards || this.paused || this.over || out.hp <= 0) return;
+    const now = this.time.now;
+    if (now < this.swapReadyAt || out.busy) {
+      sfx('deny');
+      return;
+    }
+    const cls = this.bench;
+    const weapon = WEAPONS[CLASSES[cls].weapon];
+    const stats = this.heroStats(cls);
+    const hp = Math.max(1, Math.round((out.hp / out.stats.maxHp) * stats.maxHp));
+    let p = this.benchPlayer;
+    if (p) p.equip(stats, weapon);
+    else {
+      p = new Player(this, this, out.x, out.y, stats, weapon, hp, out.ult, cls);
+      this.wirePlayer(p);
+    }
+    p.hp = hp;
+    p.ult = out.ult;
+    out.sleep();
+    this.benchPlayer = out;
+    this.bench = this.cls;
+    this.cls = cls;
+    this.weaponId = weapon.id;
+    this.player = p;
+    p.wake(out.x, out.y, out.facing);
+    this.swapReadyAt = now + SWAP_MS;
+    this.spellCharges = 0;
+    const color = PALETTE[CLASSES[cls].color];
+    ring(this, p.x, p.y, color, 4, 34, 320, 2);
+    ring(this, p.x, p.y, 0xfff1e8, 2, 20, 220);
+    sparks(this, p.x, p.y, [color, 0xfff1e8], 12, 22);
+    this.cameras.main.shake(90, 0.006);
+    this.area(p.x, p.y, 30, 1.5, 160, 'skill');
+    const half = (CLASSES[cls].name.length + 1) * 4;
+    floatText(this, Phaser.Math.Clamp(p.x, half, W - half), p.y - 22, CLASSES[cls].name, COLOR.gold);
+    this.drawInventory();
+  }
+
+  /** A hero joins the party from a PAHLAWAN reward: the benched one (if any) leaves for it. */
+  private recruit(cls: ClassId): void {
+    const old = this.bench;
+    this.benchPlayer?.destroy();
+    this.benchPlayer = undefined;
+    this.bench = cls;
+    this.godHandLeft = Math.max(this.godHandLeft, this.heroStats(cls).godHand);
+    floatText(this, this.player.x, this.player.y - 28, old ? `${CLASSES[old].name} PERGI` : 'PARTAI 2 HERO!', COLOR.blue);
   }
 
   // --- PlayerWorld: what the player's attacks and skills may do ---
@@ -816,6 +977,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     // The class passive may sharpen this hit (marked prey, a drawn iai, a gravity well).
     const mod = this.passive.modify?.(this.pctx, t, source);
     if (mod?.mult) mult *= mod.mult;
+    mult *= this.tagMult(t, source);
     const crit =
       forceCrit || !!mod?.crit || (source === 'basic' && st.dashCrit > 0 && this.player.takeDashCrit()) || Math.random() < st.critChance;
     const enraged = st.rage > 0 && this.player.hp < st.maxHp / 2;
@@ -845,6 +1007,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     // Passive procs never feed passives again (no loops).
     if (source !== 'proc') this.passive.onHit?.(this.pctx, t, { source, crit, killed, dmg });
     if (source === 'basic' || source === 'skill') this.player.addUlt((ULT_GAIN[source] + (killed ? ULT_GAIN.kill : 0)) * st.ultGainMult);
+    // PETIR II: every 5th basic hit, the sky answers.
+    if (source === 'basic' && st.storm && ++this.stormHits % STORM_EVERY === 0) this.skyStrike(x, y);
     // Korek Api / Inti Es and friends: basic hits may set the target burning or frozen.
     if (source === 'basic' && !killed) {
       if (Math.random() < st.burnChance) this.applyStatus(t, { burn: 0.15 });
@@ -919,7 +1083,139 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     g.lineTo(t.x, t.y).strokePath();
     this.tweens.add({ targets: g, alpha: 0, duration: 250, onComplete: () => g.destroy() });
-    this.attack(t, 1.2, 'proc', 60);
+    this.attack(t, 1.2 * (1 + this.stats.boltPower), 'proc', 60);
+  }
+
+  /**
+   * Tag multipliers on one hit: API III (burning foes take more), ES II (a basic blow on ice shatters it), ARCANA II
+   * (empowered blows after a skill), HARTA III (coins held). Side effects (the shatter, the spent charge) happen here.
+   */
+  private tagMult(t: Hittable, source: HitSource): number {
+    const st = this.stats;
+    const now = this.time.now;
+    let k = 1;
+    if (st.burnVuln && now < (t.getData('burnUntil') ?? 0)) k *= 1 + st.burnVuln;
+    if (st.greed) k *= 1 + Math.min(0.4, this.coins * 0.01);
+    if (source !== 'basic') return k;
+    if (st.shatter && now < (t.getData('freezeUntil') ?? 0)) {
+      k *= t instanceof Boss ? 1.5 : 2;
+      // Truthy but past: statusTick lets go and clears the ice tint next frame.
+      t.setData('freezeUntil', 1);
+      this.shatterFx(t);
+    }
+    if (this.spellCharges > 0) {
+      this.spellCharges--;
+      k *= SPELLBLADE.mult;
+      sparks(this, t.x, t.y, [0xc080ff, 0xff77a8, 0xfff1e8], 8, 14);
+      ring(this, t.x, t.y, 0xc080ff, 2, 12, 200);
+    }
+    return k;
+  }
+
+  /** ES II: the ice bursts into shards that pin the enemies beside it. */
+  private shatterFx(t: Hittable): void {
+    const { x, y } = t;
+    floatText(this, x, y - 22, 'PECAH!', '#29adff');
+    sfx('block');
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.random() * 0.4;
+      const shard = this.add
+        .triangle(x, y, 0, 0, 2, 5, 4, 0, i % 2 ? 0xc2f0ff : 0x29adff)
+        .setDepth(13)
+        .setRotation(a + Math.PI / 2);
+      this.tweens.add({
+        targets: shard,
+        x: x + Math.cos(a) * 20,
+        y: y + Math.sin(a) * 20,
+        alpha: 0,
+        duration: 320,
+        ease: 'Quad.Out',
+        onComplete: () => shard.destroy(),
+      });
+    }
+    for (const o of this.hittables())
+      if (o !== t && Phaser.Math.Distance.Between(x, y, o.x, o.y) < 26) this.applyStatus(o, { freeze: 400 });
+  }
+
+  /** PETIR II: a bolt from the top of the screen onto (x, y), then it forks to the two nearest other enemies. */
+  private skyStrike(x: number, y: number): void {
+    const near = this.targets(x, y) as Hittable[];
+    const first = near[0];
+    if (!first || this.over) return;
+    const g = this.add.graphics().setDepth(14);
+    const jag = (x0: number, y0: number, x1: number, y1: number, w: number, c: number) => {
+      g.lineStyle(w, c).beginPath().moveTo(x0, y0);
+      for (let i = 1; i < 6; i++) g.lineTo(x0 + ((x1 - x0) * i) / 6 + Phaser.Math.Between(-4, 4), y0 + ((y1 - y0) * i) / 6);
+      g.lineTo(x1, y1).strokePath();
+    };
+    jag(first.x, 0, first.x, first.y, 3, 0x83769c);
+    jag(first.x, 0, first.x, first.y, 1, 0xffec27);
+    burst(this, first.x, first.y, 0xffec27, 8);
+    this.tweens.add({ targets: g, alpha: 0, duration: 260, onComplete: () => g.destroy() });
+    sfx('hit');
+    const k = 1 + this.stats.boltPower;
+    this.attack(first, 1.5 * k, 'proc', 80);
+    for (const o of near.slice(1, 3)) {
+      if (!o.active || Phaser.Math.Distance.Between(first.x, first.y, o.x, o.y) > 90) continue;
+      const fork = this.add.graphics().setDepth(14).lineStyle(1, 0xffec27).lineBetween(first.x, first.y, o.x, o.y);
+      this.tweens.add({ targets: fork, alpha: 0, duration: 220, onComplete: () => fork.destroy() });
+      this.attack(o, 0.8 * k, 'proc', 50);
+    }
+  }
+
+  /** BAYANG II: a shadow of the hero stays where the dash began and bursts a beat later. */
+  private shadowClone(x: number, y: number, p: Player): void {
+    const shade = this.add.image(x, y, p.texture.key).setFlipX(p.flipX).setTint(0x1d1d3a).setAlpha(0.85).setDepth(9);
+    this.tweens.add({ targets: shade, alpha: 0.55, yoyo: true, repeat: 2, duration: 70 });
+    this.time.delayedCall(420, () => {
+      shade.destroy();
+      if (this.over) return;
+      ring(this, x, y, 0x83769c, 3, 26, 260, 2);
+      sparks(this, x, y, [0x1d1d3a, 0x83769c, 0xfff1e8], 10, 18);
+      this.area(x, y, 26, 1.2 * this.stats.dashPower, 140, 'proc');
+    });
+  }
+
+  /** DARAH II: a drop of blood falls from the kill and heals whoever picks it up. */
+  private dropOrb(x: number, y: number): void {
+    const obj = this.add
+      .container(x, y, [this.add.circle(0, 0, 3, 0x7e2553), this.add.circle(0, 0, 2, 0xff004d), this.add.rectangle(-1, -1, 1, 1, 0xffccaa)])
+      .setDepth(6);
+    this.tweens.add({ targets: obj, y: FLOOR_Y - 4, duration: 380, ease: 'Bounce.Out' });
+    this.orbs.push({ obj, until: this.time.now + BLOOD_ORB.ms });
+  }
+
+  private tickOrbs(time: number): void {
+    const p = this.player;
+    this.orbs = this.orbs.filter(({ obj, until }) => {
+      if (time >= until) return void obj.destroy();
+      obj.setAlpha(until - time < 1500 && Math.floor(time / 100) % 2 ? 0.3 : 1);
+      if (Phaser.Math.Distance.Between(p.x, p.y, obj.x, obj.y) > 14) return true;
+      const amt = Math.max(2, Math.round(this.stats.maxHp * BLOOD_ORB.heal));
+      p.heal(amt);
+      floatText(this, p.x, p.y - 18, `+${amt}`, COLOR.red);
+      sparks(this, obj.x, obj.y, [0xff004d, 0xffccaa], 6, 10);
+      obj.destroy();
+      return false;
+    });
+  }
+
+  /** API II: a burning enemy that dies bursts into flame; the blast sets its neighbors alight (and may chain on). */
+  private fireBurst(x: number, y: number): void {
+    this.time.delayedCall(90, () => {
+      if (this.over) return;
+      ring(this, x, y, 0xffa300, 4, 28, 280, 2);
+      sparks(this, x, y, [0xff004d, 0xffa300, 0xffec27], 14, 22);
+      this.cameras.main.shake(70, 0.005);
+      this.area(x, y, 28, 0.8, 120, 'proc', { burn: 0.15 });
+    });
+  }
+
+  /** ES III: every kill breathes frost over the enemies around it. */
+  private frostNova(x: number, y: number): void {
+    ring(this, x, y, 0x29adff, 3, 30, 300, 2);
+    ring(this, x, y, 0xc2f0ff, 2, 18, 220);
+    for (const o of this.hittables()) if (Phaser.Math.Distance.Between(x, y, o.x, o.y) < 32) this.applyStatus(o, { freeze: 900 });
   }
 
   /** Hati Dewa / Jiwa Abadi: HP and ult meter over time. */
@@ -976,6 +1272,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       this.cameras.main.shake(200, 0.012);
     }
     if (this.stats.healOnKill) this.player.heal(this.stats.healOnKill);
+    // Item tags on a kill: API's burst from a burning body, ES's nova, DARAH's orb; KUTUKAN counts down.
+    const burning = this.time.now < (t.getData('burnUntil') ?? 0);
+    if (this.stats.burnBurst && burning) this.fireBurst(t.x, t.y);
+    if (this.stats.frostNova) this.frostNova(t.x, t.y);
+    if (this.stats.bloodOrb && !(t instanceof Boss) && Math.random() < BLOOD_ORB.chance) this.dropOrb(t.x, t.y);
+    if (this.curseLeft && --this.curseLeft === 0) {
+      floatText(this, this.player.x, this.player.y - 28, 'KUTUKAN LEPAS!', COLOR.gold);
+      sparks(this, this.player.x, this.player.y, [0x7e2553, 0xfff1e8], 14, 20);
+    }
     // Any death counts for the passive (burn ticks and passive procs too); the target is still readable here.
     if (!this.over) this.passive.onKill?.(this.pctx, t);
     if (Math.random() < this.stats.goldChance) {
@@ -1012,15 +1317,27 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (this.over || this.cleared) return;
     // The passive may turn the hit away entirely (God Hand, crow substitution, Susanoo).
     if (!this.player.invulnerable && this.passive.guard?.(this.pctx, dmg, fromX, source)) return;
-    const result = this.player.hurt(dmg, fromX);
+    const result = this.player.hurt(this.curseLeft ? dmg * CURSE.taken : dmg, fromX);
     this.passive.onAttacked?.(this.pctx, result, source);
+    if (result === 'hit' && this.stats.ironQuake && this.time.now >= this.quakeReady) this.ironQuake();
     if (result === 'dead') return this.playerDown();
     if (result === 'hit' && debuff) this.player.afflict(debuff, dmg);
     if (result === 'hit' && source?.active && this.stats.thorns) this.damage(source, this.stats.thorns, COLOR.gray, 80);
   }
 
+  /** BESI III: a hit taken shakes the ground around the hero (once a second). */
+  private ironQuake(): void {
+    const p = this.player;
+    this.quakeReady = this.time.now + 1000;
+    ring(this, p.x, p.y + 6, 0xc2c3c7, 4, 42, 300, 3);
+    ring(this, p.x, p.y + 6, 0x5f574f, 2, 30, 240, 2);
+    burst(this, p.x, FLOOR_Y, 0xc2c3c7, 10);
+    this.cameras.main.shake(140, 0.012);
+    this.area(p.x, p.y, 42, 2, 220, 'proc');
+  }
+
   private playerDown(): void {
-    if (this.godHandLeft > 0) {
+    if (this.godHandLeft > 0 && this.stats.godHand) {
       this.godHandLeft--;
       this.player.clearDebuffs();
       this.player.hp = Math.round(this.stats.maxHp * 0.3);
@@ -1031,7 +1348,21 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       return;
     }
     if (this.items.includes('phoenix')) this.revive();
+    else if (this.save.perks.nyawa && !this.revived) this.secondLife();
     else this.die();
+  }
+
+  /** NYAWA KEDUA (hub perk): once per run, the hero gets back up. */
+  private secondLife(): void {
+    this.revived = true;
+    this.player.clearDebuffs();
+    this.player.hp = Math.round(this.stats.maxHp * 0.4);
+    this.player.invuln(2000);
+    sfx('revive');
+    ring(this, this.player.x, this.player.y, 0x29adff, 4, 40, 400, 2);
+    sparks(this, this.player.x, this.player.y, [0x29adff, 0xfff1e8], 18, 26);
+    this.cameras.main.flash(300, 41, 173, 255);
+    floatText(this, this.player.x, this.player.y - 16, 'NYAWA KEDUA!', COLOR.blue);
   }
 
   /** Bulu Phoenix: consumed instead of dying. */
@@ -1052,12 +1383,16 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   /** Colliders and hit checks for a boss on the field. */
   private wireBoss(boss: Boss): void {
     this.physics.add.collider(boss, this.floorBody);
+    for (const p of [this.player, this.benchPlayer]) if (p) this.wireBossTo(p, boss);
+    this.physics.add.overlap(this.shots, boss, (a, b) => this.shotHit(a, b));
+  }
+
+  private wireBossTo(p: Player, boss: Boss): void {
     this.physics.add.overlap(
-      this.player,
+      p,
       boss,
       () => boss.active && !boss.untargetable && !this.frozen(boss) && this.hurtPlayer(boss.damage, boss.x, boss),
     );
-    this.physics.add.overlap(this.shots, boss, (a, b) => this.shotHit(a, b));
   }
 
   /**
@@ -1138,62 +1473,98 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
   }
 
+  /** What the door taken into this round pays: a shop, heroes, a cursed (legend+) pick, or the usual reward. */
+  private rollPanel(): Reward[] {
+    const owned = [...this.items, ...this.spent];
+    const plain = !this.cfg.boss && !this.invaded && !this.bossLeft;
+    this.panel = plain && this.gate === 'toko' ? 'shop' : plain && this.gate === 'pahlawan' ? 'hero' : 'reward';
+    if (this.panel === 'shop') return rollShop(this.cfg.round, owned);
+    if (this.panel === 'hero') return rollHeroes(this.bench ? [this.cls, this.bench] : [this.cls]);
+    // KUTUKAN pays like a boss two tiers on.
+    const round = plain && this.gate === 'kutukan' ? (Math.ceil(this.cfg.round / BOSS_EVERY) + 2) * BOSS_EVERY : this.rewardRound;
+    return rollRewards(round, owned, Math.random, this.items);
+  }
+
   private showRewards(): void {
-    this.rewards = rollRewards(this.rewardRound, [...this.items, ...this.spent]);
+    this.rewards = this.rollPanel();
     this.rewardSel = 0;
     this.rerolls = 0;
+    this.sold = new Set();
     this.buildRewardUi();
+  }
+
+  /** The "take nothing" / "leave the shop" row comes after the rewards. */
+  private get skipRow(): number {
+    return this.rewards?.length ?? 0;
   }
 
   private buildRewardUi(): void {
     this.rewardUi?.destroy();
     const rewards = this.rewards ?? [];
+    const shop = this.panel === 'shop';
+    const top = shop ? SHOP_Y : REWARD_Y;
+    const rowH = shop ? SHOP_H : REWARD_H;
     const ui = this.add.container(0, 0).setDepth(200);
     ui.add(this.add.rectangle(W / 2, H / 2 + 12, 290, 146, 0x000000, 0.85).setStrokeStyle(1, 0x83769c));
-    ui.add(
-      text(
-        this,
-        W / 2,
-        REWARD_Y - 16,
-        this.cfg.boss ? 'HADIAH BOSS!' : this.cfg.eliteRound ? 'HADIAH ELIT!' : 'PILIH HADIAH',
-        COLOR.gold,
-      ).setOrigin(0.5, 0),
-    );
-    ui.add([this.add.image(W - 50, REWARD_Y - 12, 'coin'), text(this, W - 44, REWARD_Y - 16, `${this.coins}`, COLOR.gold)]);
-    const full = this.items.length >= MAX_ITEMS;
-    ui.add(text(this, 20, REWARD_Y - 16, `RELIK ${this.items.length}/${MAX_ITEMS}`, full ? COLOR.red : COLOR.gray));
+    const title = shop
+      ? 'TOKO'
+      : this.panel === 'hero'
+        ? 'PILIH PAHLAWAN'
+        : this.cfg.boss
+          ? 'HADIAH BOSS!'
+          : this.cfg.eliteRound
+            ? 'HADIAH ELIT!'
+            : this.gate === 'kutukan'
+              ? 'HADIAH KUTUKAN!'
+              : 'PILIH HADIAH';
+    ui.add(text(this, W / 2, top - 16, title, COLOR.gold).setOrigin(0.5, 0));
+    ui.add([this.add.image(W - 50, top - 12, 'coin'), text(this, W - 44, top - 16, `${this.coins}`, COLOR.gold)]);
+    const full = this.items.length >= this.slots;
+    ui.add(text(this, 20, top - 16, `RELIK ${this.items.length}/${this.slots}`, full ? COLOR.red : COLOR.gray));
     rewards.forEach((r, i) => {
       const info = rewardInfo(r);
       const rarity = rewardRarity(r);
-      const y = REWARD_Y + i * REWARD_H;
-      const row = this.add.zone(W / 2, y + 8, 280, REWARD_H - 2).setInteractive({ useHandCursor: true });
+      const y = top + i * rowH;
+      const sold = this.sold.has(i);
+      const row = this.add.zone(W / 2, y + rowH / 2 - 4, 280, rowH - 2).setInteractive({ useHandCursor: true });
       row.on('pointerdown', () => {
         this.rewardSel = i;
         this.takeReward();
       });
       ui.add([
         row,
-        text(this, 20, y + 3, '>', COLOR.gold).setName(`sel${i}`),
-        this.add.image(34, y + 7, info.icon),
-        text(this, 50, y, info.name, RARITY_COLOR[rarity]),
-        this.completesSet(r)
-          ? text(this, W - 20, y, 'SET!', COLOR.gold).setOrigin(1, 0)
-          : text(this, W - 20, y, rarity === 'biasa' ? '' : rarity.toUpperCase(), RARITY_COLOR[rarity]).setOrigin(1, 0),
-        text(this, 50, y + 10, info.desc, COLOR.gray),
+        text(this, 20, y + (shop ? 1 : 3), '>', COLOR.gold).setName(`sel${i}`),
+        this.add.image(34, y + (shop ? 5 : 7), info.icon).setScale(r.type === 'hero' ? 0.9 : 1),
+        text(this, 50, y, info.name, sold ? COLOR.gray : RARITY_COLOR[rarity]),
+        text(this, 50, y + (shop ? 8 : 10), sold ? 'TERJUAL' : info.desc, COLOR.gray, shop ? 6 : 8),
       ]);
+      if (shop && !sold) {
+        ui.add([
+          this.add.image(W - 30, y + 4, 'coin'),
+          text(this, W - 24, y, `${r.price ?? 0}`, (r.price ?? 0) <= this.coins ? COLOR.gold : COLOR.red),
+        ]);
+      }
+      // Tags, right-aligned, each in its own color.
+      let x = shop ? W - 36 : W - 20;
+      for (const tag of r.type === 'item' && !sold ? [...ITEM_TAGS[r.id]].reverse() : []) {
+        const label = text(this, x, y + 1, TAGS[tag].name, TAGS[tag].color, 6).setOrigin(1, 0);
+        ui.add(label);
+        x -= label.width + 4;
+      }
+      if (r.type === 'hero') ui.add(text(this, W - 20, y + 1, 'HERO', COLOR.blue, 6).setOrigin(1, 0));
     });
-    const skipY = REWARD_Y + SKIP_ROW * REWARD_H;
+    const skipY = top + this.skipRow * rowH;
     const skip = this.add.zone(W / 2, skipY + 4, 280, 12).setInteractive({ useHandCursor: true });
     skip.on('pointerdown', () => {
-      this.rewardSel = SKIP_ROW;
+      this.rewardSel = this.skipRow;
       this.takeReward();
     });
-    const cost = rerollCost(this.rerolls);
+    const cost = this.rerollCost;
     const refresh = text(
       this,
       W / 2,
       skipY + 14,
-      `${padConnected() ? 'D-PAD PILIH  A AMBIL  Y' : 'W/S PILIH  J AMBIL  R'} REFRESH ${cost}`,
+      `${padConnected() ? 'D-PAD PILIH  A' : 'W/S PILIH  J'} ${shop ? 'BELI' : 'AMBIL'}  ${padConnected() ? 'Y' : 'R'} REFRESH ${cost || 'GRATIS'}`,
       this.coins >= cost ? COLOR.blue : COLOR.gray,
     )
       .setOrigin(0.5, 0)
@@ -1201,14 +1572,18 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       .on('pointerdown', () => this.reroll());
     ui.add([
       skip,
-      text(this, 20, skipY, '>', COLOR.gold).setName(`sel${SKIP_ROW}`),
-      text(this, 50, skipY, 'LEWATI (TIDAK AMBIL APA-APA)', COLOR.gray),
+      text(this, 20, skipY, '>', COLOR.gold).setName(`sel${this.skipRow}`),
+      text(this, 50, skipY, shop ? 'SELESAI (KELUAR TOKO)' : 'LEWATI (TIDAK AMBIL APA-APA)', COLOR.gray),
       refresh,
       text(this, 20, skipY + 26, '', COLOR.gray).setName('setName'),
       text(this, 20, skipY + 36, '', COLOR.gray).setName('setDesc'),
     ]);
     this.rewardUi = ui;
     this.refreshRewards();
+  }
+
+  private get rerollCost(): number {
+    return rerollCost(this.rerolls, !!this.save.perks.refresh);
   }
 
   /**
@@ -1221,13 +1596,15 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const neu = this.replacing!;
     ui.add(this.add.rectangle(W / 2, H / 2 + 12, 290, 146, 0x000000, 0.85).setStrokeStyle(1, 0x83769c));
     ui.add([
-      text(this, W / 2, 33, `RELIK PENUH ${this.items.length}/${MAX_ITEMS}`, COLOR.red).setOrigin(0.5, 0),
+      text(this, W / 2, 33, `RELIK PENUH ${this.items.length}/${this.slots}`, COLOR.red).setOrigin(0.5, 0),
       text(this, W / 2, 43, `GANTI: ${ITEMS[neu].name}`, RARITY_COLOR[ITEMS[neu].rarity]).setOrigin(0.5, 0),
     ]);
-    const rowY = (i: number) => 55 + i * 10;
+    // Ten slots need tighter rows.
+    const step = this.items.length > 8 ? 8 : 10;
+    const rowY = (i: number) => 55 + i * step;
     const row = (i: number) =>
       this.add
-        .zone(W / 2, rowY(i) + 4, 280, 10)
+        .zone(W / 2, rowY(i) + 4, 280, step)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => {
           this.rewardSel = i;
@@ -1240,7 +1617,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
         text(this, 20, y, '>', COLOR.gold).setName(`sel${i}`),
         this.add.image(34, y + 4, `i_${id}`),
         text(this, 44, y, ITEMS[id].name, RARITY_COLOR[ITEMS[id].rarity]),
-        text(this, W - 20, y, this.items.includes(pairOf(id).partner) ? 'SET' : '', COLOR.gold).setOrigin(1, 0),
+        text(this, W - 20, y + 1, ITEM_TAGS[id].map((t) => TAGS[t].name).join(' '), COLOR.gray, 6).setOrigin(1, 0),
       ]);
     });
     const back = this.items.length;
@@ -1259,7 +1636,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   /** Spend coins to roll a new set of rewards; each refresh on the same panel costs 1 more. */
   private reroll(): void {
     if (!this.rewards || this.paused || this.replacing) return;
-    const cost = rerollCost(this.rerolls);
+    const cost = this.rerollCost;
     if (this.coins < cost) {
       sfx('deny');
       this.cameras.main.shake(80, 0.005);
@@ -1269,7 +1646,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.coins -= cost;
     sfx('coin');
     this.rerolls++;
-    this.rewards = rollRewards(this.rewardRound, [...this.items, ...this.spent]);
+    this.rewards = this.rollPanel();
+    this.sold = new Set();
     this.buildRewardUi();
   }
 
@@ -1280,70 +1658,110 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.refreshRewards();
   }
 
-  /** Rows of the open panel: three rewards + skip, or the owned items + cancel in the replace step. */
+  /** Rows of the open panel: the rewards + skip, or the owned items + cancel in the replace step. */
   private get rewardRows(): number {
-    return this.replacing ? this.items.length + 1 : SKIP_ROW + 1;
+    return this.replacing ? this.items.length + 1 : this.skipRow + 1;
   }
 
   private refreshRewards(): void {
     for (let i = 0; i < this.rewardRows; i++) {
       (this.rewardUi?.getByName(`sel${i}`) as Phaser.GameObjects.Text | null)?.setVisible(i === this.rewardSel);
     }
-    // Set info of the highlighted item: its partner and the bonus both give.
     const name = this.rewardUi?.getByName('setName') as Phaser.GameObjects.Text | null;
     const desc = this.rewardUi?.getByName('setDesc') as Phaser.GameObjects.Text | null;
-    const r = this.rewards?.[this.rewardSel];
     if (!name || !desc) return;
+    name.setText('').setColor(COLOR.gray);
+    desc.setText('').setColor(COLOR.gray);
     if (this.replacing) {
-      // Replace step: what the highlighted item does, and the set that breaks without it.
+      // Replace step: what the highlighted item does, and the tag tiers lost without it.
       const id = this.items[this.rewardSel];
-      name.setText(id ? ITEMS[id].desc : '');
-      desc.setText(id && this.items.includes(pairOf(id).partner) ? `SET ${pairOf(id).pair.name} PUTUS` : '');
+      if (!id) return;
+      name.setText(ITEMS[id].desc);
+      const lost = this.tierChanges(this.items.filter((x) => x !== id));
+      desc.setText(lost.length ? `HILANG: ${lost.join(' ')}` : '');
       return;
     }
-    if (r?.type !== 'item') {
-      name.setText('');
-      desc.setText('');
+    const r = this.rewards?.[this.rewardSel];
+    if (r?.type === 'hero') {
+      name.setText(this.bench ? `GANTI ${CLASSES[this.bench].name} (CADANGAN)` : 'JADI HERO CADANGAN').setColor(COLOR.blue);
+      desc.setText(`${padConnected() ? 'LB' : 'U'} TUKAR HERO SAAT BERTARUNG`);
       return;
     }
-    const { pair, partner } = pairOf(r.id);
-    const color = this.completesSet(r) ? COLOR.gold : COLOR.gray;
-    name.setText(`SET ${pair.name} + ${ITEMS[partner].name}`).setColor(color);
-    desc.setText(pair.desc).setColor(color);
+    if (r?.type !== 'item') return;
+    // Tag progress if taken: the tier it would reach, or how far the next one is.
+    const after = [...this.items, r.id];
+    const gained = this.tierChanges(this.items, after);
+    const n = tagCounts(after);
+    name.setText(ITEM_TAGS[r.id].map((t) => `${TAGS[t].name} ${n[t]}/${TAG_TIERS[Math.min(2, tierOf(n[t]))]}`).join('  '));
+    if (gained.length) {
+      name.setColor(COLOR.gold);
+      desc.setText(`BARU: ${gained[0]} ${this.tierDesc(gained[0])}`).setColor(COLOR.gold);
+      return;
+    }
+    const tag = ITEM_TAGS[r.id].find((t) => tierOf(n[t]) < 3);
+    if (tag) desc.setText(`${TAGS[tag].name} ${TIER_MARK[tierOf(n[tag]) + 1]}: ${TAGS[tag].tiers[tierOf(n[tag])].desc}`);
   }
 
-  /** Taking this reward completes an item set. */
-  private completesSet(r: Reward): boolean {
-    return r.type === 'item' && this.items.includes(pairOf(r.id).partner);
+  /** Tag tiers held by `after` but not by `before`, as "API II" labels. */
+  private tierChanges(before: readonly ItemId[], after: readonly ItemId[] = this.items): string[] {
+    const label = (x: { tag: Tag; tier: number }) => `${TAGS[x.tag].name} ${TIER_MARK[x.tier]}`;
+    const had = new Set(activeTiers(before).map(label));
+    return activeTiers(after)
+      .map(label)
+      .filter((l) => !had.has(l));
+  }
+
+  /** "API II" -> that tier's description. */
+  private tierDesc(label: string): string {
+    const [name, mark] = label.split(' ');
+    const tag = (Object.keys(TAGS) as Tag[]).find((t) => TAGS[t].name === name)!;
+    return TAGS[tag].tiers[TIER_MARK.indexOf(mark as (typeof TIER_MARK)[number]) - 1].desc;
   }
 
   private takeReward(): void {
     if (!this.rewards || this.paused) return;
+    const shop = this.panel === 'shop';
     let drop: number | undefined;
     let r: Reward | undefined;
+    let row = this.rewardSel;
     if (this.replacing) {
       const id = this.replacing;
       this.replacing = undefined;
-      // Cancel row: back to the rewards, on the item that was picked.
+      // Cancel row: back to the panel, on the item that was picked.
       if (this.rewardSel >= this.items.length) {
         sfx('back');
-        this.rewardSel = Math.max(
-          0,
-          this.rewards.findIndex((x) => x.type === 'item' && x.id === id),
-        );
+        this.rewardSel = this.replacingRow;
         return this.buildRewardUi();
       }
       drop = this.rewardSel;
-      r = { type: 'item', id };
+      row = this.replacingRow;
+      r = this.rewards[row];
+      if (r?.type !== 'item' || r.id !== id) return this.buildRewardUi();
     } else {
-      r = this.rewardSel === SKIP_ROW ? undefined : this.rewards[this.rewardSel];
-      // All relic slots taken: first choose which owned item makes room. Potions never need a slot.
-      if (r?.type === 'item' && !takeItem(this.items, r.id)) {
+      r = this.rewardSel === this.skipRow ? undefined : this.rewards[this.rewardSel];
+      if (r && shop && (this.sold.has(row) || this.coins < (r.price ?? 0))) {
+        sfx('deny');
+        this.cameras.main.shake(80, 0.005);
+        if (!this.sold.has(row)) floatText(this, W / 2, SHOP_Y - 24, 'KOIN KURANG', COLOR.red);
+        return;
+      }
+      // All relic slots taken: first choose which owned item makes room. Potions and heroes never need a slot.
+      if (r?.type === 'item' && !takeItem(this.items, r.id, undefined, this.slots)) {
         sfx('move');
         this.replacing = r.id;
+        this.replacingRow = row;
         this.rewardSel = 0;
         return this.buildReplaceUi();
       }
+    }
+    // The shop stays open until SELESAI: each buy marks its row sold.
+    if (shop && r) {
+      this.coins -= r.price ?? 0;
+      this.sold.add(row);
+      sfx('coin');
+      this.applyReward(r, drop);
+      this.rewardSel = row;
+      return this.buildRewardUi();
     }
     this.rewards = undefined;
     this.rewardUi?.destroy();
@@ -1351,53 +1769,88 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.input.keyboard!.resetKeys();
     sfx(r ? 'reward' : 'back');
     if (r) this.applyReward(r, drop);
-    else floatText(this, this.player.x, this.player.y - 16, 'DILEWATI', COLOR.gray);
-    this.openPortal();
+    else floatText(this, this.player.x, this.player.y - 16, shop ? 'SAMPAI JUMPA' : 'DILEWATI', COLOR.gray);
+    this.openDoors();
   }
 
   /** `drop`: index of the owned item discarded to make room (it may be offered again later). */
   private applyReward(r: Reward, drop?: number): void {
+    if (r.type === 'hero') {
+      this.recruit(r.cls);
+      return this.drawInventory();
+    }
     const oldMax = this.stats.maxHp;
     if (r.type === 'potion') this.player.heal(Math.round(this.stats.maxHp * 0.5));
     const dropped = drop === undefined ? undefined : this.items[drop];
-    if (r.type === 'item') this.items = takeItem(this.items, r.id, drop) ?? this.items;
-    const completes = r.type === 'item' && this.items.includes(pairOf(r.id).partner);
+    const before = this.items;
+    if (r.type === 'item') this.items = takeItem(this.items, r.id, drop, this.slots) ?? this.items;
+    const gained = this.tierChanges(before, this.items);
     this.player.equip(this.currentStats(), WEAPONS[this.weaponId]);
     if (this.stats.maxHp > oldMax) this.player.heal(this.stats.maxHp - oldMax);
     floatText(this, this.player.x, this.player.y - 16, rewardInfo(r).name, COLOR.gold);
     if (dropped) floatText(this, this.player.x, this.player.y - 40, `BUANG ${ITEMS[dropped].name}`, COLOR.gray);
-    if (completes && r.type === 'item') {
-      floatText(this, this.player.x, this.player.y - 28, `SET ${pairOf(r.id).pair.name}!`, COLOR.gold);
+    if (gained.length) {
+      floatText(this, this.player.x, this.player.y - 28, `${gained.join(' ')}!`, COLOR.gold);
       sfx('set');
       this.cameras.main.flash(200, 255, 236, 39);
     }
     this.drawInventory();
   }
 
-  private openPortal(): void {
+  /**
+   * Doors out of the round: one to the boss when a boss (or bonus bosses) is next; else two (three with MATA GERBANG),
+   * each labelled with the gate it leads to. They take a moment to open, so the hero is not pulled in on the spot.
+   */
+  private openDoors(): void {
     sfx('portal');
-    this.portal = this.physics.add
-      .staticImage(W / 2, FLOOR_Y - 8, 'portal')
-      .setDepth(3)
-      .setAlpha(0);
-    this.tweens.add({ targets: this.portal, alpha: 1, duration: 400 });
-    this.tweens.add({ targets: this.portal, scaleX: 0.85, yoyo: true, repeat: -1, duration: 300 });
+    const round = this.cfg.round + 1;
+    this.nextSpecials = rollSpecials(round);
+    const boss = this.nextSpecials.length > 0 || isBossRound(round);
+    const gates: (Gate | undefined)[] = boss ? [undefined] : Phaser.Utils.Array.Shuffle(rollGates(round, this.save.perks.gerbang ? 3 : 2));
+    const gap = gates.length === 3 ? 92 : 112;
+    this.doorsArmAt = this.time.now + 600;
+    this.doors = gates.map((gate, i) => {
+      const x = W / 2 + (i - (gates.length - 1) / 2) * gap;
+      const color = gate ? GATES[gate].color : 0xff004d;
+      const img = this.physics.add
+        .staticImage(x, FLOOR_Y - 8, 'portal')
+        .setDepth(3)
+        .setAlpha(0)
+        .setTint(color);
+      this.tweens.add({ targets: img, alpha: 1, duration: 400 });
+      this.tweens.add({ targets: img, scaleX: 0.85, yoyo: true, repeat: -1, duration: 300 });
+      const hex = `#${color.toString(16).padStart(6, '0')}`;
+      const name = gate ? GATES[gate].name : this.nextSpecials.length ? 'BONUS' : 'BOS';
+      const hint = gate ? GATES[gate].hint : this.nextSpecials.map((k) => BOSSES[k].name).join('+') || `ROUND ${round}`;
+      const labels = [
+        text(this, x, FLOOR_Y - 34, name, hex).setOrigin(0.5, 0),
+        text(this, x, FLOOR_Y - 25, hint, COLOR.gray, 6).setOrigin(0.5, 0),
+      ];
+      labels.forEach((l) => l.setDepth(5).setAlpha(0).setStroke('#000000', 3));
+      this.tweens.add({ targets: labels, alpha: 1, duration: 400 });
+      sparks(this, x, FLOOR_Y - 8, [color, 0xfff1e8], 8, 14);
+      return { img, gate };
+    });
   }
 
-  private nextRound(): void {
-    this.portal = undefined;
+  private nextRound(gate?: Gate): void {
+    this.doors = [];
     const round = this.cfg.round + 1;
-    const specials = rollSpecials(round);
-    const eliteRound = !specials.length && rollEliteRound(round);
+    const specials = this.nextSpecials;
+    const eliteRound = gate === 'elit';
     this.scene.restart({
       round,
       specials,
       eliteRound,
-      invasion: specials.length || eliteRound ? undefined : rollInvasion(round),
+      gate,
+      // Hidden bosses only crash into plain rounds.
+      invasion: specials.length || eliteRound || gate === 'kutukan' ? undefined : rollInvasion(round),
       hp: this.player.hp,
       runSouls: this.runSouls,
       weapon: this.weaponId,
       cls: this.cls,
+      bench: this.bench,
+      revived: this.revived,
       coins: this.coins,
       items: this.items,
       spent: this.spent,
@@ -1436,7 +1889,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   }
 
   private showPauseText(): void {
-    const sets = activePairs(this.items).map((p) => p.name);
+    const n = tagCounts(this.items);
+    const tags = (Object.keys(TAGS) as Tag[]).filter((t) => tierOf(n[t])).map((t) => `${TAGS[t].name} ${TIER_MARK[tierOf(n[t])]}`);
     const sound = `${padConnected() ? 'Y' : 'M'} ${soundLabel()}`;
     this.pauseText
       .setText(
@@ -1448,7 +1902,9 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
           `TAHAN ${padConnected() ? 'X' : 'J'}: ${CHARGED[this.cls].name}`,
           CHARGED[this.cls].desc,
           '',
-          ...(sets.length ? ['SET AKTIF:', ...sets, ''] : []),
+          ...(tags.length ? [`TAG: ${tags.join('  ')}`] : []),
+          ...(this.bench ? [`CADANGAN (${padConnected() ? 'LB' : 'U'}): ${CLASSES[this.bench].name}`] : []),
+          ...(tags.length || this.bench ? [''] : []),
           pauseHint(),
           sound,
         ].join('\n'),
@@ -1499,6 +1955,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
           .setStrokeStyle(1, 0xffec27),
       );
     inv.add(this.add.image(4, H - 6, `w_${this.weaponId}`).setOrigin(0, 0.5));
+    const n = tagCounts(this.items);
     this.items.forEach((id, i) => {
       const x = 30 + i * 9;
       const rarity = ITEMS[id].rarity;
@@ -1506,9 +1963,18 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       if (rarity !== 'biasa')
         inv.add(this.add.rectangle(x, H - 6, 9, 9).setStrokeStyle(1, Phaser.Display.Color.HexStringToColor(RARITY_COLOR[rarity]).color));
       inv.add(this.add.image(x, H - 6, `i_${id}`));
-      // Gold underline: this item's set is complete.
-      if (this.items.includes(pairOf(id).partner)) inv.add(this.add.rectangle(x, H - 1, 7, 1, 0xffec27));
+      // Underline in the color of its tag that has reached a tier.
+      const lit = ITEM_TAGS[id].find((t) => tierOf(n[t]));
+      if (lit) inv.add(this.add.rectangle(x, H - 1, 7, 1, Phaser.Display.Color.HexStringToColor(TAGS[lit].color).color));
     });
+    // The benched hero, after the relic slots; it dims while the swap recharges (drawHud).
+    this.benchIcon = this.bench
+      ? this.add
+          .image(30 + this.slots * 9 + 4, H - 8, `hero_idle_${this.bench}`)
+          .setScale(0.8)
+          .setDepth(100)
+      : undefined;
+    if (this.benchIcon) inv.add([this.benchIcon, text(this, this.benchIcon.x + 6, H - 9, padConnected() ? 'LB' : 'U', COLOR.gray, 6)]);
     this.inventory = inv;
   }
 
@@ -1527,7 +1993,17 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     // Dark Avenger: the meter is the mode's timer, so label it instead of "I ULTI!".
     this.ultText.setText(p.awakened ? 'AVENGER' : padConnected() ? 'RB ULTI!' : 'I ULTI!').setVisible(ultFull || p.awakened);
     this.hpText.setText(`${p.hp}`);
-    this.debuffText.setText([p.fury ? `AMARAH ${p.fury}` : '', p.debuffNames].filter(Boolean).join(' '));
+    this.debuffText.setText(
+      [
+        this.curseLeft ? `KUTUKAN ${this.curseLeft}` : '',
+        this.spellCharges ? `ARCANA ${this.spellCharges}` : '',
+        p.fury ? `AMARAH ${p.fury}` : '',
+        p.debuffNames,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+    this.benchIcon?.setAlpha(this.time.now < this.swapReadyAt ? 0.35 : 1);
     this.soulText.setText(`${this.runSouls}`);
     this.coinText.setText(`${this.coins}`);
     // Small bars over hurt enemies; gold for elites.

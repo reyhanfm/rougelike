@@ -1,5 +1,5 @@
 import type { Derived } from './stats.ts';
-import { CLASSES, hasSynergy, type ClassId } from './classes.ts';
+import { CLASS_IDS, CLASSES, hasSynergy, type ClassId } from './classes.ts';
 
 export type WeaponId =
   | 'pedang'
@@ -2518,217 +2518,262 @@ export const ITEMS: Record<ItemId, Item> = {
 
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
 
-export interface ItemPair {
-  items: readonly [ItemId, ItemId];
-  name: string;
+export type Tag = 'api' | 'es' | 'petir' | 'darah' | 'bayang' | 'besi' | 'arcana' | 'harta';
+
+export interface TagTier {
   desc: string;
   apply(s: Derived): void;
 }
 
-const pair = (a: ItemId, b: ItemId, name: string, desc: string, apply: (s: Derived) => void): ItemPair => ({
-  items: [a, b],
-  name,
-  desc,
-  apply,
-});
+/** Owning this many items of one tag unlocks its tiers I, II and III in turn. */
+export const TAG_TIERS = [2, 4, 6] as const;
 
-/** Every item has exactly one partner; owning both unlocks the set bonus. */
-export const PAIRS: readonly ItemPair[] = [
-  pair('batu', 'lonceng', 'TEMPAAN PERANG', 'FINISHER COMBO = GELOMBANG', (s) => void (s.finisherWave = 1)),
-  pair('sepatu', 'jubah', 'LANGKAH BAYANG', 'KRITIS ISI DASH, LARI +10%', (s) => {
-    s.critResetsDash = 1;
-    s.speed *= 1.1;
-  }),
-  pair('jantung', 'roti', 'PESTA NAGA', 'MAX HP +25, PULIH +1 HP/DTK', (s) => {
-    s.maxHp += 25;
-    s.regen += 1;
-  }),
-  pair('taring', 'cawan', 'HAUS DARAH', 'CURI 3% DMG, +3 HP TIAP BUNUH', (s) => {
-    s.lifesteal += 0.03;
-    s.healOnKill += 3;
-  }),
-  pair('mata', 'tulang', 'BIDIKAN TULANG', 'KRITIS +8%, PENGALI KRITIS +0.3', (s) => {
-    s.critChance += 0.08;
-    s.critMult += 0.3;
-  }),
-  pair('sarung', 'bara', 'TINJU MEMBARA', 'AMARAH +20%, JEDA SERANG -8%', (s) => {
-    s.rage += 0.2;
-    s.swingCooldown *= 0.92;
-  }),
-  pair('sayap', 'bulu', 'SAYAP GAGAK', '+1 LOMPAT UDARA, DASH CD -15%', (s) => {
-    s.extraJumps += 1;
-    s.dashCooldown *= 0.85;
-  }),
-  pair('kantong', 'koin', 'SERAKAH', '+2 KOIN TIAP ROUND, SOUL +25%', (s) => {
-    s.coinBonus += 2;
-    s.soulMult *= 1.25;
-  }),
-  pair('duri', 'sisik', 'KULIT BAJA', 'PANTUL +15, DITERIMA -8%', (s) => {
-    s.thorns += 15;
-    s.damageTaken *= 0.92;
-  }),
-  pair('cincin', 'sabuk', 'PENJAGA', 'KEBAL +0.4 DTK, MAX HP +20', (s) => {
-    s.iframes += 400;
-    s.maxHp += 20;
-  }),
-  pair('gulungan', 'jimat', 'MANTRA KILAT', 'ULTI ISI SENDIRI, SKILL CD -15%', (s) => {
-    s.ultRegen += 2;
-    s.skillCdMult *= 0.85;
-  }),
-  pair('tapal', 'topeng', 'KELANA', 'DAMAGE +12%, +1 KOIN TIAP ROUND', (s) => {
-    s.damage *= 1.12;
-    s.coinBonus += 1;
-  }),
-  pair('jam', 'kristal', 'WAKTU JIWA', 'SKILL CD -20%, ULTI +30% CEPAT', (s) => {
-    s.skillCdMult *= 0.8;
-    s.ultGainMult *= 1.3;
-  }),
-  pair('perisai', 'cermin', 'BENTENG CERMIN', 'PANTUL +25, DITERIMA -10%', (s) => {
-    s.thorns += 25;
-    s.damageTaken *= 0.9;
-  }),
-  pair('kalung', 'racun', 'RACUN TAJAM', 'ECHO +20%, PENGALI KRITIS +0.3', (s) => {
-    s.echo += 0.2;
-    s.critMult += 0.3;
-  }),
-  pair('tengkorak', 'tanduk', 'AMUK BANTENG', 'AMARAH +35%, CURI 3% DAMAGE', (s) => {
-    s.rage += 0.35;
-    s.lifesteal += 0.03;
-  }),
-  pair('mahkota', 'jangkar', 'RAJA LAUT', 'MAX HP +30, DITERIMA -15%', (s) => {
-    s.maxHp += 30;
-    s.damageTaken *= 0.85;
-  }),
-  pair('phoenix', 'lentera', 'API ARWAH', '+1 JIWA PEMBURU, PULIH 1 HP/DTK', (s) => {
-    s.killSouls += 1;
-    s.regen += 1;
-  }),
-  pair('gema', 'keris', 'GEMA IBLIS', 'ECHO +25%, CURI 3% DAMAGE', (s) => {
-    s.echo += 0.25;
-    s.lifesteal += 0.03;
-  }),
-  pair('petir', 'badai', 'AMUKAN BADAI', '+2 PETIR TIAP BUNUH, ULTI +30%', (s) => {
-    s.killBolt += 2;
-    s.ultGainMult *= 1.3;
-  }),
-  // Both items already reach the regen and lifesteal caps, so the set gives what they cannot.
-  pair('hatiDewa', 'cawanDewa', 'KEABADIAN', 'MAX HP +50, KEBAL +0.4 DTK', (s) => {
-    s.maxHp += 50;
-    s.iframes += 400;
-  }),
-  pair('mataDewa', 'pedangDewa', 'MURKA DEWA', 'DAMAGE +30%, ECHO +30%', (s) => {
-    s.damage *= 1.3;
-    s.echo += 0.3;
-  }),
-  pair('sayapDewa', 'mahkotaMaut', 'MALAIKAT MAUT', 'EKSEKUSI HP < 30%, KRITIS ISI DASH', (s) => {
-    s.execute = Math.max(s.execute, 0.3);
-    s.critResetsDash = 1;
-  }),
-  pair('jiwaAbadi', 'kitabDewa', 'KITAB ABADI', 'SKILL X1.5, SKILL CD -30%', (s) => {
-    s.skillPower *= 1.5;
-    s.skillCdMult *= 0.7;
-  }),
-  pair('sandal', 'syal', 'KAKI ANGIN', 'DAMAGE DASH +40%, DASH CD -10%', (s) => {
-    s.dashPower += 0.4;
-    s.dashCooldown *= 0.9;
-  }),
-  pair('korek', 'arang', 'UNGGUN', 'BURN +50%, +10% HIT MEMBAKAR', (s) => {
-    s.elemental += 0.5;
-    s.burnChance += 0.1;
-  }),
-  pair('kompas', 'kacamata', 'PENJELAJAH', 'KRITIS +6%, +1 KOIN TIAP ROUND', (s) => {
-    s.critChance += 0.06;
-    s.coinBonus += 1;
-  }),
-  pair('plester', 'rantai', 'PERBAN BAJA', 'MAX HP +20, DITERIMA -6%', (s) => {
-    s.maxHp += 20;
-    s.damageTaken *= 0.94;
-  }),
-  pair('teh', 'lilin', 'MEDITASI', 'ULTI ISI SENDIRI, SKILL CD -10%', (s) => {
-    s.ultRegen += 1.5;
-    s.skillCdMult *= 0.9;
-  }),
-  pair('ninja', 'cambuk', 'PEMBURU BAYANG', 'DAMAGE DASH +50%, ECHO +10%', (s) => {
-    s.dashPower += 0.5;
-    s.echo += 0.1;
-  }),
-  pair('intiEs', 'palu', 'PALU ES', '+10% HIT BEKU, DAMAGE +10%', (s) => {
-    s.freezeChance += 0.1;
-    s.damage *= 1.1;
-  }),
-  pair('naga', 'dupa', 'NAFAS NAGA', '+15% HIT MEMBAKAR, DAMAGE +15%', (s) => {
-    s.burnChance += 0.15;
-    s.damage *= 1.15;
-  }),
-  pair('topan', 'bintang', 'BADAI BINTANG', 'DAMAGE DASH +80%, +1 PETIR', (s) => {
-    s.dashPower += 0.8;
-    s.killBolt += 1;
-  }),
-  pair('jubahDewa', 'kendiDewa', 'RESTU LANGIT', 'DAMAGE +25%, DITERIMA -20%', (s) => {
-    s.damage *= 1.25;
-    s.damageTaken *= 0.8;
-  }),
-  pair('daun', 'peluit', 'LINCAH', 'HINDAR +5%, LARI +8%', (s) => {
-    s.dodge += 0.05;
-    s.speed *= 1.08;
-  }),
-  pair('kelereng', 'kerang', 'HARTA KARUN', '+10% KOIN BUNUH, +1 KOIN/ROUND', (s) => {
-    s.goldChance += 0.1;
-    s.coinBonus += 1;
-  }),
-  pair('pisau', 'garam', 'PEMBURU BESAR', 'DAMAGE KE BOSS/ELIT +20%', (s) => {
-    s.bossDamage += 0.2;
-  }),
-  pair('gelang', 'tanah', 'BENTENG TANAH', 'BLOK CD -30%, MAX HP +15', (s) => {
-    s.barrier *= 0.7;
-    s.maxHp += 15;
-  }),
-  pair('madu', 'tali', 'BEKAL', 'PULIH +0.5 HP/DTK, KRITIS +4%', (s) => {
-    s.regen += 0.5;
-    s.critChance += 0.04;
-  }),
-  pair('topengPerak', 'perisaiCahaya', 'PENGAWAL', 'HINDAR +5%, BLOK CD -25%', (s) => {
-    s.dodge += 0.05;
-    s.barrier *= 0.75;
-  }),
-  pair('taringSerigala', 'kantongEmas', 'BURU HADIAH', 'BOSS/ELIT +20%, +10% KOIN BUNUH', (s) => {
-    s.bossDamage += 0.2;
-    s.goldChance += 0.1;
-  }),
-  pair('bayangan', 'aegis', 'TAK TERSENTUH', 'HINDAR +10%, BLOK CD -30%', (s) => {
-    s.dodge += 0.1;
-    s.barrier *= 0.7;
-  }),
-  pair('mahkotaEmas', 'pedangNaga', 'RAJA PEMBURU', 'BOSS/ELIT +30%, DAMAGE +10%', (s) => {
-    s.bossDamage += 0.3;
-    s.damage *= 1.1;
-  }),
-  pair('jamDewa', 'perisaiDewa', 'KEKEKALAN', 'DAMAGE +20%, PULIH 1 HP/DTK', (s) => {
-    s.damage *= 1.2;
-    s.regen += 1;
-  }),
-];
+/**
+ * Inscriptions (as in Skul): every item carries one or two tags, and the build comes from stacking a tag. Tier I is a
+ * light stat; tier II is a new mechanic with its own VFX (RunScene); tier III pushes it to the extreme.
+ */
+export const TAGS: Record<Tag, { name: string; color: string; tiers: readonly [TagTier, TagTier, TagTier] }> = {
+  api: {
+    name: 'API',
+    color: '#ffa300',
+    tiers: [
+      { desc: 'HIT 15% MEMBAKAR', apply: (s) => void (s.burnChance += 0.15) },
+      { desc: 'MATI TERBAKAR = MELEDAK', apply: (s) => void (s.burnBurst = 1) },
+      {
+        desc: 'BAKAR +50%, TERBAKAR +25% DMG',
+        apply: (s) => {
+          s.elemental += 0.5;
+          s.burnVuln = 0.25;
+        },
+      },
+    ],
+  },
+  es: {
+    name: 'ES',
+    color: '#29adff',
+    tiers: [
+      { desc: 'HIT 10% MEMBEKUKAN', apply: (s) => void (s.freezeChance += 0.1) },
+      { desc: 'PUKUL YANG BEKU = PECAH X2', apply: (s) => void (s.shatter = 1) },
+      { desc: 'MEMBUNUH = NOVA ES', apply: (s) => void (s.frostNova = 1) },
+    ],
+  },
+  petir: {
+    name: 'PETIR',
+    color: '#ffec27',
+    tiers: [
+      { desc: 'MEMBUNUH = 1 PETIR', apply: (s) => void (s.killBolt += 1) },
+      { desc: 'TIAP 5 HIT = SAMBARAN LANGIT', apply: (s) => void (s.storm = 1) },
+      {
+        desc: '+2 PETIR, DAMAGE PETIR X2',
+        apply: (s) => {
+          s.killBolt += 2;
+          s.boltPower = 1;
+        },
+      },
+    ],
+  },
+  darah: {
+    name: 'DARAH',
+    color: '#ff004d',
+    tiers: [
+      {
+        desc: 'CURI 3% DAMAGE, MAX HP +15',
+        apply: (s) => {
+          s.lifesteal += 0.03;
+          s.maxHp += 15;
+        },
+      },
+      { desc: 'MEMBUNUH = BOLA DARAH', apply: (s) => void (s.bloodOrb = 1) },
+      {
+        desc: 'AMARAH +35%, CURI +2%',
+        apply: (s) => {
+          s.rage += 0.35;
+          s.lifesteal += 0.02;
+        },
+      },
+    ],
+  },
+  bayang: {
+    name: 'BAYANG',
+    color: '#83769c',
+    tiers: [
+      {
+        desc: 'DASH CD -15%, HIT 1 KRITIS',
+        apply: (s) => {
+          s.dashCooldown *= 0.85;
+          s.dashCrit = 1;
+        },
+      },
+      { desc: 'DASH MENINGGALKAN BAYANGAN', apply: (s) => void (s.shadowClone = 1) },
+      {
+        desc: 'KRITIS ISI DASH, HINDAR +8%',
+        apply: (s) => {
+          s.critResetsDash = 1;
+          s.dodge += 0.08;
+        },
+      },
+    ],
+  },
+  besi: {
+    name: 'BESI',
+    color: '#c2c3c7',
+    tiers: [
+      { desc: 'DAMAGE DITERIMA -10%', apply: (s) => void (s.damageTaken *= 0.9) },
+      { desc: 'BLOK 1 SERANGAN TIAP 8 DTK', apply: (s) => guard(s, 8) },
+      { desc: 'KENA SERANG = GEMPA BESI', apply: (s) => void (s.ironQuake = 1) },
+    ],
+  },
+  arcana: {
+    name: 'ARCANA',
+    color: '#c080ff',
+    tiers: [
+      { desc: 'COOLDOWN SKILL -15%', apply: (s) => void (s.skillCdMult *= 0.85) },
+      { desc: 'SKILL = 3 HIT BERIKUT +60%', apply: (s) => void (s.spellblade = 1) },
+      {
+        desc: 'ULTI ISI SENDIRI, SKILL X1.3',
+        apply: (s) => {
+          s.ultRegen += 2;
+          s.skillPower *= 1.3;
+        },
+      },
+    ],
+  },
+  harta: {
+    name: 'HARTA',
+    color: '#ffccaa',
+    tiers: [
+      { desc: '+2 KOIN TIAP ROUND', apply: (s) => void (s.coinBonus += 2) },
+      { desc: '25% BUNUH = +1 KOIN', apply: (s) => void (s.goldChance += 0.25) },
+      { desc: 'DAMAGE +1% TIAP KOIN, MAX 40', apply: (s) => void (s.greed = 1) },
+    ],
+  },
+};
 
-/** The set an item belongs to, and the item that completes it. */
-export function pairOf(id: ItemId): { pair: ItemPair; partner: ItemId } {
-  const p = PAIRS.find((x) => x.items.includes(id))!;
-  return { pair: p, partner: p.items[0] === id ? p.items[1] : p.items[0] };
+export const TAG_IDS = Object.keys(TAGS) as Tag[];
+
+/** The tags each item carries (one or two). */
+export const ITEM_TAGS: Record<ItemId, readonly Tag[]> = {
+  batu: ['besi'],
+  sepatu: ['bayang'],
+  jantung: ['darah', 'api'],
+  taring: ['darah'],
+  mata: ['bayang'],
+  sarung: ['besi'],
+  jubah: ['bayang'],
+  sayap: ['bayang', 'arcana'],
+  kantong: ['harta', 'arcana'],
+  duri: ['besi'],
+  cincin: ['besi', 'arcana'],
+  sabuk: ['besi'],
+  gulungan: ['arcana'],
+  jimat: ['arcana', 'petir'],
+  lonceng: ['besi', 'petir'],
+  tapal: ['harta'],
+  roti: ['darah'],
+  tulang: ['darah'],
+  tengkorak: ['darah', 'bayang'],
+  lentera: ['arcana', 'api'],
+  mahkotaMaut: ['bayang', 'darah'],
+  jam: ['arcana'],
+  kristal: ['arcana', 'es'],
+  perisai: ['besi'],
+  kalung: ['bayang', 'harta'],
+  mahkota: ['harta', 'besi'],
+  phoenix: ['api', 'darah'],
+  gema: ['petir', 'arcana'],
+  petir: ['petir'],
+  hatiDewa: ['darah', 'besi'],
+  mataDewa: ['bayang', 'petir'],
+  sayapDewa: ['bayang', 'petir'],
+  jiwaAbadi: ['arcana', 'es'],
+  cawan: ['darah'],
+  bara: ['api', 'darah'],
+  topeng: ['besi', 'darah'],
+  bulu: ['bayang'],
+  koin: ['harta'],
+  sisik: ['besi', 'es'],
+  tanduk: ['besi', 'api'],
+  racun: ['bayang'],
+  cermin: ['es', 'besi'],
+  keris: ['darah', 'bayang'],
+  badai: ['petir', 'arcana'],
+  jangkar: ['besi', 'es'],
+  pedangDewa: ['api', 'petir'],
+  kitabDewa: ['arcana'],
+  cawanDewa: ['darah', 'harta'],
+  sandal: ['petir', 'bayang'],
+  syal: ['api', 'bayang'],
+  korek: ['api'],
+  kompas: ['harta', 'petir'],
+  plester: ['darah'],
+  arang: ['api'],
+  teh: ['es', 'arcana'],
+  lilin: ['api', 'arcana'],
+  rantai: ['besi'],
+  kacamata: ['arcana', 'harta'],
+  ninja: ['bayang'],
+  cambuk: ['darah', 'besi'],
+  intiEs: ['es'],
+  palu: ['besi', 'petir'],
+  naga: ['api', 'besi'],
+  dupa: ['api', 'arcana'],
+  topan: ['petir', 'bayang'],
+  bintang: ['petir', 'arcana'],
+  jubahDewa: ['bayang', 'es'],
+  kendiDewa: ['es', 'arcana'],
+  daun: ['bayang'],
+  kelereng: ['harta'],
+  pisau: ['darah'],
+  gelang: ['besi'],
+  madu: ['darah', 'harta'],
+  peluit: ['bayang', 'es'],
+  tali: ['petir'],
+  garam: ['es', 'harta'],
+  kerang: ['es', 'harta'],
+  tanah: ['besi'],
+  topengPerak: ['bayang', 'es'],
+  perisaiCahaya: ['besi', 'arcana'],
+  taringSerigala: ['darah', 'bayang'],
+  kantongEmas: ['harta'],
+  bayangan: ['bayang'],
+  mahkotaEmas: ['harta'],
+  pedangNaga: ['api', 'harta'],
+  aegis: ['besi', 'petir'],
+  jamDewa: ['arcana', 'es'],
+  perisaiDewa: ['besi', 'arcana'],
+};
+
+/** How many owned items carry each tag. */
+export function tagCounts(items: readonly ItemId[]): Record<Tag, number> {
+  const n = Object.fromEntries(TAG_IDS.map((t) => [t, 0])) as Record<Tag, number>;
+  for (const id of new Set(items)) for (const t of ITEM_TAGS[id]) n[t]++;
+  return n;
 }
 
-export function activePairs(items: readonly ItemId[]): ItemPair[] {
-  return PAIRS.filter((p) => p.items.every((id) => items.includes(id)));
+/** Tiers reached for a tag count: 0 (none) to 3. */
+export function tierOf(count: number): number {
+  return TAG_TIERS.filter((k) => count >= k).length;
 }
 
-/** Relic slots: items held at once. A new one past this replaces an owned one (see takeItem). */
+/** Every tag tier the items unlock, tag by tag. */
+export function activeTiers(items: readonly ItemId[]): { tag: Tag; tier: number }[] {
+  const n = tagCounts(items);
+  return TAG_IDS.flatMap((tag) => Array.from({ length: tierOf(n[tag]) }, (_, i) => ({ tag, tier: i + 1 })));
+}
+
+/** Roman numeral of a tier, for labels. */
+export const TIER_MARK = ['', 'I', 'II', 'III'] as const;
+
+/** Relic slots: items held at once (the SLOT RELIK perk adds more). A new one past this replaces an owned one (see takeItem). */
 export const MAX_ITEMS = 8;
 
 /**
  * Inventory after taking item `id`. With all MAX_ITEMS slots full it needs `drop` (index of the owned item to discard,
  * replaced in place); undefined = not allowed. A discarded item is simply gone, so it may be offered again later.
  */
-export function takeItem(items: readonly ItemId[], id: ItemId, drop?: number): ItemId[] | undefined {
+export function takeItem(items: readonly ItemId[], id: ItemId, drop?: number, slots = MAX_ITEMS): ItemId[] | undefined {
   if (items.includes(id)) return undefined;
-  if (items.length < MAX_ITEMS) return [...items, id];
+  if (items.length < slots) return [...items, id];
   if (drop === undefined || drop < 0 || drop >= items.length) return undefined;
   return items.map((x, i) => (i === drop ? id : x));
 }
@@ -2768,9 +2813,12 @@ export function runStats(base: Derived, weapon: Weapon, items: readonly ItemId[]
   const s0 = { ...s };
   // Items are unique; fixed order so pickup order does not change an identical build. Applied in turn so the special
   // rules (fastest block, highest execute, switches) hold; the multipliers are then redone additively below.
-  const effects = [...ITEM_IDS.filter((id) => items.includes(id)).map((id) => ITEMS[id].apply), ...activePairs(items).map((p) => p.apply)];
+  const effects = [
+    ...ITEM_IDS.filter((id) => items.includes(id)).map((id) => ITEMS[id].apply),
+    ...activeTiers(items).map(({ tag, tier }) => TAGS[tag].tiers[tier - 1].apply),
+  ];
   for (const fx of effects) fx(s);
-  // Probe: what each item / set does alone on top of the class, summed instead of multiplied.
+  // Probe: what each item / tag tier does alone on top of the class, summed instead of multiplied.
   const probes = effects.map((fx) => {
     const p = { ...s0 };
     fx(p);
@@ -2809,11 +2857,12 @@ export function runStats(base: Derived, weapon: Weapon, items: readonly ItemId[]
   return s;
 }
 
-/** Weapons are tied to the class, so rewards are only items or a potion. */
-export type Reward = { type: 'item'; id: ItemId } | { type: 'potion' };
+/** A reward row: an item, a potion, or a hero soul (PAHLAWAN gate). `price`: in the shop (TOKO gate). */
+export type Reward = ({ type: 'item'; id: ItemId } | { type: 'potion' } | { type: 'hero'; cls: ClassId }) & { price?: number };
 
 export function rewardInfo(r: Reward): { name: string; desc: string; icon: string } {
   if (r.type === 'item') return { name: ITEMS[r.id].name, desc: ITEMS[r.id].desc, icon: `i_${r.id}` };
+  if (r.type === 'hero') return { name: CLASSES[r.cls].name, desc: `PASIF: ${CLASSES[r.cls].passive.name}`, icon: `hero_idle_${r.cls}` };
   return { name: 'RAMUAN', desc: 'PULIHKAN 50% HP', icon: 'i_ramuan' };
 }
 
@@ -2831,31 +2880,68 @@ export function rollRarity(tier: number, r: number): Exclude<Rarity, 'biasa'> {
   return 'rare';
 }
 
+/** Items sharing a tag with the build are this many times as likely to be offered, so a build can come together. */
+export const TAG_PULL = 2.5;
+
 /**
  * Up to three distinct choices. Items are unique per run: owned (or spent) ones never come back.
- * Boss rounds (every 5th) offer only rare/legend/godly items.
+ * Boss rounds (every 5th) offer only rare/legend/godly items. `held`: the current build, whose tags pull alike items.
  */
-export function rollRewards(round = 1, owned: readonly ItemId[] = [], rand: () => number = Math.random): Reward[] {
-  const take = <T>(pool: T[]): T => pool.splice(Math.floor(rand() * pool.length), 1)[0];
-  const fresh = (rarity: Rarity) => ITEM_IDS.filter((id) => ITEMS[id].rarity === rarity && !owned.includes(id));
-  const item = (id: ItemId): Reward => ({ type: 'item', id });
+export function rollRewards(
+  round = 1,
+  owned: readonly ItemId[] = [],
+  rand: () => number = Math.random,
+  held: readonly ItemId[] = owned,
+): Reward[] {
+  const want = new Set(held.flatMap((id) => ITEM_TAGS[id]));
+  const weight = (r: Reward) => (r.type === 'item' && ITEM_TAGS[r.id].some((t) => want.has(t)) ? TAG_PULL : 1);
+  const take = (pool: Reward[]): Reward => {
+    let x = rand() * pool.reduce((sum, r) => sum + weight(r), 0);
+    const i = pool.findIndex((r) => (x -= weight(r)) < 0);
+    return pool.splice(i < 0 ? pool.length - 1 : i, 1)[0];
+  };
+  const fresh = (rarity: Rarity): Reward[] =>
+    ITEM_IDS.filter((id) => ITEMS[id].rarity === rarity && !owned.includes(id)).map((id) => ({ type: 'item', id }));
   const picks: Reward[] = [];
   if (round % 5 === 0) {
     const pools = { rare: fresh('rare'), legend: fresh('legend'), godly: fresh('godly') };
     // An emptied pool just rerolls the rarity.
     while (picks.length < 3 && pools.rare.length + pools.legend.length + pools.godly.length) {
       const pool = pools[rollRarity(round / 5, rand())];
-      if (pool.length) picks.push(item(take(pool)));
+      if (pool.length) picks.push(take(pool));
     }
   } else {
-    const pool: Reward[] = [...fresh('biasa').map(item), { type: 'potion' }];
+    const pool: Reward[] = [...fresh('biasa'), { type: 'potion' }];
     while (picks.length < 3 && pool.length) picks.push(take(pool));
     // Commons run out late in a run: top up with rare ones.
     const extra = fresh('rare');
-    while (picks.length < 3 && extra.length) picks.push(item(take(extra)));
+    while (picks.length < 3 && extra.length) picks.push(take(extra));
   }
   if (picks.length < 3 && !picks.some((r) => r.type === 'potion')) picks.push({ type: 'potion' });
   return picks;
+}
+
+/** Shop prices in coins. */
+export const PRICE: Record<Rarity | 'potion', number> = { biasa: 6, rare: 12, legend: 20, godly: 30, potion: 4 };
+
+/** TOKO: two commons, two rares (from round 6 a rare and a legend), priced, plus a potion. */
+export function rollShop(round: number, owned: readonly ItemId[] = [], rand: () => number = Math.random): Reward[] {
+  const pick = (rarity: Rarity, n: number) => {
+    const pool = ITEM_IDS.filter((id) => ITEMS[id].rarity === rarity && !owned.includes(id));
+    return Array.from({ length: Math.min(n, pool.length) }, () => pool.splice(Math.floor(rand() * pool.length), 1)[0]);
+  };
+  const late = round >= 6;
+  const items = [...pick('biasa', 2), ...pick('rare', late ? 1 : 2), ...(late ? pick('legend', 1) : [])];
+  return [...items.map((id): Reward => ({ type: 'item', id, price: PRICE[ITEMS[id].rarity] })), { type: 'potion', price: PRICE.potion }];
+}
+
+/** PAHLAWAN: `n` heroes not already in the party. */
+export function rollHeroes(party: readonly ClassId[], n = 3, rand: () => number = Math.random): Reward[] {
+  const pool = CLASS_IDS.filter((c) => !party.includes(c));
+  return Array.from({ length: Math.min(n, pool.length) }, () => ({
+    type: 'hero' as const,
+    cls: pool.splice(Math.floor(rand() * pool.length), 1)[0],
+  }));
 }
 
 /** Coins for clearing a round (reset every run): more on boss rounds and later rounds. */
@@ -2864,11 +2950,11 @@ export function coinReward(round: number, bonus = 0): number {
   return base + bonus;
 }
 
-/** Cost of the n-th refresh (0-based) of the same reward panel. */
-export function rerollCost(n: number): number {
-  return 2 + n;
+/** Cost of the n-th refresh (0-based) of the same reward panel; the REFRESH GRATIS perk makes the first one free. */
+export function rerollCost(n: number, freeFirst = false): number {
+  return freeFirst && n === 0 ? 0 : 2 + n;
 }
 
 export function rewardRarity(r: Reward): Rarity {
-  return r.type === 'item' ? ITEMS[r.id].rarity : 'biasa';
+  return r.type === 'item' ? ITEMS[r.id].rarity : r.type === 'hero' ? 'legend' : 'biasa';
 }

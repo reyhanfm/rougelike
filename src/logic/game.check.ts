@@ -23,9 +23,14 @@ const {
   moveHitbox,
   coinReward,
   rerollCost,
-  PAIRS,
-  pairOf,
-  activePairs,
+  ITEM_TAGS,
+  TAGS,
+  TAG_IDS,
+  tagCounts,
+  activeTiers,
+  rollShop,
+  rollHeroes,
+  PRICE,
 } = await import('./loot.ts');
 const { loadSave, writeSave, defaultSave } = await import('./save.ts');
 const { PALETTE: PALETTE_CHECK } = await import('../gfx/sprites.ts');
@@ -74,7 +79,7 @@ assert.deepEqual(loadSave(), s);
 store.set('rougelike:save', '{not json');
 assert.deepEqual(loadSave(), defaultSave());
 store.set('rougelike:save', JSON.stringify({ souls: -5, stats: { str: 'x', agi: 2.7 } }));
-assert.deepEqual(loadSave(), { souls: 0, bestRound: 0, cls: 'ksatria', stats: { str: 0, int: 0, agi: 2, dex: 0 } });
+assert.deepEqual(loadSave(), { ...defaultSave(), stats: { str: 0, int: 0, agi: 2, dex: 0 } });
 store.set('rougelike:save', JSON.stringify({ cls: 'berserker' }));
 assert.equal(loadSave().cls, 'berserker');
 store.set('rougelike:save', JSON.stringify({ cls: 'naga' }));
@@ -138,20 +143,20 @@ assert.equal(stacked.thorns, 8);
 // Items stop crit at 50%; the weapon's own crit comes on top.
 assert.equal(runStats(maxed, WEAPONS.belati, ['mata', 'mataDewa', 'tulang']).critChance, 0.5 + WEAPONS.belati.crit);
 
-// Sets: every item has exactly one partner; the bonus needs both.
-const paired = PAIRS.flatMap((x) => [...x.items]);
-assert.equal(paired.length, Object.keys(ITEMS).length, 'every item is in a set');
-assert.equal(new Set(paired).size, paired.length, 'no item in two sets');
-assert.ok(Object.keys(ITEMS).length >= 48);
-for (const x of PAIRS) assert.ok(x.desc.length <= 35 && `SET ${x.name}`.length <= 20, `${x.name}: text too long`);
-assert.equal(pairOf('sepatu').partner, 'jubah');
-assert.equal(runStats(base, WEAPONS.pedang, ['sepatu']).critResetsDash, 0);
-assert.equal(runStats(base, WEAPONS.pedang, ['sepatu', 'jubah']).critResetsDash, 1);
-assert.equal(runStats(base, WEAPONS.pedang, ['batu', 'lonceng']).finisherWave, 1);
-assert.deepEqual(
-  activePairs(['batu', 'jubah', 'lonceng']).map((x) => x.name),
-  ['TEMPAAN PERANG'],
-);
+// Tags (Skul inscriptions): every item carries one or two; every tag is common enough to build around; tiers at 2/4/6.
+for (const id of Object.keys(ITEMS) as (keyof typeof ITEMS)[]) {
+  assert.ok(ITEM_TAGS[id].length >= 1 && ITEM_TAGS[id].length <= 2 && new Set(ITEM_TAGS[id]).size === ITEM_TAGS[id].length, id);
+}
+{
+  const n = tagCounts(Object.keys(ITEMS) as (keyof typeof ITEMS)[]);
+  for (const t of TAG_IDS) assert.ok(n[t] >= 10, `${t}: only ${n[t]} items`);
+  for (const t of TAG_IDS) for (const tier of TAGS[t].tiers) assert.ok(tier.desc.length <= 30, `${t}: ${tier.desc}`);
+}
+assert.deepEqual(activeTiers(['korek', 'arang']), [{ tag: 'api', tier: 1 }]);
+assert.equal(runStats(base, WEAPONS.pedang, ['korek']).burnBurst, 0);
+assert.equal(runStats(base, WEAPONS.pedang, ['korek', 'arang', 'naga', 'dupa']).burnBurst, 1, 'four API items: burning foes explode');
+assert.equal(runStats(base, WEAPONS.pedang, ['sepatu', 'jubah']).dashCrit, 1);
+assert.deepEqual(tagCounts(['korek', 'korek']).api, 1, 'a duplicate never counts twice');
 const all = runStats(base, WEAPONS.pedang, Object.keys(ITEMS));
 assert.ok(all.lifesteal <= 0.2 && all.rage <= 0.8 && all.skillCdMult >= 0.3);
 
@@ -305,7 +310,7 @@ assert.equal(runStats(base, WEAPONS.busur, [], 'pemburu').homingArrows, 0);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').healOnKill, 2);
 assert.equal(runStats(base, WEAPONS.pedang, [], 'reaper').killSouls, 0);
 assert.equal(runStats(base, WEAPONS.sabit, [], 'reaper').killSouls, 1);
-assert.equal(runStats(base, WEAPONS.sabit, ['lentera', 'phoenix'], 'reaper').killSouls, 3);
+assert.equal(runStats(base, WEAPONS.sabit, ['lentera'], 'reaper').killSouls, 2);
 assert.equal(runStats(base, WEAPONS.pedang, ['mahkotaMaut', 'mahkotaMaut']).execute, 0.2);
 
 // Rewards: 3 distinct items/potion, never a weapon (weapons belong to the class).
@@ -327,7 +332,22 @@ assert.ok(coinReward(5) > coinReward(4) && coinReward(6) >= coinReward(1));
 assert.ok(coinReward(10) > coinReward(5));
 assert.equal(coinReward(1, 2), coinReward(1) + 2);
 assert.ok(rerollCost(1) > rerollCost(0) && rerollCost(0) > 0);
-assert.equal(runStats(base, WEAPONS.pedang, ['tapal', 'koin']).coinBonus, 3);
+assert.ok(rerollCost(0, true) === 0 && rerollCost(1, true) === rerollCost(1), 'REFRESH GRATIS: only the first is free');
+// Shop: priced items not owned, plus a potion; heroes: never one already in the party.
+{
+  const shop = rollShop(7, ['batu']);
+  assert.ok(shop.at(-1)?.type === 'potion' && shop.at(-1)?.price === PRICE.potion);
+  assert.ok(shop.every((r) => r.price && (r.type !== 'item' || (r.id !== 'batu' && r.price === PRICE[ITEMS[r.id].rarity]))));
+  assert.ok(
+    shop.some((r) => r.type === 'item' && ITEMS[r.id].rarity === 'legend'),
+    'late shops sell a legend',
+  );
+  const heroes = rollHeroes(['ksatria', 'gojo']);
+  assert.ok(heroes.length === 3 && heroes.every((r) => r.type === 'hero' && r.cls !== 'ksatria' && r.cls !== 'gojo'));
+  assert.equal(new Set(heroes.map((r) => (r.type === 'hero' ? r.cls : ''))).size, 3);
+}
+// Two HARTA items reach its tier I (+2 coins a round) on top of their own.
+assert.equal(runStats(base, WEAPONS.pedang, ['tapal', 'koin']).coinBonus, 5);
 assert.equal(runStats(base, WEAPONS.pedang, ['kantong', 'koin']).coinBonus, 4);
 const { SPRITES: S } = await import('../gfx/sprites.ts');
 for (const id of Object.keys(WEAPONS)) assert.ok(`w_${id}` in S, `missing w_${id}`);
@@ -441,17 +461,12 @@ assert.ok(enemyPace(10) < enemyPace(2) && enemyPace(200) === 0.35);
 const everything = runStats(base, WEAPONS.pedang, Object.keys(ITEMS) as never[]);
 assert.ok(everything.dashPower > 1 && everything.dashPower <= 4);
 assert.ok(everything.burnChance > 0 && everything.burnChance <= 0.6 && everything.freezeChance <= 0.4);
-for (const x of PAIRS)
-  for (const id of x.items) {
-    const other = pairOf(id).partner;
-    assert.ok(`SET ${x.name} + ${ITEMS[other].name}`.length <= 35, `${x.name}: set line too wide`);
-  }
 for (const [id, it] of Object.entries(ITEMS)) assert.ok(it.name.length <= 16 && it.desc.length <= 32, `${id}: text too long`);
-// Dodge / block / gold / boss damage items: capped; block keeps the fastest item, sets shorten it.
+// Dodge / block / gold / boss damage items: capped; block keeps the fastest item (BESI II's 8 s block counts too).
 assert.equal(runStats(base, WEAPONS.pedang, ['gelang']).barrier, 15);
 assert.equal(runStats(base, WEAPONS.pedang, ['gelang', 'perisaiCahaya']).barrier, 8);
-assert.ok(Math.abs(runStats(base, WEAPONS.pedang, ['gelang', 'tanah']).barrier - 10.5) < 1e-9);
-assert.equal(runStats(base, WEAPONS.pedang, ['tanah']).barrier, 0, 'set bonus alone never grants a block');
+assert.equal(runStats(base, WEAPONS.pedang, ['gelang', 'tanah', 'rantai', 'sabuk']).barrier, 8, 'four BESI items');
+assert.equal(runStats(base, WEAPONS.pedang, ['tanah']).barrier, 0);
 assert.ok(everything.dodge <= 0.4 && everything.barrier >= 3 && everything.goldChance <= 0.8 && everything.bossDamage <= 1.5);
 assert.ok(Object.keys(ITEMS).length >= 88);
 // Dark Avenger: awakening instead of an ult; the synergy makes it last longer.
@@ -505,7 +520,7 @@ assert.ok(
 // Bonus rounds: any mix of Mahoraga, Leviathan, Godzilla and Kaguya (up to all four); never on boss rounds or too early; each
 // outclasses the regular boss. Elite rounds: every enemy an elite.
 {
-  const { SPECIAL, LEVIATHAN, rollSpecials, specialConfig, specialStats, ADAPT_MULT, rollEliteRound, eliteRoundConfig, ELITE_ROUND } =
+  const { SPECIAL, LEVIATHAN, rollSpecials, specialConfig, specialStats, ADAPT_MULT, eliteRoundConfig, rollGates, GATES } =
     await import('./stages.ts');
   const seq =
     (...xs: number[]) =>
@@ -553,8 +568,17 @@ assert.ok(
     // Fastest healing (raging wheel) stays under 2.5% of its HP per second, or it could never fall.
     assert.ok((MAHORAGA.heal * 1000) / (MAHORAGA.turnMs * MAHORAGA.frenzyTurn) < 0.025, 'Mahoraga can still be beaten');
   }
-  assert.ok(rollEliteRound(7, () => 0) && !rollEliteRound(7, () => 0.99));
-  assert.ok(!rollEliteRound(10, () => 0) && !rollEliteRound(ELITE_ROUND.from - 1, () => 0), 'no elite round on boss rounds or too early');
+  // Gates: RELIK always among the doors, the rest distinct and only from their first round.
+  for (let i = 0; i < 50; i++) {
+    for (const [round, n] of [
+      [2, 2],
+      [7, 3],
+    ] as const) {
+      const g = rollGates(round, n);
+      assert.ok(g.length === n && g[0] === 'item' && new Set(g).size === n && g.every((x) => round >= GATES[x].from), `${g}`);
+    }
+  }
+  assert.deepEqual(rollGates(1, 2), ['item'], 'round 1 has nothing else to offer');
   const er = eliteRoundConfig(7);
   assert.ok(er.eliteRound && !er.boss && er.enemyCount >= 3 && er.enemyCount < roundConfig(7).enemyCount);
   // Invasions: only normal rounds from INVASION.from, any of the four hidden bosses.
@@ -584,6 +608,16 @@ assert.equal(runStats(base, WEAPONS.pedang, [], 'samurai').dashCrit, 0);
 const soldierSave = { ...defaultSave(), cls: 'gunners' as const };
 writeSave(soldierSave);
 assert.deepEqual(loadSave(), soldierSave);
+// WARISAN perks survive a save and are clamped to their max level (older saves without them load at 0).
+{
+  const { PERKS } = await import('./save.ts');
+  writeSave({ ...defaultSave(), perks: { ...defaultSave().perks, slot: 2, nyawa: 9 } });
+  assert.equal(loadSave().perks.slot, 2);
+  assert.equal(loadSave().perks.nyawa, PERKS.nyawa.costs.length);
+  store.set('rougelike:save', JSON.stringify({ souls: 5 }));
+  assert.deepEqual(loadSave().perks, defaultSave().perks);
+  for (const p of Object.values(PERKS)) assert.ok(p.name.length <= 14 && p.desc.length <= 38, p.name);
+}
 // Soulslike balance: items add up (never compound) and are capped, relic slots hold MAX_ITEMS, enemies keep pace.
 {
   const { MAX_ITEMS, takeItem, ITEM_IDS } = await import('./loot.ts');

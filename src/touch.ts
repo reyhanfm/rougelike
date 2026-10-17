@@ -15,6 +15,7 @@ const LAYOUT = `
     <button data-key="S" class="down" aria-label="Tahan bersama lompat untuk turun platform, bersama serang di udara untuk menukik">TURUN</button>
   </div>
   <div class="t-acts">
+    <button data-key="U" class="swap">TUKAR</button>
     <button data-key="L" class="skill">SKILL</button>
     <button data-key="I" class="ult">ULTI</button>
     <button data-key="K" class="dash">DASH</button>

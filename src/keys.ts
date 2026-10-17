@@ -6,7 +6,7 @@ import type Phaser from 'phaser';
  * menus), so the game logic has no separate touch or controller path.
  */
 
-export type KeyName = 'W' | 'A' | 'S' | 'D' | 'SPACE' | 'J' | 'K' | 'L' | 'I' | 'ESC' | 'Q' | 'R' | 'M';
+export type KeyName = 'W' | 'A' | 'S' | 'D' | 'SPACE' | 'J' | 'K' | 'L' | 'I' | 'U' | 'ESC' | 'Q' | 'R' | 'M';
 
 const KEY_CODES: Record<KeyName, number> = {
   W: 87,
@@ -18,6 +18,7 @@ const KEY_CODES: Record<KeyName, number> = {
   K: 75,
   L: 76,
   I: 73,
+  U: 85,
   ESC: 27,
   Q: 81,
   R: 82,

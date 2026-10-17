@@ -428,6 +428,57 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     sfx('dash');
     d.start?.({ p: this, world: this.world, scene: this.scene, power: this.stats.dashPower });
     PASSIVES[this.skin].onDash?.(this.passiveCtx);
+    // Item tags react to it (BAYANG's shadow).
+    this.scene.events.emit('hero-dash', this);
+  }
+
+  /** Something the hero started is still playing out (a lunge, a set piece, a dash): no hero swap now. */
+  get busy(): boolean {
+    const now = this.scene.time.now;
+    return now < this.lockUntil || now < this.dashUntil || !!this.getData('hidden');
+  }
+
+  /**
+   * Off the field (the other hero of the party took over): no body, nothing drawn. The passive's per-round state and
+   * the scene objects it owns (guard swords, risen shadows, saplings) go with it; it starts fresh when called back.
+   */
+  sleep(): void {
+    this.cancelCharge();
+    this.setVelocity(0, 0).setActive(false).setVisible(false);
+    this.body.enable = false;
+    this.hideGear();
+    (this.getData('passiveLayer') as Phaser.GameObjects.Graphics | undefined)?.destroy();
+    const own = (v: unknown) => {
+      // Only plain visuals: anything with a physics body is an enemy the passive was tracking.
+      if (v instanceof Phaser.GameObjects.GameObject && !v.body) v.destroy();
+      else if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype)
+        for (const x of Object.values(v)) if (x instanceof Phaser.GameObjects.GameObject && !x.body) x.destroy();
+    };
+    for (const v of Object.values((this.getData('passive') as object | undefined) ?? {})) {
+      if (Array.isArray(v)) v.forEach(own);
+      else own(v);
+    }
+    this.setData({ passive: undefined, passiveLayer: undefined });
+  }
+
+  /** Weapon, off-hand and arc out of sight (asleep heroes; also re-applied every frame while benched). */
+  hideGear(): void {
+    this.setVisible(false);
+    this.held.setVisible(false);
+    this.twin.setVisible(false);
+    this.slash.setVisible(false);
+  }
+
+  /** Back on the field at (x, y), facing `facing`, entering with the class dash (free: its cooldown is untouched). */
+  wake(x: number, y: number, facing: number): void {
+    this.setActive(true).setVisible(true);
+    this.body.enable = true;
+    this.body.reset(x, y);
+    this.facing = facing;
+    this.lastFrame = this.scene.game.loop.time;
+    const ready = this.dashReadyAt;
+    this.dash(this.scene.time.now);
+    this.dashReadyAt = ready;
   }
 
   /** Dashes with a hit strike every enemy they touch, once per dash. */
@@ -824,6 +875,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const info = this.weapon[kind]!;
     this.cancelCharge();
     sfx(kind);
+    if (kind !== 'ult') this.scene.events.emit('hero-cast', kind);
     if (kind === 'skill') this.skillReadyAt = time + this.weapon.skill.cd * this.stats.skillCdMult * 1000;
     else if (kind === 'fusion') this.fusionReadyAt = time + this.weapon.fusion!.cd * this.stats.skillCdMult * 1000;
     else {

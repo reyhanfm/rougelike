@@ -170,16 +170,43 @@ export function specialStats(kind: SpecialBoss, cfg: RoundConfig): { hp: number;
  */
 export const ELITE = { chance: 0.5, hp: 7.5, dmg: 1.7, bite: 0.05, soul: 5, coins: 3, scale: 1.5, twoAffixFrom: 8 } as const;
 
-/** Elite round: from round `from`, `chance` per normal round (when no bonus boss came); `share` of the usual count, all elites. */
-export const ELITE_ROUND = { from: 3, chance: 0.12, share: 0.5 } as const;
-
-export function rollEliteRound(round: number, rand: () => number = Math.random): boolean {
-  return round >= ELITE_ROUND.from && !isBossRound(round) && rand() < ELITE_ROUND.chance;
-}
+/** Elite round (the ELIT gate): `share` of the usual count, all elites. */
+export const ELITE_ROUND = { share: 0.5 } as const;
 
 export function eliteRoundConfig(round: number): RoundConfig {
   const c = roundConfig(round);
   return { ...c, eliteRound: true, enemyCount: Math.max(3, Math.ceil(c.enemyCount * ELITE_ROUND.share)) };
+}
+
+/**
+ * Gates (Skul / Hades doors): after a normal round two doors open (three with the MATA GERBANG perk), each showing what
+ * the next round pays. RELIK = the usual item pick, TOKO = a shop, PAHLAWAN = a second hero to swap to, ELIT = a round of
+ * elites paying like a boss, KUTUKAN = the hero takes double damage until `CURSE.kills` kills, for a legend-or-better
+ * pick. `from`: first round the door may lead to; `weight`: how often it comes up.
+ */
+export type Gate = 'item' | 'toko' | 'pahlawan' | 'elit' | 'kutukan';
+
+export const GATES: Record<Gate, { name: string; hint: string; color: number; from: number; weight: number }> = {
+  item: { name: 'RELIK', hint: 'PILIH 1 DARI 3', color: 0xfff1e8, from: 1, weight: 40 },
+  toko: { name: 'TOKO', hint: 'BELANJA KOIN', color: 0xffec27, from: 2, weight: 18 },
+  pahlawan: { name: 'PAHLAWAN', hint: 'HERO KEDUA', color: 0x29adff, from: 2, weight: 16 },
+  elit: { name: 'ELIT', hint: 'HADIAH BOS', color: 0xffa300, from: 3, weight: 16 },
+  kutukan: { name: 'KUTUKAN', hint: 'HADIAH LEGEND', color: 0xff004d, from: 4, weight: 12 },
+};
+
+/** KUTUKAN: damage taken while cursed, and the kills that lift it. */
+export const CURSE = { taken: 2, kills: 8 } as const;
+
+/** `n` different doors for `round` (the round they lead to). RELIK is always among them, so a plain pick is never lost. */
+export function rollGates(round: number, n = 2, rand: () => number = Math.random): Gate[] {
+  const pool = (Object.keys(GATES) as Gate[]).filter((g) => g !== 'item' && round >= GATES[g].from);
+  const gates: Gate[] = ['item'];
+  while (gates.length < n && pool.length) {
+    let x = rand() * pool.reduce((sum, g) => sum + GATES[g].weight, 0);
+    const i = pool.findIndex((g) => (x -= GATES[g].weight) < 0);
+    gates.push(pool.splice(i < 0 ? pool.length - 1 : i, 1)[0]);
+  }
+  return gates;
 }
 
 export type EliteAffix = 'api' | 'es' | 'petir' | 'pemanggil';

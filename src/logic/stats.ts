@@ -90,6 +90,29 @@ export interface Derived {
   formTime: number;
   /** Revives per round at 30% HP (Heracles' God Hand). */
   godHand: number;
+  // Tag tiers (loot.ts TAGS): 0 = off, 1 = on, unless noted.
+  /** API IV: a burning enemy that dies explodes and sets its neighbors alight. */
+  burnBurst: number;
+  /** API VI: extra damage taken by burning enemies. */
+  burnVuln: number;
+  /** ES IV: a basic hit on a frozen enemy shatters the ice for double damage. */
+  shatter: number;
+  /** ES VI: every kill freezes the enemies around it. */
+  frostNova: number;
+  /** PETIR IV: every 5th basic hit calls a chained strike from the sky. */
+  storm: number;
+  /** PETIR VI: kill bolts and storm strikes hit twice as hard. */
+  boltPower: number;
+  /** DARAH IV: kills may leave a blood orb that heals when picked up. */
+  bloodOrb: number;
+  /** BAYANG IV: each dash leaves a shadow behind that bursts. */
+  shadowClone: number;
+  /** BESI VI: taking a hit sends out a shockwave. */
+  ironQuake: number;
+  /** ARCANA IV: a skill or fusion empowers the next basic hits. */
+  spellblade: number;
+  /** HARTA VI: damage grows with the coins held. */
+  greed: number;
 }
 
 export function derive(s: StatLevels): Derived {
@@ -139,8 +162,22 @@ export function derive(s: StatLevels): Derived {
     fireImmune: 0,
     formTime: 1,
     godHand: 0,
+    burnBurst: 0,
+    burnVuln: 0,
+    shatter: 0,
+    frostNova: 0,
+    storm: 0,
+    boltPower: 0,
+    bloodOrb: 0,
+    shadowClone: 0,
+    ironQuake: 0,
+    spellblade: 0,
+    greed: 0,
   };
 }
+
+/** Permanent stats stop here: past it, souls go to the WARISAN perks (meta.ts) instead of raw power. */
+export const MAX_STAT_LV = 15;
 
 export function upgradeCost(level: number): number {
   return Math.floor(10 * 1.15 ** level);
