@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ambience } from '../gfx/scenery.ts';
 import { COLOR } from '../gfx/sprites.ts';
 import { text, W } from '../gfx/ui.ts';
 import { CLASS_IDS, CLASSES } from '../logic/classes.ts';
@@ -39,6 +40,7 @@ export class ClassScene extends Phaser.Scene {
     this.selected = Math.max(0, CLASS_IDS.indexOf(loadSave().cls));
     playMusic('hub');
     this.add.image(0, 0, 'bg').setOrigin(0).setAlpha(0.6);
+    ambience(this, { fireflies: false });
     text(this, W / 2, 4, 'PILIH KELAS', COLOR.gold, 16).setOrigin(0.5, 0);
 
     text(this, 4, 4, '<', COLOR.gray)

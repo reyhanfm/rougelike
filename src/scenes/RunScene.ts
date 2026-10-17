@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ambience, groundDecor } from '../gfx/scenery.ts';
 import type { Arena, HitSource, PlayerWorld, ShotSpec } from '../entities/arena.ts';
 import { Boss } from '../entities/Boss.ts';
 import { INTROS, invasionBanner } from '../entities/invasions.ts';
@@ -209,6 +210,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
 
     this.add.image(0, 0, 'bg').setOrigin(0);
+    ambience(this);
     // World floor = ground top: anything that tunnels through the thin floor body is still stopped here.
     this.physics.world.setBounds(0, -100, W, FLOOR_Y + 100);
     this.physics.world.setBoundsCollision(true, true, false, true);
@@ -219,6 +221,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       .tileSprite(0, FLOOR_Y + TILE, W, H - FLOOR_Y - TILE, 'dirt')
       .setOrigin(0)
       .setDepth(2);
+    groundDecor(this);
     const layout = this.cfg.boss ? BOSS_LAYOUT : Phaser.Utils.Array.GetRandom([...LAYOUTS]);
     const platforms = layout.map((p) => {
       const body = this.solid(p.x * TILE, p.y * TILE, p.w * TILE, 4, 'plat').body as Phaser.Physics.Arcade.StaticBody;

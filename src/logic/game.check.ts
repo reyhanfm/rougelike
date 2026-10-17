@@ -6,7 +6,7 @@ Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
 });
 
-const { derive, upgradeCost } = await import('./stats.ts');
+const { derive, upgradeCost, refundSouls } = await import('./stats.ts');
 const { isBossRound, roundConfig, soulReward, LAYOUTS, ENEMIES, pickEnemies, bossKind, bossPatterns, BOSSES } = await import('./stages.ts');
 const {
   WEAPONS,
@@ -57,6 +57,9 @@ assert.equal(maxed.dashCooldown, 0.4);
 assert.equal(maxed.critChance, 0.5);
 for (let l = 0; l < 30; l++) assert.ok(upgradeCost(l + 1) >= upgradeCost(l));
 assert.equal(upgradeCost(0), 10);
+// RESET STAT refunds exactly what the levels cost: buying back the same levels spends it all again.
+assert.equal(refundSouls({ str: 0, int: 0, agi: 0, dex: 0 }), 0);
+assert.equal(refundSouls({ str: 2, int: 0, agi: 1, dex: 0 }), upgradeCost(0) + upgradeCost(1) + upgradeCost(0));
 
 // Layouts stay inside the 40-tile arena and above the floor.
 for (const layout of LAYOUTS) for (const p of layout) assert.ok(p.x >= 0 && p.x + p.w <= 40 && p.y > 0 && p.y < 21);

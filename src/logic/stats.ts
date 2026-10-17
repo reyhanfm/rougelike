@@ -145,3 +145,10 @@ export function derive(s: StatLevels): Derived {
 export function upgradeCost(level: number): number {
   return Math.floor(10 * 1.15 ** level);
 }
+
+/** Every soul spent raising `levels` from zero: what RESET STAT in the hub gives back. */
+export function refundSouls(levels: StatLevels): number {
+  let total = 0;
+  for (const k of STAT_KEYS) for (let l = 0; l < levels[k]; l++) total += upgradeCost(l);
+  return total;
+}
