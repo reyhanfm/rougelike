@@ -8,6 +8,7 @@ import { Player } from '../entities/Player.ts';
 import { ring, SKILLS, sparks } from '../entities/skills.ts';
 import { CHARGED } from '../entities/charged/index.ts';
 import { PASSIVES, type PassiveCtx } from '../entities/passives.ts';
+import { SUPPORTS, type SupportCtx } from '../entities/supports.ts';
 import { padConnected } from '../gamepad.ts';
 import { duckMusic, playMusic, sfx, soundLabel, stopMusic, toggleSound } from '../audio.ts';
 import { COLOR, PALETTE } from '../gfx/sprites.ts';
@@ -168,6 +169,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   private benchPlayer?: Player;
   private swapReadyAt = 0;
   private benchIcon?: Phaser.GameObjects.Image;
+  /** Per-round state of the benched hero's DUKUNGAN (fresh whenever the bench hero changes). */
+  private supportState: Record<string, unknown> = {};
   /** KUTUKAN kills still needed to lift the curse (0 = not cursed). */
   private curseLeft = 0;
   private revived = false;
@@ -264,6 +267,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.benchPlayer = this.benchIcon = undefined;
     this.swapReadyAt = this.stormHits = this.spellCharges = this.quakeReady = 0;
     this.orbs = [];
+    this.supportState = {};
     this.curseLeft = this.gate === 'kutukan' && !this.cfg.boss ? CURSE.kills : 0;
     this.revived = !!data.revived;
     this.panel = 'reward';
@@ -308,16 +312,23 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.physics.add.collider(this.enemies, [floor, ...platforms], undefined, (a, b) => !(a instanceof Enemy ? a : (b as Enemy)).flying);
     this.physics.add.overlap(this.shots, this.enemies, (a, b) => this.shotHit(a, b));
     // Item tags that answer the hero's own moves (BAYANG's shadow on a dash, ARCANA's charged blade on a cast).
-    const onDash = (p: Player) => this.stats.shadowClone && this.shadowClone(p.x, p.y, p);
-    const onCast = () => {
-      if (!this.stats.spellblade) return;
+    const onDash = (p: Player) => {
+      if (this.stats.shadowClone) this.shadowClone(p.x, p.y, p);
+      this.support?.onDash?.(this.sctx);
+    };
+    const onJump = () => this.support?.onJump?.(this.sctx);
+    const onCast = (kind: 'skill' | 'fusion' | 'ult') => {
+      this.support?.onCast?.(this.sctx, kind);
+      if (!this.stats.spellblade || kind === 'ult') return;
       this.spellCharges = SPELLBLADE.hits;
       ring(this, this.player.x, this.player.y, 0xc080ff, 3, 18, 260);
       sparks(this, this.player.x, this.player.y, [0xc080ff, 0xfff1e8], 8, 14);
     };
     this.events.on('hero-dash', onDash);
     this.events.on('hero-cast', onCast);
+    this.events.on('hero-jump', onJump);
     this.events.once('shutdown', () => {
+      this.events.off('hero-jump', onJump);
       this.events.off('hero-dash', onDash);
       this.events.off('hero-cast', onCast);
     });
@@ -416,6 +427,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.player.update(time);
     this.tickOrbs(time);
     if (!this.cleared) this.passive.tick?.(this.pctx, time, delta);
+    if (!this.cleared) this.support?.tick?.(this.sctx, time, delta);
     if (!this.cleared && this.player.tickDebuffs(time) && this.player.hp <= 0) return this.playerDown();
     this.regenerate(delta);
     // Copy: a burn tick may kill (and remove) an enemy mid-loop, and that kill can chain (an onKill burst, a boss
@@ -665,6 +677,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.cls = cls;
     this.weaponId = weapon.id;
     this.player = p;
+    this.dropSupport();
     p.wake(out.x, out.y, out.facing);
     this.swapReadyAt = now + SWAP_MS;
     this.spellCharges = 0;
@@ -685,6 +698,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.benchPlayer?.destroy();
     this.benchPlayer = undefined;
     this.bench = cls;
+    this.dropSupport();
     this.godHandLeft = Math.max(this.godHandLeft, this.heroStats(cls).godHand);
     floatText(this, this.player.x, this.player.y - 28, old ? `${CLASSES[old].name} PERGI` : 'PARTAI 2 HERO!', COLOR.blue);
   }
@@ -838,6 +852,38 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     return { p: this.player, world: this, scene: this };
   }
 
+  /** DUKUNGAN of the benched hero, if the party has one. */
+  private get support() {
+    return this.bench ? SUPPORTS[this.bench] : undefined;
+  }
+
+  private get sctx(): SupportCtx {
+    return {
+      p: this.player,
+      world: this,
+      scene: this,
+      bench: this.bench!,
+      s: this.supportState,
+      coins: (n) => {
+        this.coins += n;
+        sfx('coin');
+      },
+    };
+  }
+
+  /** The bench hero changed: its DUKUNGAN's drawings go, its state starts over, and the moon's lightness lets go. */
+  private dropSupport(): void {
+    const drop = (v: unknown) => {
+      if (v instanceof Phaser.GameObjects.GameObject && !v.body) v.destroy();
+    };
+    for (const v of Object.values(this.supportState)) {
+      drop(v);
+      if (v && typeof v === 'object' && !(v instanceof Phaser.GameObjects.GameObject)) Object.values(v).forEach(drop);
+    }
+    this.supportState = {};
+    for (const p of [this.player, this.benchPlayer]) p?.body.setGravityY(0);
+  }
+
   /** Turn a homing shot toward the nearest enemy it has not hit yet, keeping its speed. */
   private steer(shot: Phaser.Physics.Arcade.Image, delta: number): void {
     if (this.time.now - (shot.getData('born') as number) > HOMING_LIFE) return void shot.destroy();
@@ -977,9 +1023,16 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     // The class passive may sharpen this hit (marked prey, a drawn iai, a gravity well).
     const mod = this.passive.modify?.(this.pctx, t, source);
     if (mod?.mult) mult *= mod.mult;
+    // The benched hero's DUKUNGAN too (only the hero's own blows, never procs).
+    const smod = source === 'proc' ? undefined : this.support?.modify?.(this.sctx, t, source);
+    if (smod?.mult) mult *= smod.mult;
     mult *= this.tagMult(t, source);
     const crit =
-      forceCrit || !!mod?.crit || (source === 'basic' && st.dashCrit > 0 && this.player.takeDashCrit()) || Math.random() < st.critChance;
+      forceCrit ||
+      !!mod?.crit ||
+      !!smod?.crit ||
+      (source === 'basic' && st.dashCrit > 0 && this.player.takeDashCrit()) ||
+      Math.random() < st.critChance;
     const enraged = st.rage > 0 && this.player.hp < st.maxHp / 2;
     const weak = this.player.has('weak') ? WEAK_MULT : 1;
     const big = t instanceof Boss || t.getData('elite') ? 1 + st.bossDamage : 1;
@@ -1006,6 +1059,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     this.hitstop(hitstopMs({ source, crit, killed, knockback, big: heft }));
     // Passive procs never feed passives again (no loops).
     if (source !== 'proc') this.passive.onHit?.(this.pctx, t, { source, crit, killed, dmg });
+    if (source !== 'proc') this.support?.onHit?.(this.sctx, t, { source, crit, killed, dmg });
     if (source === 'basic' || source === 'skill') this.player.addUlt((ULT_GAIN[source] + (killed ? ULT_GAIN.kill : 0)) * st.ultGainMult);
     // PETIR II: every 5th basic hit, the sky answers.
     if (source === 'basic' && st.storm && ++this.stormHits % STORM_EVERY === 0) this.skyStrike(x, y);
@@ -1283,6 +1337,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     }
     // Any death counts for the passive (burn ticks and passive procs too); the target is still readable here.
     if (!this.over) this.passive.onKill?.(this.pctx, t);
+    if (!this.over) this.support?.onKill?.(this.sctx, t);
     if (Math.random() < this.stats.goldChance) {
       this.coins++;
       sfx('coin');
@@ -1317,8 +1372,11 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     if (this.over || this.cleared) return;
     // The passive may turn the hit away entirely (God Hand, crow substitution, Susanoo).
     if (!this.player.invulnerable && this.passive.guard?.(this.pctx, dmg, fromX, source)) return;
-    const result = this.player.hurt(this.curseLeft ? dmg * CURSE.taken : dmg, fromX);
+    if (!this.player.invulnerable && this.support?.guard?.(this.sctx, dmg, fromX, source)) return;
+    const taken = (this.curseLeft ? CURSE.taken : 1) * (this.support?.taken ?? 1);
+    const result = this.player.hurt(dmg * taken, fromX);
     this.passive.onAttacked?.(this.pctx, result, source);
+    if (result === 'hit') this.support?.onHurt?.(this.sctx, dmg, fromX, source);
     if (result === 'hit' && this.stats.ironQuake && this.time.now >= this.quakeReady) this.ironQuake();
     if (result === 'dead') return this.playerDown();
     if (result === 'hit' && debuff) this.player.afflict(debuff, dmg);
@@ -1684,7 +1742,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const r = this.rewards?.[this.rewardSel];
     if (r?.type === 'hero') {
       name.setText(this.bench ? `GANTI ${CLASSES[this.bench].name} (CADANGAN)` : 'JADI HERO CADANGAN').setColor(COLOR.blue);
-      desc.setText(`${padConnected() ? 'LB' : 'U'} TUKAR HERO SAAT BERTARUNG`);
+      desc.setText(`DUKUNGAN: ${CLASSES[r.cls].support.name}`).setColor(COLOR.gold);
       return;
     }
     if (r?.type !== 'item') return;
@@ -1903,7 +1961,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
           CHARGED[this.cls].desc,
           '',
           ...(tags.length ? [`TAG: ${tags.join('  ')}`] : []),
-          ...(this.bench ? [`CADANGAN (${padConnected() ? 'LB' : 'U'}): ${CLASSES[this.bench].name}`] : []),
+          ...(this.bench
+            ? [
+                `CADANGAN (${padConnected() ? 'LB' : 'U'}): ${CLASSES[this.bench].name}`,
+                `DUKUNGAN: ${CLASSES[this.bench].support.name}`,
+                CLASSES[this.bench].support.desc,
+              ]
+            : []),
           ...(tags.length || this.bench ? [''] : []),
           pauseHint(),
           sound,

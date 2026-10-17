@@ -276,6 +276,23 @@ assert.ok(god.damageTaken < 0.75, 'set bonus stacks with its items');
 const { CLASSES, CLASS_IDS, hasSynergy } = await import('./classes.ts');
 assert.equal(new Set(CLASS_IDS.map((c) => CLASSES[c].color)).size, CLASS_IDS.length, 'each class has its own color');
 for (const c of CLASS_IDS) assert.ok(CLASSES[c].weapon in WEAPONS && CLASSES[c].color in PALETTE_CHECK, `${c}: bad weapon/color`);
+// DUKUNGAN (bench support): every class has its own, never the name of its passive or a technique, short UPPERCASE text.
+{
+  const names = CLASS_IDS.map((c) => CLASSES[c].support.name);
+  assert.equal(new Set(names).size, CLASS_IDS.length, 'each class has its own support');
+  const taken = new Set(
+    CLASS_IDS.flatMap((c) => {
+      const w = WEAPONS[CLASSES[c].weapon];
+      return [CLASSES[c].passive.name, w.skill.name, w.ult.name, w.fusion?.name ?? ''];
+    }),
+  );
+  for (const c of CLASS_IDS) {
+    const sp = CLASSES[c].support;
+    assert.ok(sp.name.length <= 20 && sp.desc.length <= 90, `${c}: support text too long`);
+    assert.equal(sp.name + sp.desc, (sp.name + sp.desc).toUpperCase(), `${c}: support text is uppercase`);
+    assert.ok(!taken.has(sp.name), `${c}: support reuses a technique name`);
+  }
+}
 // Passive skills: every class has its own (behavior in entities/passives.ts, a Record over ClassId), short UPPERCASE text.
 assert.equal(new Set(CLASS_IDS.map((c) => CLASSES[c].passive.name)).size, CLASS_IDS.length, 'each class has its own passive');
 for (const c of CLASS_IDS) {

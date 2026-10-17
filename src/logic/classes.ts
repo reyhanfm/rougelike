@@ -51,6 +51,8 @@ export interface GameClass {
   trait: string;
   /** The class's own passive skill (behavior in entities/passives.ts): a real effect, not just stats. */
   passive: { name: string; desc: string };
+  /** What this hero does for the other one while benched (behavior in entities/supports.ts): its own lore, its own effect. */
+  support: { name: string; desc: string };
   apply(s: Derived): void;
   synergy: { name: string; desc: string; apply(s: Derived): void };
   /** Palette char for the hair (top rows of the hero); defaults to the class color. */
@@ -89,6 +91,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0a66a0..',
     ],
     passive: { name: 'AVALON', desc: 'PUKULAN BERAT DITOLAK SARUNG CAHAYA, PULIH 6% HP & DIBALAS; JEDA 10 DTK' },
+    support: { name: 'AVALON TERTANAM', desc: 'HP HERO < 50%: SARUNG AVALON DI DALAM TUBUHNYA MENUTUP LUKA 15% HP; JEDA 20 DTK' },
     trait: 'INTI NAGA: PULIH 1 HP/DTK, HP +10%, DITERIMA -10%',
     apply: (s) => {
       s.regen += 1;
@@ -127,6 +130,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     ],
     hair: '7',
     passive: { name: 'LONCENG PENANDA', desc: 'LONCENG MENANDAI MUSUH TERLEMAH (+50% DMG); SAAT MATI, API BIRU MEMBAKAR SEKITARNYA' },
+    support: { name: 'LONCENG AZRAEL', desc: 'TIAP 12 DTK LONCENG SENJA BERDENTANG: MUSUH HP < 15% DIPENGGAL, BOS -4% HP' },
     trait: 'PAK TUA GUNUNG: EKSEKUSI MUSUH HP < 12%, KRITIS +10%',
     apply: (s) => {
       s.execute = Math.max(s.execute, 0.12);
@@ -165,6 +169,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     ],
     hair: '1',
     passive: { name: 'KUTUKAN GAE BOLG', desc: 'TIAP TUSUKAN MENANAM DURI: MUSUH BERDARAH (TUMPUK 5), LUKANYA TAK BISA DISEMBUHKAN' },
+    support: { name: 'RIASTRAD', desc: '15 HIT TANPA TERLUKA: KEJANG PERANG 5 DTK, DAMAGE HERO +50% & PUKULAN MEMENTALKAN' },
     trait: 'PERLINDUNGAN PANAH: HINDAR 15%, +1 LOMPAT UDARA, LARI +10%',
     apply: (s) => {
       s.dodge += 0.15;
@@ -204,6 +209,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     ],
     hair: '0',
     passive: { name: 'TUBUH SETENGAH DEWA', desc: 'TIAP 4 DTK, SERANGAN DI BAWAH 20% HP TIDAK MEMPAN & PENYERANGNYA TERPENTAL' },
+    support: { name: 'DUA BELAS TUGAS', desc: 'TIAP 6 KILL SATU TUGAS SELESAI: DAMAGE +4% SAMPAI AKHIR RONDE (MAKS 12 TUGAS)' },
     trait: 'GOD HAND: BANGKIT 1X TIAP ROUND (30% HP), DAMAGE +20%, +25% SAAT HP < 50%',
     apply: (s) => {
       s.godHand += 1;
@@ -242,6 +248,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     ],
     hair: '7',
     passive: { name: 'TRACE ON', desc: 'TIAP 3.5 DTK MEMPROYEKSIKAN PEDANG DI PUNGGUNG (MAKS 3), MELESAT SAAT MENYERANG' },
+    support: { name: 'BROKEN PHANTASM', desc: 'TIAP 8 DTK, MUSUH YANG DIPUKUL HERO DIHUJAM PEDANG PROYEKSI YANG MELEDAK' },
     trait: 'MATA ELANG: KRITIS +10%, SOUL +20%, COOLDOWN SKILL -15%',
     apply: (s) => {
       s.critChance += 0.1;
@@ -276,6 +283,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0d66d0..',
     ],
     passive: { name: 'TANDA BINTANG', desc: 'TIAP PANAH MENANDAI BINTANG; 3 BINTANG DI SATU MUSUH MELEDAK JADI NOVA' },
+    support: { name: 'PANAH PENUNTUN', desc: 'KRITIS HERO: 3 PANAH ARKANA MELESAT DARI TEPI LAYAR MEMBURU KORBANNYA; JEDA 3 DTK' },
     trait: '1 PANAH/TEMBAKAN MELACAK, DMG -15%, HP -10%',
     apply: (s) => {
       s.homingArrows = 1;
@@ -309,6 +317,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..055550..',
     ],
     passive: { name: 'LANGKAH MAUT', desc: 'TIAP MEMBUNUH: JADI BAYANGAN 1.2 DTK (KEBAL), TEBASAN BERIKUTNYA PASTI KRITIS' },
+    support: { name: 'LENTERA ARWAH', desc: 'JIWA MUSUH MASUK LENTERA; 8 JIWA = RATAPAN: SEMUA MUSUH LARI KETAKUTAN 2.5 DTK' },
     trait: 'SOUL +20%, +2 HP/KILL, HP -10%',
     apply: (s) => {
       s.soulMult *= 1.2;
@@ -342,6 +351,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..049940..',
     ],
     passive: { name: 'TURET OTOMATIS', desc: 'TIAP 12 DTK MEMASANG TURET 7 DTK YANG MENEMBAKI MUSUH TERDEKAT' },
+    support: { name: 'TEMBAKAN PELINDUNG', desc: 'HERO TERLUKA: PENEMBAK JITU DI TEPI LAYAR MEMBALAS PENYERANGNYA; JEDA 4 DTK' },
     trait: 'HP +10%, LARI -5%; TAHAN SERANG',
     apply: (s) => {
       s.maxHp *= 1.1;
@@ -374,6 +384,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0kkkk0..',
     ],
     passive: { name: 'JALAN KULTIVASI', desc: 'QI DARI SERANGAN MENEROBOS 4 ALAM: PETIR SURGAWI, PEDANG ORBIT +, INTI EMAS, JIWA BARU' },
+    support: { name: 'FORMASI PENGUMPUL QI', desc: 'TIAP 12 DTK FORMASI QI DI KAKI HERO 4 DTK: DI DALAMNYA COOLDOWN PULIH 3X CEPAT' },
     trait: 'QI: SKILL +20%, PULIH 1 HP/DTK, SKILL CD -10%',
     apply: (s) => {
       s.skillPower *= 1.2;
@@ -411,6 +422,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0a99a0..',
     ],
     passive: { name: 'RESONANSI ELEMEN', desc: 'MUSUH TERBAKAR YANG KENA ES/BATU BEREAKSI: UAP ATAU MAGMA MELEDAK' },
+    support: { name: 'ORBIT ELEMEN', desc: 'EMPAT BOLA ELEMEN MENGORBIT HERO; MUSUH YANG TERSENTUH KENA API/ES/PETIR/BATU' },
     trait: 'PENYIHIR EMPAT ELEMEN: SKILL +15%, SKILL CD -10%, HP -15%',
     apply: (s) => {
       s.skillPower *= 1.15;
@@ -445,6 +457,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..088880..',
     ],
     passive: { name: 'KUDA-KUDA IAI', desc: 'DIAM SEJENAK = KUDA-KUDA; SERANGAN BERIKUTNYA IAI KILAT, KRITIS SEMUA DI DEPAN' },
+    support: { name: 'TANGKISAN BAYANG', desc: 'SERANGAN DARI BELAKANG DITANGKIS BAYANGAN SAMURAI & DIBALAS TEBASAN; JEDA 6 DTK' },
     trait: 'KRITIS +10%, PENGALI KRITIS +0.25, HP -5%',
     apply: (s) => {
       s.critChance += 0.1;
@@ -478,6 +491,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..055550..',
     ],
     passive: { name: 'BAYANGAN DENDAM', desc: 'BAYANGANNYA MENGULANG TIAP TEBASAN SESAAT KEMUDIAN (LEBIH KUAT SAAT AVENGER)' },
+    support: { name: 'CAP DENDAM', desc: 'PENYERANG HERO DICAP DENDAM: 3 PUKULAN BERIKUT KE DIA +60% & MENGHISAP HP' },
     trait: 'TANPA ULTI: METER PENUH = MODE AVENGER. METER +25%, HP +10%',
     apply: (s) => {
       s.ultGainMult *= 1.25;
@@ -523,6 +537,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..099990..',
     ],
     passive: { name: 'LEDAKAN AMARAH', desc: 'AMARAH PENUH MELEDAK: LINGKAR TINJU EMAS MENGHANTAM SEMUA DI SEKITAR' },
+    support: { name: 'MANTRA DOA', desc: 'TIAP KILL MELEPAS AKSARA MANTRA; 10 MANTRA TERKUMPUL = METER ULTI +25%' },
     trait: 'AMARAH: TIAP HIT +1 STACK (MAX 6), +5% DAMAGE & SERANG CEPAT PER STACK',
     apply: (s) => {
       s.furyMax = 6;
@@ -556,6 +571,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0h99h0..',
     ],
     passive: { name: 'BARA KEHANCURAN', desc: 'MUSUH YANG MATI TERBAKAR MELEDAK, MENYEBARKAN API KE SEKITARNYA' },
+    support: { name: 'BAYANG NAGA', desc: 'TIAP 15 DTK NAGA MELINTAS DI LANGIT: MUSUH DI BAWAHNYA TERBAKAR & GEMETAR 1.5 DTK' },
     trait: 'RAJA NAGA KEHANCURAN: KEBAL TERBAKAR, HP +15%, DITERIMA -5%',
     apply: (s) => {
       s.fireImmune = 1;
@@ -593,6 +609,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..08aa80..',
     ],
     passive: { name: 'TAK LAYAK', desc: 'MUSUH YANG BERANI MENDEKAT DIHUJAM HARTA DARI GERBANG DI ATASNYA' },
+    support: { name: 'HADIAH RAJA', desc: 'TIAP 25 DTK GERBANG EMAS MENJATUHKAN HARTA: RAMUAN, PERISAI EMAS, ATAU ISI ULTI' },
     trait: 'RAJA PARA PAHLAWAN: +2 KOIN/ROUND, 15% BUNUH = KOIN, KRITIS +5%',
     apply: (s) => {
       s.coinBonus += 2;
@@ -628,6 +645,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..022220..',
     ],
     passive: { name: 'DISMANTLE', desc: 'TIAP 1.3 DTK KAI TAK TERLIHAT MENEBAS 2 MUSUH; TIAP KETIGA, HACHI + DARAH' },
+    support: { name: 'SUMPAH TERIKAT', desc: 'SUMPAH: HERO MENERIMA +20% DAMAGE, TAPI TIAP HIT KE-10 = CLEAVE 8% HP MAKS MUSUH' },
     trait: 'RAJA KUTUKAN: DAMAGE +25%, PULIH 2 HP/DTK, KRITIS +8%',
     apply: (s) => {
       s.damage *= 1.25;
@@ -665,6 +683,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0c11c0..',
     ],
     passive: { name: 'INFINITY', desc: 'PROYEKTIL MUSUH MELAMBAT & BERHENTI SEBELUM MENYENTUH, LALU LENYAP' },
+    support: { name: 'ENAM MATA', desc: 'EFISIENSI ENERGI KUTUKAN: TIAP SKILL KETIGA LANGSUNG SIAP LAGI TANPA COOLDOWN' },
     trait: 'MUGEN: TAHAN 1 SERANGAN TIAP 6 DTK, HINDAR 15%',
     apply: (s) => {
       s.barrier = 6;
@@ -701,6 +720,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     ],
     hair: '0',
     passive: { name: 'REFLEKS SURGAWI', desc: 'DASH MENEMBUS SERANGAN: MUSUH SEKITAR MELAMBAT, HIT BERIKUTNYA KRITIS' },
+    support: { name: 'BURUAN BERHADIAH', desc: 'SATU MUSUH DIBERI HARGA; MEMBUNUHNYA = +6 KOIN & PUKULAN BERIKUTNYA X2' },
     trait: 'RESTRIKSI SURGAWI: DAMAGE & LARI +15%, HINDAR 10%, SKILL -25%',
     apply: (s) => {
       s.damage *= 1.15;
@@ -739,6 +759,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..055550..',
     ],
     passive: { name: 'SUSANOO: RUSUK', desc: 'SEKALI TIAP RONDE, HIT YANG MEMBUAT HP < 40% DITAHAN RUSUK SUSANOO 4 DTK' },
+    support: { name: 'RINBO HENGOKU', desc: 'TIAP 10 DTK BAYANGAN TAK KASATMATA DARI LIMBO MEMUKUL 3 MUSUH TERDEKAT' },
     trait: 'SHARINGAN: HINDAR 15%, KRITIS +10%, SKILL +10%',
     apply: (s) => {
       s.dodge += 0.15;
@@ -778,6 +799,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     ],
     hair: 'r',
     passive: { name: 'BENIH KEHIDUPAN', desc: 'MUSUH TEWAS MENUMBUHKAN POHON: AKARNYA MENJERAT, DISENTUH = PULIH 5% HP' },
+    support: { name: 'KAJUKAI KORIN', desc: 'TIAP 14 DTK BUNGA MEKAR DI LANTAI; SERBUKNYA MENIDURKAN MUSUH DI DARAT' },
     trait: 'SEL HASHIRAMA: PULIH 2 HP/DTK, HP +20%, LARI -5%',
     apply: (s) => {
       s.regen += 2;
@@ -815,6 +837,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0c78c0..',
     ],
     passive: { name: 'KAWARIMI GAGAK', desc: 'TIAP 9 DTK, HIT JADI KAWANAN GAGAK: MUNCUL DI BELAKANG PENYERANG + GENJUTSU' },
+    support: { name: 'GENJUTSU SHARINGAN', desc: 'TIAP 8 DTK MUSUH YANG MENATAP HERO DARI DEPAN TERJEBAK GENJUTSU 1.5 DTK' },
     trait: 'GENJUTSU: 15% HIT MEMBEKUKAN, KRITIS +10%, HP -10%',
     apply: (s) => {
       s.freezeChance += 0.15;
@@ -853,6 +876,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
     ],
     hair: '7',
     passive: { name: 'JEJAK BEKU', desc: 'LARI & MENDARAT MENINGGALKAN ES: MUSUH DI ATASNYA TERPELESET, MELAMBAT & BEKU' },
+    support: { name: 'BOLA SALJU', desc: 'TIAP 3 DTK BOLA SALJU MELAYANG KE MUSUH ACAK: PUSING SEJENAK & MELAMBAT' },
     trait: 'ANGIN MEMBAWAKU: +2 LOMPAT UDARA, LARI +10%, BEKU/BURN +30%',
     apply: (s) => {
       s.extraJumps += 2;
@@ -891,6 +915,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..055550..',
     ],
     passive: { name: 'SENSOR KURAMA', desc: 'MUSUH YANG BERSIAP MENYERANG DITANDAI MATA KURAMA; MEMUKULNYA = KRITIS & SERANGANNYA BATAL' },
+    support: { name: 'JUBAH CAKRA KURAMA', desc: 'HP HERO < 30%: CAKRA KURAMA MENYELIMUTI 6 DTK, DAMAGE +30% & PULIH; JEDA 30 DTK' },
     trait: 'CHAKRA KURAMA: HP +20%, PULIH 1 HP/DTK, ULTI +15% CEPAT',
     apply: (s) => {
       s.maxHp *= 1.2;
@@ -929,6 +954,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..055550..',
     ],
     passive: { name: 'CHIDORI NAGASHI', desc: 'DISENTUH MUSUH: PETIR MENGALIR DARI TUBUH, MENYENGAT & MELUMPUHKAN SEKITAR' },
+    support: { name: 'AMENOTEJIKARA', desc: 'DASH = BERTUKAR TEMPAT DENGAN MUSUH DI DEPAN, YANG LALU TERSENGAT; JEDA 5 DTK' },
     trait: 'RINNEGAN: HINDAR 15%, KRITIS +10%, SKILL CD -15%',
     apply: (s) => {
       s.dodge += 0.15;
@@ -967,6 +993,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0g77g0..',
     ],
     passive: { name: 'MEDAN GRAVITASI', desc: 'MUSUH DI DEKAT TUBUHNYA TERTEKAN: MELAMBAT & MENERIMA +15% DAMAGE' },
+    support: { name: 'TARIKAN BUMI', desc: 'TIAP 6 DTK MUSUH TERBANG DITARIK JATUH MENGHANTAM LANTAI & TERTAHAN 1.2 DTK' },
     trait: 'MASSA SINGULAR: DITERIMA -15%, HP +10%, ULTI +10% CEPAT',
     apply: (s) => {
       s.damageTaken *= 0.85;
@@ -1006,6 +1033,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0909090.',
     ],
     passive: { name: 'IRAMA GUNTUR', desc: 'GENDERANG BERDENTUM TIAP KETUKAN: PUKULAN TEPAT DI KETUKAN MEMANGGIL PETIR' },
+    support: { name: 'GUNTUR MENGGELEGAR', desc: 'TIAP 8 DTK GUNTUR: SEMUA MUSUH TERKEJUT 0.6 DTK & SERANGAN YANG DISIAPKAN BATAL' },
     trait: 'TUBUH PETIR: GERAK +10%, KRITIS +5%, DASH -15% CD',
     apply: (s) => {
       s.speed *= 1.1;
@@ -1044,6 +1072,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0agg80..',
     ],
     passive: { name: 'LAYANG SENJA', desc: 'TAHAN LOMPAT SAAT JATUH = MELAYANG; BULU CAHAYA & API NERAKA BERJATUHAN' },
+    support: { name: 'BULU SENJA', desc: 'TIAP LOMPATAN HERO MENGGUGURKAN BULU EMAS & MERAH YANG MENGHUJAM KE BAWAH' },
     trait: 'DARAH GANDA: HP +10%, CURI NYAWA 3%, KRITIS +5%',
     apply: (s) => {
       s.maxHp *= 1.1;
@@ -1082,6 +1111,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0a77a0..',
     ],
     passive: { name: 'KRISTAL CAHAYA', desc: 'TIAP 3 HIT / KRITIS MEMUNCULKAN KRISTAL CAHAYA YANG MENEMBAK SINAR; JADI CERMIN SKILL' },
+    support: { name: 'SPEKTRUM', desc: 'PUKULAN HERO MENGISI 7 WARNA; PELANGI PENUH MENEMBAKKAN SINAR LURUS KE DEPAN' },
     trait: 'TUBUH FOTON: GERAK +15%, KRITIS +5%, DASH -10% CD',
     apply: (s) => {
       s.speed *= 1.15;
@@ -1120,6 +1150,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0aSSa0..',
     ],
     passive: { name: 'KORONA', desc: 'CINCIN API MENGELILINGI; MUSUH DEKAT TERBAKAR, TIAP KILL MELEDAKKAN KORONA' },
+    support: { name: 'BERKAS MATAHARI', desc: 'TIAP 9 DTK SINAR MATAHARI TURUN 4 DTK: HERO DI DALAM +25% DAMAGE, MUSUH TERBAKAR' },
     trait: 'BERKAT MATAHARI: DAMAGE +10%, DAMAGE DITERIMA -10%, HP MAKS +15%',
     apply: (s) => {
       s.damage *= 1.1;
@@ -1158,6 +1189,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0d77d0..',
     ],
     passive: { name: 'FASE BULAN', desc: 'BULAN DI ATAS KEPALA MEMBESAR TIAP 2 HIT; PURNAMA MENARIK GRAVITASI, SKILL MAKIN KUAT' },
+    support: { name: 'GRAVITASI BULAN', desc: 'HERO SERINGAN BULAN: LOMPAT LEBIH TINGGI, TURUN PELAN, SERANGAN DI UDARA +30%' },
     trait: 'GRAVITASI BULAN: +1 LOMPAT UDARA, KRITIS +6%, DAMAGE +8%',
     apply: (s) => {
       s.extraJumps += 1;
@@ -1197,6 +1229,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0iEEi0..',
     ],
     passive: { name: 'BANGKITLAH', desc: 'MUSUH YANG TEWAS BANGKIT JADI BAYANGAN PENGIKUT (MAKS 3) YANG MEMBURU MUSUH LAIN' },
+    support: { name: 'TEROR SANG RAJA', desc: 'MUSUH DEKAT HERO DENGAN HP < 30% BERLUTUT KETAKUTAN 2 DTK & MENERIMA +50%' },
     trait: 'TAKHTA TEROR: DAMAGE +12%, DITERIMA -10%, +2 HP/KILL',
     apply: (s) => {
       s.damage *= 1.12;
@@ -1236,6 +1269,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0aiia0..',
     ],
     passive: { name: 'TIADA YANG LUPUT', desc: 'MATA RODANYA MELIHAT PROYEKTIL MUSUH: DIBALIKKAN JADI TOMBAK CAHAYA KE MUSUH TERDEKAT' },
+    support: { name: 'PENGHAKIMAN', desc: 'HERO TERLUKA: PILAR CAHAYA MENGHAKIMI MUSUH SEKITAR SEBESAR 150% LUKA ITU' },
     trait: 'MAHKOTA FAJAR: HP +15%, PULIH 1 HP/DTK, DAMAGE +5%',
     apply: (s) => {
       s.maxHp *= 1.15;
@@ -1274,6 +1308,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0s78s0..',
     ],
     passive: { name: 'KAMUI: TEMBUS', desc: 'TIAP 5 DTK, HIT SAAT DIA TAK MENYERANG MENEMBUS TUBUHNYA; PENYERANG TERPELINTIR' },
+    support: { name: 'IZANAGI', desc: 'SEKALI TIAP RONDE, LUKA FATAL DIANGGAP MIMPI: HP KEMBALI SEPERTI 4 DTK LALU' },
     trait: 'MANGEKYO KAMUI: DASH -25% CD, DASH +30%, HINDAR 10%',
     apply: (s) => {
       s.dashCooldown *= 0.75;
@@ -1312,6 +1347,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       '..0ssss0..',
     ],
     passive: { name: 'DEWA: SHINRA TENSEI', desc: 'SAAT DIKEPUNG/DITEMBAK, TOLAKAN OTOMATIS (JEDA 5 DTK); MENTAL KE DINDING = BENTUR' },
+    support: { name: 'JALAN PRETA', desc: 'PELURU MUSUH YANG MENDEKATI HERO DISERAP JALAN PRETA MENJADI HP' },
     trait: 'RINNEGAN: SKILL +15%, ULTI +15% CEPAT, HP +10%',
     apply: (s) => {
       s.skillPower *= 1.15;
@@ -1353,6 +1389,7 @@ export const CLASSES: Record<ClassId, GameClass> = {
       name: 'LUKA INI BOHONG',
       desc: 'TIAP 5 DTK, 1 SERANGAN BARU TERASA PERLAHAN 3 DTK; BUNUH MUSUH DULU = LUKA TAK PERNAH ADA',
     },
+    support: { name: 'MIMPI MALAM PANJANG', desc: 'TIAP 20 DTK: SKILL/ULTI BERIKUTNYA X2, LALU HERO TERTIDUR SEJENAK 0.7 DTK' },
     trait: 'RAJA PERI: SKILL +15%, CD SKILL -10%, ULTI +15% CEPAT',
     apply: (s) => {
       s.skillPower *= 1.15;

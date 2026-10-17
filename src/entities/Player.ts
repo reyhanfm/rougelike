@@ -251,6 +251,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.invulnUntil = Math.max(this.invulnUntil, this.scene.time.now + ms);
   }
 
+  /** Cooldowns (dash, skill, fusion) run `ms` further (the Cultivator's qi formation). */
+  hasten(ms: number): void {
+    this.dashReadyAt -= ms;
+    this.skillReadyAt -= ms;
+    this.fusionReadyAt -= ms;
+  }
+
   /** The skill (L) is ready again at once (Naraka Path restoring Pain). */
   resetSkill(): void {
     this.skillReadyAt = 0;
@@ -875,13 +882,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const info = this.weapon[kind]!;
     this.cancelCharge();
     sfx(kind);
-    if (kind !== 'ult') this.scene.events.emit('hero-cast', kind);
     if (kind === 'skill') this.skillReadyAt = time + this.weapon.skill.cd * this.stats.skillCdMult * 1000;
     else if (kind === 'fusion') this.fusionReadyAt = time + this.weapon.fusion!.cd * this.stats.skillCdMult * 1000;
     else {
       this.ult = 0;
       this.scene.cameras.main.flash(120, 255, 236, 39);
     }
+    // After the cooldown is set, so a reaction may hand it back (Gojo's Six Eyes).
+    this.scene.events.emit('hero-cast', kind);
     // Long names stay on screen near the edges (8px per character, centered).
     // A skill may fire as another technique and name it (Artoria's KILAU EXCALIBUR).
     const name = typeof fired === 'string' ? fired : info.name;
@@ -1021,6 +1029,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.jumpCut = true;
     this.jumpBufferUntil = 0;
     this.coyoteUntil = 0;
+    this.scene.events.emit('hero-jump', this);
   }
 
   private poseWeapon(time: number): void {
