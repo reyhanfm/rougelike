@@ -2862,7 +2862,8 @@ export type Reward = ({ type: 'item'; id: ItemId } | { type: 'potion' } | { type
 
 export function rewardInfo(r: Reward): { name: string; desc: string; icon: string } {
   if (r.type === 'item') return { name: ITEMS[r.id].name, desc: ITEMS[r.id].desc, icon: `i_${r.id}` };
-  if (r.type === 'hero') return { name: CLASSES[r.cls].name, desc: `PASIF: ${CLASSES[r.cls].passive.name}`, icon: `hero_idle_${r.cls}` };
+  if (r.type === 'hero')
+    return { name: CLASSES[r.cls].name, desc: `PASIF II: ${CLASSES[r.cls].passive2.name}`, icon: `hero_idle_${r.cls}` };
   return { name: 'RAMUAN', desc: 'PULIHKAN 50% HP', icon: 'i_ramuan' };
 }
 

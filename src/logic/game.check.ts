@@ -292,6 +292,15 @@ for (const c of CLASS_IDS) assert.ok(CLASSES[c].weapon in WEAPONS && CLASSES[c].
     assert.equal(sp.name + sp.desc, (sp.name + sp.desc).toUpperCase(), `${c}: support text is uppercase`);
     assert.ok(!taken.has(sp.name), `${c}: support reuses a technique name`);
   }
+  // PASIF II: a second technique of its own, distinct from every passive, support and technique name.
+  const all = [...names, ...CLASS_IDS.map((c) => CLASSES[c].passive2.name)];
+  assert.equal(new Set(all).size, all.length, 'PASIF II names are unique');
+  for (const c of CLASS_IDS) {
+    const p2 = CLASSES[c].passive2;
+    assert.ok(p2.name.length <= 20 && p2.desc.length <= 90, `${c}: PASIF II text too long`);
+    assert.equal(p2.name + p2.desc, (p2.name + p2.desc).toUpperCase(), `${c}: PASIF II text is uppercase`);
+    assert.ok(!taken.has(p2.name), `${c}: PASIF II reuses a technique name`);
+  }
 }
 // Passive skills: every class has its own (behavior in entities/passives.ts, a Record over ClassId), short UPPERCASE text.
 assert.equal(new Set(CLASS_IDS.map((c) => CLASSES[c].passive.name)).size, CLASS_IDS.length, 'each class has its own passive');

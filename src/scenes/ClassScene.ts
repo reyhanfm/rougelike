@@ -31,6 +31,9 @@ export class ClassScene extends Phaser.Scene {
   private charged!: Phaser.GameObjects.Text;
   private synergyTitle!: Phaser.GameObjects.Text;
   private synergyDesc!: Phaser.GameObjects.Text;
+  /** Second info page (R / Y / tap the info): PASIF II and DUKUNGAN. */
+  private page = 0;
+  private page2: Phaser.GameObjects.Text[] = [];
 
   constructor() {
     super('class');
@@ -85,14 +88,26 @@ export class ClassScene extends Phaser.Scene {
     this.charged = text(this, 16, 0, '', '#ffa300', 6).setWordWrapWidth(wrap.width);
     this.synergyTitle = text(this, 16, 0, '', COLOR.gold, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
     this.synergyDesc = text(this, 16, 0, '', COLOR.blue, 6).setWordWrapWidth(wrap.width).setLineSpacing(2);
+    this.page = 0;
+    this.page2 = [
+      text(this, 16, INFO_Y, '', '#ff77a8', 7).setWordWrapWidth(wrap.width),
+      text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(1),
+      text(this, 16, 0, '', '#c080ff', 7).setWordWrapWidth(wrap.width),
+      text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(1),
+      text(this, 16, 0, 'DUKUNGAN AKTIF SAAT DIPAKAI & SAAT JADI CADANGAN', COLOR.gray, 6).setWordWrapWidth(wrap.width),
+    ];
+    this.add
+      .zone(W / 2, (INFO_Y + 172) / 2, W, 172 - INFO_Y)
+      .setInteractive()
+      .on('pointerdown', () => this.flip());
     const hint = text(this, W / 2, 173, '', COLOR.gray, 6).setOrigin(0.5, 0);
     onPadChange(this, () =>
       hint.setText(
         padConnected()
-          ? 'D-PAD PILIH  A MULAI  B KEMBALI'
+          ? 'D-PAD PILIH  A MULAI  Y INFO  B KEMBALI'
           : isTouchDevice()
-            ? 'KETUK KELAS 2X UNTUK MULAI'
-            : 'WASD PILIH  J MULAI  ESC KEMBALI',
+            ? 'KETUK KELAS 2X MULAI  KETUK INFO = HAL 2'
+            : 'WASD PILIH  J MULAI  R INFO  ESC KEMBALI',
       ),
     );
 
@@ -112,6 +127,14 @@ export class ClassScene extends Phaser.Scene {
       this.scene.start('hub');
     });
     kb.on('keydown-M', () => toggleSound());
+    kb.on('keydown-R', () => this.flip());
+    this.refresh();
+  }
+
+  /** Switch the info panel between the class page and the PASIF II / DUKUNGAN page. */
+  private flip(): void {
+    this.page = 1 - this.page;
+    sfx('move');
     this.refresh();
   }
 
@@ -138,6 +161,17 @@ export class ClassScene extends Phaser.Scene {
       const prev = stack[i - 1];
       stack[i].setY(prev.y + prev.height + (i === 1 || i === 3 || i === 5 ? 2 : 1));
     }
+    const [p2Title, p2Desc, supTitle, supDesc] = this.page2;
+    p2Title.setText(`PASIF II: ${c.passive2.name}`);
+    p2Desc.setText(c.passive2.desc);
+    supTitle.setText(`DUKUNGAN: ${c.support.name}`);
+    supDesc.setText(c.support.desc);
+    for (let i = 1; i < this.page2.length; i++) {
+      const prev = this.page2[i - 1];
+      this.page2[i].setY(prev.y + prev.height + (i % 2 ? 1 : 4));
+    }
+    stack.forEach((t) => t.setVisible(this.page === 0));
+    this.page2.forEach((t) => t.setVisible(this.page === 1));
   }
 
   private start(): void {

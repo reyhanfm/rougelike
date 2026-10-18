@@ -5,19 +5,23 @@ import { COLOR, PALETTE } from '../gfx/sprites.ts';
 import { CLASSES } from '../logic/classes.ts';
 import type { HitSource, PlayerWorld } from './arena.ts';
 import type { Player } from './Player.ts';
+import type { Move } from '../logic/loot.ts';
 import { bladeLine, bolt, eveningBell, explosion, feathers, glint, kamuiSwirl, lightRay, rinnegan, ring, sparks, taiko } from './skills.ts';
 
 /**
- * DUKUNGAN: what the benched hero of the party does for the one on the field (RunScene calls these hooks for
- * `bench`). Each one is that hero's own lore, a mechanic no other hero has, drawn in its own colors; the hero itself
- * shows up as a ghost (`apparition`) when it steps in. Hits are 'proc' (they never re-trigger hit effects).
+ * DUKUNGAN: a hero's own lore effect that works both while it fights (on itself) and from the bench (on the hero on
+ * the field). Each one is a mechanic no other hero has, drawn in its own colors; from the bench the hero shows up as
+ * a ghost (`apparition`) when it steps in. Hits are 'proc' (they never re-trigger hit effects). The same hooks run the
+ * heroes' PASIF II (signatures.ts).
  */
 export interface SupportCtx {
   p: Player;
   world: PlayerWorld;
   scene: Phaser.Scene;
-  /** The benched hero giving the support. */
+  /** The hero giving the effect (the bench hero, or the hero on the field for its own). */
   bench: ClassId;
+  /** The giver is the hero on the field itself (no ghost steps in). */
+  self: boolean;
   /** Per-round state of this support (fresh when the bench hero changes). */
   s: Record<string, unknown>;
   /** Run coins (Toji's bounty pays out). */
@@ -41,25 +45,29 @@ export interface Support {
   onCast?(c: SupportCtx, kind: 'skill' | 'fusion' | 'ult'): void;
   /** Sharpen one of the hero's hits. */
   modify?(c: SupportCtx, t: Foe, source: HitSource): { mult?: number; crit?: boolean } | void;
-  /** Multiplier on damage the hero takes (Sukuna's binding vow). */
-  taken?: number;
+  /** A basic attack starts (swing, volley or cast), with its move. */
+  onAttack?(c: SupportCtx, m: Move): void;
+  /** Multiplier on damage the hero takes (Sukuna's binding vow); `from` = the touching enemy, none for shots/zones. */
+  taken?: number | ((c: SupportCtx, from?: Foe) => number);
+  /** The hero's blows go through enemy guards (Toji's inverted spear). */
+  pierceGuard?: boolean;
 }
 
-const isBoss = (t: Foe) => 'tier' in t;
-const hpOf = (t: Foe) => t as unknown as { hp: number; maxHp: number };
-const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y);
-const later = (scene: Phaser.Scene, ms: number, fn: () => void) => scene.time.delayedCall(ms, fn);
-const body = (t: Foe) => t.body as Phaser.Physics.Arcade.Body;
+export const isBoss = (t: Foe) => 'tier' in t;
+export const hpOf = (t: Foe) => t as unknown as { hp: number; maxHp: number };
+export const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y);
+export const later = (scene: Phaser.Scene, ms: number, fn: () => void) => scene.time.delayedCall(ms, fn);
+export const body = (t: Foe) => t.body as Phaser.Physics.Arcade.Body;
 /** Damage multiplier that lands `amount` HP on its own (strike scales by the hero's damage stat). */
-const flat = (c: SupportCtx, amount: number) => amount / Math.max(1, c.p.stats.damage);
+export const flat = (c: SupportCtx, amount: number) => amount / Math.max(1, c.p.stats.damage);
 
 /** Per-round state of the support, created on first use. */
-function st<T extends object>(c: SupportCtx, init: () => T): T {
+export function st<T extends object>(c: SupportCtx, init: () => T): T {
   return (c.s.v ??= init()) as T;
 }
 
 /** True once every `ms` (the first time `ms` after the round starts). */
-function every(c: SupportCtx, key: string, ms: number, time: number): boolean {
+export function every(c: SupportCtx, key: string, ms: number, time: number): boolean {
   const next = (c.s[key] as number | undefined) ?? time + ms;
   c.s[key] = next;
   if (time < next) return false;
@@ -68,7 +76,7 @@ function every(c: SupportCtx, key: string, ms: number, time: number): boolean {
 }
 
 /** Hold an enemy in place (bosses are too heavy and only take the damage). */
-function hold(c: SupportCtx, t: Foe, ms: number): void {
+export function hold(c: SupportCtx, t: Foe, ms: number): void {
   if (isBoss(t) || !t.active) return;
   const e = t as unknown as { stunUntil: number };
   e.stunUntil = Math.max(e.stunUntil ?? 0, c.scene.time.now + ms);
@@ -76,7 +84,8 @@ function hold(c: SupportCtx, t: Foe, ms: number): void {
 }
 
 /** The benched hero, as a ghost in its own color: it steps in, does its part, and fades. */
-function apparition(c: SupportCtx, x: number, y: number, facing = c.p.facing, ms = 450): void {
+export function apparition(c: SupportCtx, x: number, y: number, facing = c.p.facing, ms = 450): void {
+  if (c.self) return;
   const color = PALETTE[CLASSES[c.bench].color];
   const g = c.scene.add
     .image(x, y, `hero_idle_${c.bench}`)
@@ -88,7 +97,7 @@ function apparition(c: SupportCtx, x: number, y: number, facing = c.p.facing, ms
 }
 
 /** Enemies (and bosses) still standing. */
-const foes = (c: SupportCtx) => c.world.targets(c.p.x, c.p.y).filter((t) => t.active);
+export const foes = (c: SupportCtx) => c.world.targets(c.p.x, c.p.y).filter((t) => t.active);
 
 export const SUPPORTS: Record<ClassId, Support> = {
   // AVALON TERTANAM: as Avalon once lay sealed in Shirou's body, the sheath closes the hero's wounds: golden

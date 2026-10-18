@@ -590,9 +590,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       .join(' ');
   }
 
+  /** A technique that turns a debuff away before it takes hold (Elementalis drinks fire, ice and shock). */
+  debuffShield?: (d: Debuff) => boolean;
+
   /** Apply (or refresh) a debuff from a hit that dealt `power` damage. */
   afflict(d: Debuff, power: number): void {
     if (d === 'burn' && this.stats.fireImmune) return;
+    if (this.debuffShield?.(d)) return;
     const now = this.scene.time.now;
     if (!this.has(d)) floatText(this.scene, this.x, this.y - 22, `${DEBUFFS[d].name}!`, DEBUFFS[d].color);
     if (d === 'freeze' || d === 'stun' || d === 'silence') this.cancelCharge();
@@ -738,6 +742,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.swingReadyAt = time + this.stats.swingCooldown * 1000 * (1 - FURY.step * this.fury);
       SKILLS[this.weapon.id].basic?.({ p: this, world: this.world, scene: this.scene, power: 1 });
       PASSIVES[this.skin].onAttack?.(this.passiveCtx, this.move);
+      this.scene.events.emit('hero-attack', this.move);
       return;
     }
     let m: Move;
@@ -871,6 +876,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       });
     }
     PASSIVES[this.skin].onAttack?.(this.passiveCtx, this.move);
+    this.scene.events.emit('hero-attack', this.move);
   }
 
   private useSkill(time: number, kind: 'skill' | 'ult' | 'fusion'): void {

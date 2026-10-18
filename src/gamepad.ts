@@ -49,6 +49,7 @@ const LAYOUTS: Record<PadMode, Layout> = {
     [BTN.A]: 'J',
     [BTN.START]: 'J',
     [BTN.B]: 'ESC',
+    [BTN.Y]: 'R',
     [BTN.SELECT]: 'M',
   },
   none: {},
