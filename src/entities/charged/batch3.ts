@@ -133,15 +133,15 @@ function merodach(scene: Phaser.Scene, x: number, y: number, len: number): Phase
 
 /** Charged attacks (TAHAN J) of: samurai, darkAvenger, ashura, antares, gilgamesh. Contract and damage budget: see types.ts. */
 export const BATCH_3: Partial<Record<ClassId, ChargedAttack>> = {
-  // Amakakeru Ryu no Hirameki, the ougi of Hiten Mitsurugi-ryu. He settles into the battojutsu stance while the air
-  // around him is drawn in. On release his left foot steps in and the draw comes at godspeed: one wide crescent of
-  // steel. The blade moved so fast it leaves a hole in the air, and the air rushes back in, dragging everything
-  // around into the cut. He spins through on the planted foot and, carried by that inrush, the second strike lands
-  // on everything that was sucked in. Full: the vacuum reaches far (flyers too) and the second strike is the
-  // heavenly dragon itself, a spiral of steel that throws its victims into the sky.
+  // Kamaitachi, the sickle weasel: the whirlwind of folklore that cuts like a blade. He settles into the battojutsu
+  // stance while the air around him is drawn in. On release his lead foot steps in and the draw comes faster than the
+  // eye: one wide crescent of steel. The blade moved so fast it leaves a hole in the air, and the air rushes back in,
+  // dragging everything around into the cut. He turns through on the planted foot and, carried by that inrush, the
+  // second strike lands on everything that was sucked in. Full: the vacuum reaches far (flyers too) and the second
+  // strike is the weasel itself, a whirl of steel that throws its victims into the sky.
   samurai: {
-    name: 'AMAKAKERU RYU',
-    desc: 'IAI SECEPAT DEWA, VAKUM MENARIK MUSUH KE TEBASAN KEDUA; PENUH: VAKUM LUAS, NAGA MELEMPAR',
+    name: 'KAMAITACHI',
+    desc: 'IAI SECEPAT DEWA, VAKUM MENARIK MUSUH KE TEBASAN KEDUA; PENUH: VAKUM LUAS, PUSARAN LEMPAR',
     charging({ p, scene }, t01, level, g) {
       const f = p.facing;
       const now = scene.time.now;
@@ -154,7 +154,7 @@ export const BATCH_3: Partial<Record<ClassId, ChargedAttack>> = {
         const y = p.y + 6 - (i % 4) * 5;
         g.lineStyle(1, level === 2 ? 0xfff1e8 : 0xc2c3c7, 0.2 + 0.55 * u).lineBetween(p.x + side * d, y, p.x + side * (d + 4 + 8 * u), y);
       }
-      // The dragon coils: an indigo arc circling him, tightening as the charge grows.
+      // The whirlwind coils: an indigo arc circling him, tightening as the charge grows.
       const r = 20 - 8 * t01;
       const a = (now / 140) * f;
       g.lineStyle(3, 0x29adff, 0.15 + 0.2 * t01)
@@ -243,7 +243,7 @@ export const BATCH_3: Partial<Record<ClassId, ChargedAttack>> = {
           const spin = scene.add.container(sx, sy).setDepth(13).setScale(f, 1);
           const sg = scene.add.graphics();
           if (full) {
-            // The heavenly dragon: a spiral of steel winding out from him, its head at the outer end.
+            // The weasel: a whirl of steel winding out from him, its head at the outer end.
             const pts: Phaser.Math.Vector2[] = [];
             for (let i = 0; i <= 40; i++) {
               const u = i / 40;
@@ -277,7 +277,7 @@ export const BATCH_3: Partial<Record<ClassId, ChargedAttack>> = {
           if (full) {
             scene.cameras.main.flash(120, 200, 230, 255);
             scene.cameras.main.shake(220, 0.016);
-            floatText(scene, p.x, p.y - 44, 'HIRAMEKI!', '#29adff');
+            floatText(scene, p.x, p.y - 44, 'TSUMUJI!', '#29adff');
           } else scene.cameras.main.shake(120, 0.008);
         });
       });

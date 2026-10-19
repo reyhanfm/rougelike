@@ -12,6 +12,7 @@ import {
   ophanim,
   RADIANT,
   RAIJIN,
+  redDragon,
   RIKUDO,
   SOUL,
   twilightWings,
@@ -176,14 +177,126 @@ export const STYLES: Record<ClassId, MoveStyle> = {
     trail: { shape: 'spark', colors: [0xff004d, 0x29adff, 0xffec27, 0x00e436] },
     hold: { angle: -80 },
   },
-  // Samurai: low fast run, sakura petals, katana held low and forward.
-  samurai: { stride: 90, lean: 14, jump: 'flip', trail: { shape: 'leaf', colors: [0xff77a8, 0xfff1e8] }, hold: { angle: 20, dy: 1 } },
+  // Samurai: a heavy armored stride, upright jumps (no somersaults in full gusoku), plates clank on landing, sakura
+  // petals, katana held low and forward. On his back the sashimono: a red banner with a white mon on a pole and
+  // crossbar, rippling back from the pole, more when he runs; it leans with his body.
+  samurai: {
+    stride: 120,
+    lean: 7,
+    jump: 'none',
+    trail: { shape: 'leaf', colors: [0xff77a8, 0xfff1e8] },
+    hold: { angle: 20, dy: 1 },
+    heavy: true,
+    attach: (scene, p) => {
+      const g = scene.add.graphics().setDepth(9.5);
+      const tick = () => {
+        g.clear();
+        if (!p.active || !p.visible || p.alpha < 0.05 || p.getData('hidden')) return;
+        const f = p.facing;
+        const now = scene.time.now;
+        g.setAlpha(p.alpha);
+        const [ux, uy] = [Math.sin(p.rotation), -Math.cos(p.rotation)];
+        const [bx, by] = [p.x - f * 3, p.y + 1];
+        const [tx, ty] = [bx + ux * 16, by + uy * 16];
+        g.lineStyle(1, 0x3b2418).lineBetween(bx, by, tx, ty);
+        // The flag hangs from the crossbar along the pole, each column waving a little more toward the free edge.
+        const speed = Math.min(1, Math.abs((p.body as Phaser.Physics.Arcade.Body | null)?.velocity.x ?? 0) / 120);
+        for (let i = 1; i <= 5; i++) {
+          const wave = Math.sin(now / (110 - speed * 40) + i * 0.9) * (i / 5) * (0.8 + speed);
+          const [cx, cy] = [tx - f * i + ux * wave, ty + 1 + uy * wave * 0.3];
+          g.fillStyle(i === 5 ? 0x7e2553 : 0xff004d).fillRect(cx - 0.5, cy, 1, 8);
+          g.fillStyle(0x7e2553).fillRect(cx - 0.5, cy + 8, 1, 1);
+          // The mon: a small white ring across the middle three columns.
+          if (i === 2 || i === 4) g.fillStyle(0xfff1e8).fillRect(cx - 0.5, cy + 3, 1, 2);
+          if (i === 3)
+            g.fillStyle(0xfff1e8)
+              .fillRect(cx - 0.5, cy + 2, 1, 1)
+              .fillRect(cx - 0.5, cy + 5, 1, 1);
+        }
+        g.lineStyle(1, 0x3b2418).lineBetween(tx, ty + 1, tx - f * 6, ty + 1);
+        g.fillStyle(0xffec27).fillRect(tx - 0.5, ty - 1, 1, 1);
+      };
+      scene.events.on('postupdate', tick);
+      scene.events.once('shutdown', () => {
+        scene.events.off('postupdate', tick);
+        g.destroy();
+      });
+    },
+  },
   // Dark Avenger: dark mist, dives down on enemies, blade raised.
   darkAvenger: { stride: 110, lean: 8, jump: 'dive', trail: { shape: 'wisp', colors: [0x7e2553, 0x8a3fd1] }, hold: { angle: -45 } },
   // Ashura: golden sparks, spins in the air, fists ready.
   ashura: { stride: 100, lean: 10, jump: 'spin', trail: { shape: 'spark', colors: [0xffec27, 0xffa300] }, hold: { angle: 0 } },
-  // Antares: the unhurried stride of a Monarch, crimson embers underfoot, leans back on wing-like leaps, claw forward.
-  antares: { stride: 125, lean: 4, jump: 'lift', trail: { shape: 'spark', colors: [0xff004d, 0xb3122e] }, hold: { angle: 30 } },
+  // Antares: the heavy, unhurried stride of the oldest Monarch (the ground shakes when he lands), embers and ash in his
+  // wake, leans back on wing-like leaps, claws forward.
+  antares: {
+    stride: 145,
+    lean: 2,
+    jump: 'lift',
+    trail: { shape: 'spark', colors: [0xff004d, 0xffa300, 0x1d0f2e] },
+    hold: { angle: 30 },
+    heavy: true,
+    // Heat pours off the dark red claws: an ember rises from his hand now and then, sometimes a fleck of black ash.
+    // In dragon form the sprite is only an invisible frame: the red dragon is drawn here every frame, its wings beating,
+    // a molten glow under it and a red haze around it so it reads against the night, embers shaken off the wing beats,
+    // jaws opening on each breath (and wide on a roar). The last 1.5 s it flickers: the form is about to end.
+    attach: (scene, p) => {
+      let next = 0;
+      const g = scene.add.graphics().setDepth(10);
+      const tick = () => {
+        const now = scene.time.now;
+        g.clear();
+        if (p.dragon && p.active && p.visible && !p.getData('hidden')) {
+          const f = p.facing;
+          const left = p.formLeft;
+          if (left < 1500 && Math.floor(now / 90) % 2) return;
+          const beat = Math.sin(now / 95);
+          const roar = now < ((p.getData('roarUntil') as number | undefined) ?? 0);
+          const open = roar ? 1 : p.breathing ? 0.75 : 0.15 + 0.1 * Math.sin(now / 300);
+          const [x, y] = [p.x - f, p.y + 1 + beat * 1.2];
+          // The invulnerability blink only dims the dragon, so the big drawn body never vanishes.
+          g.setAlpha(Math.max(0.6, p.alpha));
+          g.fillStyle(0xff004d, 0.07)
+            .fillEllipse(x, y - 4, 64, 40)
+            .fillStyle(0xff004d, 0.08)
+            .fillEllipse(x, y - 2, 40, 22);
+          redDragon(g, x, y, f, 0.8, 0.35 + beat * 0.65, open);
+          // The breath at the jaws, and embers knocked off the wings on the downbeat.
+          if (p.breathing || roar)
+            g.fillStyle(0xffec27, 0.8)
+              .fillCircle(x + f * 24, y - 7, 2)
+              .fillStyle(0xff004d, 0.5)
+              .fillCircle(x + f * 26, y - 7, 4);
+          if (now >= next && beat < -0.6) {
+            next = now + 120;
+            const e = scene.add
+              .rectangle(x - f * Phaser.Math.Between(4, 14), y - 2, 1, 1, Math.random() < 0.5 ? 0xff004d : 0xffa300)
+              .setDepth(9);
+            scene.tweens.add({ targets: e, y: e.y + Phaser.Math.Between(10, 20), alpha: 0, duration: 500, onComplete: () => e.destroy() });
+          }
+          return;
+        }
+        if (now < next || !p.active || !p.visible || p.alpha < 0.05 || p.getData('hidden')) return;
+        next = now + 150;
+        const ash = Math.random() < 0.25;
+        const color = ash ? 0x1d0f2e : Math.random() < 0.5 ? 0xff004d : 0xffa300;
+        const e = scene.add.rectangle(p.x + p.facing * 5 + Phaser.Math.Between(-1, 1), p.y + 2, 1, ash ? 2 : 1, color).setDepth(10.5);
+        scene.tweens.add({
+          targets: e,
+          y: e.y - Phaser.Math.Between(8, 14),
+          x: e.x + Phaser.Math.Between(-3, 3),
+          alpha: 0,
+          duration: 500,
+          onComplete: () => e.destroy(),
+        });
+      };
+      scene.events.on('postupdate', tick);
+      scene.events.once('shutdown', () => {
+        scene.events.off('postupdate', tick);
+        g.destroy();
+      });
+    },
+  },
   // Gilgamesh: slow, arrogant, leaning back; gold dust.
   gilgamesh: { stride: 145, lean: -5, jump: 'none', trail: { shape: 'flake', colors: [0xffec27, 0xfff1e8] }, hold: { angle: 0 } },
   // Sukuna: unhurried, cursed energy rolls off him, rolls through the air.

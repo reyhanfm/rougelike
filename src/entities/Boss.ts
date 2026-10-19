@@ -158,6 +158,22 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     if (kind === 'kaguya') scene.cameras.main.flash(500, 192, 128, 255);
   }
 
+  // Same guard as Enemy: a push on a boss the blow just killed (no body left) must not throw inside a timer.
+  override setVelocity(x: number, y?: number): this {
+    if (this.body) super.setVelocity(x, y);
+    return this;
+  }
+
+  override setVelocityX(x: number): this {
+    if (this.body) super.setVelocityX(x);
+    return this;
+  }
+
+  override setVelocityY(y: number): this {
+    if (this.body) super.setVelocityY(y);
+    return this;
+  }
+
   /** Flat damage plus a bite of the player's max HP; every attack scales this (shots x0.6 ... laser x1.6). */
   get damage(): number {
     return Math.round(this.flatDamage + bossBite(this.tier) * this.arena.playerMaxHp);

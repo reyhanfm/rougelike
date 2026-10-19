@@ -301,6 +301,15 @@ for (const c of CLASS_IDS) assert.ok(CLASSES[c].weapon in WEAPONS && CLASSES[c].
     assert.equal(p2.name + p2.desc, (p2.name + p2.desc).toUpperCase(), `${c}: PASIF II text is uppercase`);
     assert.ok(!taken.has(p2.name), `${c}: PASIF II reuses a technique name`);
   }
+  // DUKUNGAN II: one more support per hero, its name unlike any other passive, support or technique.
+  const all2 = [...all, ...CLASS_IDS.map((c) => CLASSES[c].support2.name)];
+  assert.equal(new Set(all2).size, all2.length, 'DUKUNGAN II names are unique');
+  for (const c of CLASS_IDS) {
+    const s2 = CLASSES[c].support2;
+    assert.ok(s2.name.length <= 20 && s2.desc.length <= 90, `${c}: DUKUNGAN II text too long`);
+    assert.equal(s2.name + s2.desc, (s2.name + s2.desc).toUpperCase(), `${c}: DUKUNGAN II text is uppercase`);
+    assert.ok(!taken.has(s2.name), `${c}: DUKUNGAN II reuses a technique name`);
+  }
 }
 // Passive skills: every class has its own (behavior in entities/passives.ts, a Record over ClassId), short UPPERCASE text.
 assert.equal(new Set(CLASS_IDS.map((c) => CLASSES[c].passive.name)).size, CLASS_IDS.length, 'each class has its own passive');

@@ -602,8 +602,8 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       cut: 0xfff1e8,
     },
     skill: { name: 'MIKIRI', desc: 'KUDA-KUDA MENANGKIS: MUSUH ATAU PROYEKTIL MENDEKAT DIBALAS TEBASAN KILAT KRITIS', cd: 5 },
-    fusion: { name: 'KUZURYUSEN', desc: 'J+L: SEMBILAN TEBASAN SERENTAK DARI SEMBILAN ARAH', cd: 9 },
-    ult: { name: 'MUSOU ISSEN', desc: 'WAKTU BERHENTI, KILAT PEDANG MENEBAS SEMUA MUSUH, SARUNG = LEDAK' },
+    fusion: { name: 'SANDAN-GIRI', desc: 'J+L: KOTE MELUCUTI MUSUH DI DEPAN, DO MENEBAS BARISAN, MEN DARI ATAS; KENA 2 = IPPON', cd: 9 },
+    ult: { name: 'UKIYO NO ISSEN', desc: 'DUNIA JADI LUKISAN UKIYO-E, GORESAN TINTA DI TIAP MUSUH, PEDANG DISARUNG = SEMUA TERBELAH' },
   },
   busurArkana: {
     id: 'busurArkana',
@@ -722,7 +722,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   cakarNaga: {
     id: 'cakarNaga',
     name: 'CAKAR NAGA',
-    desc: 'CAKAR API KEHANCURAN, COMBO 4, J+L: NAPAS KEHANCURAN',
+    desc: 'CAKAR MERAH RAJA NAGA, COMBO 3, J+L: BREATH OF DESTRUCTION',
     dmg: 1.1,
     cd: 1,
     crit: 0.05,
@@ -765,9 +765,20 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
       trail: 0xff004d,
       status: { burn: 0.2 },
     },
-    skill: { name: "DRAGON'S FEAR", desc: 'MATA NAGA TERBUKA DI LANGIT: TEROR MELUMPUHKAN SEMUA MUSUH DI SEKITAR', cd: 6 },
-    fusion: { name: 'NAPAS KEHANCURAN', desc: 'J+L: KEPALA NAGA MENYEMBURKAN SINAR API KE MUSUH (UDARA JUGA)', cd: 9 },
-    ult: { name: 'MONARCH OF DESTRUCTION', desc: 'PASUKAN NAGA MENGHUJANI API, LALU BERUBAH JADI NAGA KEHANCURAN' },
+    skill: {
+      name: "DRAGON'S FEAR",
+      desc: 'ROH NAGA MENGAUM: SEMUA MUSUH LUMPUH TAKUT, YANG TERBANG JATUH; WUJUD NAGA: AUMAN RAJA NAGA',
+      cd: 6,
+    },
+    fusion: {
+      name: 'BREATH OF DESTRUCTION',
+      desc: 'J+L: API KEHANCURAN KE GARIS TERPADAT, LALU MENYAPU SISANYA; WUJUD NAGA: SINAR X1.6 LEBAR',
+      cd: 9,
+    },
+    ult: {
+      name: 'MONARCH OF DESTRUCTION',
+      desc: 'WUJUD ASLI RAJA NAGA DI LANGIT, PASUKAN NAGA MENUKIK, NAPASNYA MENYAPU ARENA, JADI NAGA',
+    },
   },
   gerbangBabilonia: {
     id: 'gerbangBabilonia',

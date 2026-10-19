@@ -28,6 +28,7 @@ import {
   RAI,
   RAIJIN,
   boom,
+  dragonWing,
   ABYSS,
   bug,
 } from './skills.ts';
@@ -461,42 +462,43 @@ export const DASHES: Record<ClassId, DashStyle> = {
     },
   },
   antares: {
-    name: 'LANGKAH NAGA',
-    desc: 'BERUBAH SETENGAH NAGA SESAAT, MENERJANG RENDAH SAMBIL MENYEMBURKAN API',
-    speed: 300,
+    name: 'KEPAK SAYAP NAGA',
+    desc: 'SAYAP NAGA MERAH TERBENTANG, SATU KEPAKAN MELONTARKANNYA MAJU; WUJUD NAGA: TERJANGAN API MELEDAK',
+    speed: 320,
     ms: 200,
     tint: 0xb3122e,
     hit: { mult: 0.7, radius: 16, status: { burn: 0.2 }, cut: 0xff004d },
-    // For a heartbeat the dragon shows through: the shadow of a crimson dragon surges forward with him, its jaws open,
-    // fire pouring out ahead of it; it roars as it fades back into him.
-    start: ({ p, scene }) => {
+    // The wings of the King of Dragons tear out of his back: raised high for an instant, then one heavy beat drives him
+    // forward low over the floor. The gust throws embers and black ash out behind him, and the wings fold back into
+    // him as he lands. In dragon form the whole dragon hurls itself forward instead: a wake of fire pours off it and the
+    // charge ends in a burst of flame that throws everything around it.
+    start: ({ p, world, scene, power }) => {
       const f = p.facing;
-      const dragon = scene.add
-        .image(p.x, p.y - 2, 'dragon')
-        .setFlipX(f < 0)
-        .setTint(0xb3122e)
-        .setAlpha(0.7)
-        .setDepth(9);
-      const follow = scene.time.addEvent({
-        delay: 16,
-        loop: true,
-        callback: () => {
-          dragon.setPosition(p.x - f * 2, p.y - 2);
-          const fb = scene.add
-            .circle(
-              p.x + f * 12,
-              p.y - 2 + Phaser.Math.Between(-3, 3),
-              Phaser.Math.Between(2, 3),
-              Math.random() < 0.5 ? 0xffa300 : 0xff004d,
-            )
-            .setDepth(12);
-          scene.tweens.add({ targets: fb, x: fb.x + f * 24, scale: 2, alpha: 0, duration: 220, onComplete: () => fb.destroy() });
-        },
+      if (p.dragon) {
+        during(scene, 220, 30, () => flameTongue(scene, p.x - f * 10, p.y + 6, 14, 300, FIRE));
+        later(scene, 220, () => {
+          explosion(scene, p.x + f * 12, p.y, 24);
+          scene.cameras.main.shake(120, 0.012);
+          world.area(p.x + f * 12, p.y, 36, 1.4 * power, 220, 'proc', { burn: 0.4 });
+        });
+        return;
+      }
+      const g = scene.add.graphics().setDepth(9);
+      const t0 = scene.time.now;
+      during(scene, 240, 16, () => {
+        const k = Math.min(1, (scene.time.now - t0) / 200);
+        const flap = k < 0.25 ? 1 : 1 - ((k - 0.25) / 0.75) * 1.5;
+        g.clear();
+        dragonWing(g, p.x - f * 3, p.y - 5, f, 0.8, flap * 0.9, true);
+        dragonWing(g, p.x - f * 1, p.y - 4, f, 0.8, flap);
+        const e = scene.add
+          .rectangle(p.x - f * 10, p.y + Phaser.Math.Between(-5, 6), 2, 1, Phaser.Math.RND.pick([0xff004d, 0xffa300, 0x1d0f2e]))
+          .setDepth(9);
+        scene.tweens.add({ targets: e, x: e.x - f * 22, alpha: 0, duration: 260, onComplete: () => e.destroy() });
       });
-      later(scene, 200, () => {
-        follow.remove();
-        ring(scene, p.x, p.y, 0xff004d, 4, 22, 240, 2);
-        scene.tweens.add({ targets: dragon, alpha: 0, scale: 1.3, duration: 200, onComplete: () => dragon.destroy() });
+      later(scene, 250, () => {
+        ring(scene, p.x - f * 6, p.y, 0xff004d, 4, 20, 220, 2);
+        scene.tweens.add({ targets: g, alpha: 0, scaleY: 0.6, duration: 160, onComplete: () => g.destroy() });
       });
     },
   },

@@ -31,7 +31,7 @@ export class ClassScene extends Phaser.Scene {
   private charged!: Phaser.GameObjects.Text;
   private synergyTitle!: Phaser.GameObjects.Text;
   private synergyDesc!: Phaser.GameObjects.Text;
-  /** Second info page (R / Y / tap the info): PASIF II and DUKUNGAN. */
+  /** Info pages cycled with R / Y / a tap on the info: 0 class, 1 PASIF II + DUKUNGAN, 2 DUKUNGAN II. */
   private page = 0;
   private page2: Phaser.GameObjects.Text[] = [];
 
@@ -94,6 +94,8 @@ export class ClassScene extends Phaser.Scene {
       text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(1),
       text(this, 16, 0, '', '#c080ff', 7).setWordWrapWidth(wrap.width),
       text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(1),
+      text(this, 16, 0, '', COLOR.gold, 7).setWordWrapWidth(wrap.width),
+      text(this, 16, 0, '', COLOR.text, 6).setWordWrapWidth(wrap.width).setLineSpacing(1),
       text(this, 16, 0, 'DUKUNGAN AKTIF SAAT DIPAKAI & SAAT JADI CADANGAN', COLOR.gray, 6).setWordWrapWidth(wrap.width),
     ];
     this.add
@@ -131,9 +133,9 @@ export class ClassScene extends Phaser.Scene {
     this.refresh();
   }
 
-  /** Switch the info panel between the class page and the PASIF II / DUKUNGAN page. */
+  /** Cycle the info panel: the class page, the PASIF II / DUKUNGAN page, the DUKUNGAN II page. */
   private flip(): void {
-    this.page = 1 - this.page;
+    this.page = (this.page + 1) % 3;
     sfx('move');
     this.refresh();
   }
@@ -161,17 +163,20 @@ export class ClassScene extends Phaser.Scene {
       const prev = stack[i - 1];
       stack[i].setY(prev.y + prev.height + (i === 1 || i === 3 || i === 5 ? 2 : 1));
     }
-    const [p2Title, p2Desc, supTitle, supDesc] = this.page2;
+    const [p2Title, p2Desc, supTitle, supDesc, sup2Title, sup2Desc] = this.page2;
     p2Title.setText(`PASIF II: ${c.passive2.name}`);
     p2Desc.setText(c.passive2.desc);
     supTitle.setText(`DUKUNGAN: ${c.support.name}`);
     supDesc.setText(c.support.desc);
+    sup2Title.setText(`DUKUNGAN II: ${c.support2.name}`);
+    sup2Desc.setText(c.support2.desc);
+    // Page 1: PASIF II and DUKUNGAN; page 2: DUKUNGAN II and the note on when supports work. Each starts at INFO_Y.
     for (let i = 1; i < this.page2.length; i++) {
       const prev = this.page2[i - 1];
-      this.page2[i].setY(prev.y + prev.height + (i % 2 ? 1 : 4));
+      this.page2[i].setY(i === 4 ? INFO_Y : prev.y + prev.height + (i % 2 ? 1 : 4));
     }
     stack.forEach((t) => t.setVisible(this.page === 0));
-    this.page2.forEach((t) => t.setVisible(this.page === 1));
+    this.page2.forEach((t, i) => t.setVisible(this.page === (i < 4 ? 1 : 2)));
   }
 
   private start(): void {

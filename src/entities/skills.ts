@@ -2859,6 +2859,174 @@ export function summonBird(g: Phaser.GameObjects.Graphics, x: number, y: number,
     .lineBetween(x + f * 11, y - 5, x + f * 11, y - 10);
 }
 
+/**
+ * Antares, King of Dragons and Monarch of Destruction (Solo Leveling): a red dragon. Scale outline, crimson scales, the
+ * bright edge of a scale catching fire-light, the molten belly, bone-silver horns, the glowing eye, and the black-red
+ * ash of the Flames of Destruction.
+ */
+export const DESTRUCTION = {
+  outline: 0x2a0508,
+  membrane: 0x7a2230,
+  scale: 0xb3122e,
+  edge: 0xff004d,
+  belly: 0xffa300,
+  glow: 0xffec27,
+  horn: 0xc2c3c7,
+  ash: 0x1d0f2e,
+} as const;
+
+/**
+ * A dragon's head drawn into `g`, facing `f`, its skull at (x, y), `s` pixels per unit, the lower jaw dropped by `open`
+ * (0 shut, 1 wide, the throat lit). The neck runs back and down from the skull.
+ */
+export function dragonHead(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number, s: number, open = 0): void {
+  const P = (px: number, py: number) => new Phaser.Math.Vector2(x + f * px * s, y + py * s);
+  const Q = (px: number, py: number): [number, number] => [x + f * px * s, y + py * s];
+  const D = DESTRUCTION;
+  const shape = (pts: [number, number][], fill: number, line: number = D.outline) => {
+    const v = pts.map(([a, b]) => P(a, b));
+    g.fillStyle(fill).fillPoints(v, true);
+    g.lineStyle(Math.max(1, s * 0.6), line).strokePoints(v, true);
+  };
+  // The neck, thick and scaled, with spines down its top.
+  shape(
+    [
+      [-7, -3],
+      [-20, 7],
+      [-15, 11],
+      [-4, 3],
+    ],
+    D.scale,
+  );
+  for (let i = 0; i < 3; i++) {
+    const [a, b] = [-9 - i * 4, -1 + i * 3];
+    shape(
+      [
+        [a, b],
+        [a - 3, b - 4],
+        [a - 2, b + 1],
+      ],
+      D.membrane,
+    );
+  }
+  // The lower jaw, swung down from its hinge; the throat burns inside it.
+  const drop = open * 6;
+  if (open > 0)
+    shape(
+      [
+        [-4, 1],
+        [13, 1],
+        [12, 1 + drop],
+      ],
+      D.edge,
+      D.belly,
+    );
+  shape(
+    [
+      [-5, 1],
+      [12, 2 + drop],
+      [11, 4 + drop],
+      [-3, 4],
+    ],
+    D.scale,
+  );
+  if (open > 0.3)
+    for (let i = 0; i < 4; i++) {
+      const tx = 2 + i * 2.6;
+      g.fillStyle(0xfff1e8).fillTriangle(
+        ...Q(tx, 1 + drop * (tx / 13)),
+        ...Q(tx + 1, 1 + drop * (tx / 13)),
+        ...Q(tx + 0.5, -0.5 + drop * (tx / 13)),
+      );
+    }
+  // The skull: a long wedge to the snout.
+  shape(
+    [
+      [-8, -4],
+      [2, -6],
+      [10, -3],
+      [14, -1],
+      [14, 1],
+      [4, 1],
+      [-5, 2],
+      [-9, 0],
+    ],
+    D.scale,
+  );
+  g.fillStyle(D.edge).fillPoints([P(-6, -4), P(2, -5.5), P(9, -3), P(2, -4)], true);
+  // Two horns swept back, bone-silver.
+  for (const [hx, len] of [
+    [-6, 9],
+    [-2, 7],
+  ] as const)
+    shape(
+      [
+        [hx, -4],
+        [hx - len, -4 - len * 0.7],
+        [hx + 2, -5],
+      ],
+      D.horn,
+    );
+  // The brow ridge, the burning eye with its slit, the nostril.
+  g.lineStyle(Math.max(1, s * 0.6), D.outline).lineBetween(...Q(-1, -4.5), ...Q(4, -3.5));
+  g.fillStyle(D.glow).fillEllipse(P(2, -2.6).x, P(2, -2.6).y, 2.6 * s, 1.4 * s);
+  g.fillStyle(D.edge).fillRect(P(2, -2.6).x - 0.5, P(2, -2.6).y - 0.6 * s, 1, 1.2 * s);
+  g.fillStyle(D.outline).fillRect(P(12.5, -1).x - 0.5, P(12.5, -1).y - 0.5, Math.max(1, s * 0.6), Math.max(1, s * 0.6));
+}
+
+/**
+ * One dragon wing from the shoulder (x, y), reaching back from `f`: three finger bones fanning out, the dark membrane
+ * scalloped between them. `flap` 1 = raised high, 0 = level, -0.5 = beaten down.
+ */
+export function dragonWing(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number, s: number, flap: number, dim = false): void {
+  const D = DESTRUCTION;
+  const P = (px: number, py: number) => new Phaser.Math.Vector2(x + f * px * s, y + py * s);
+  const tips: [number, number][] = [
+    [-4, -22 * flap - 2],
+    [-16, -18 * flap - 1],
+    [-27, -9 * flap + 1],
+  ];
+  const mem = [P(0, 0), P(...tips[0]), P(-9, -14 * flap + 2), P(...tips[1]), P(-21, -7 * flap + 4), P(...tips[2]), P(-18, 4), P(-4, 3)];
+  g.fillStyle(dim ? D.ash : D.membrane, 0.92).fillPoints(mem, true);
+  g.lineStyle(Math.max(1, s * 0.5), D.outline).strokePoints(mem, true);
+  for (const t of tips) {
+    g.lineStyle(Math.max(1, s * 0.9), D.outline).lineBetween(x, y, P(...t).x, P(...t).y);
+    g.lineStyle(Math.max(1, s * 0.45), dim ? D.membrane : D.scale).lineBetween(x, y, P(...t).x, P(...t).y);
+  }
+  g.fillStyle(D.horn).fillCircle(P(...tips[0]).x, P(...tips[0]).y, Math.max(0.8, s * 0.6));
+}
+
+/**
+ * The whole red dragon, facing `f`: tail, legs, body with its molten belly, neck and head, a wing behind and one in
+ * front. Redraw it each frame with a new `flap` (wing beat) and `open` (jaw) to make it move.
+ */
+export function redDragon(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number, s: number, flap: number, open = 0): void {
+  const D = DESTRUCTION;
+  const P = (px: number, py: number) => new Phaser.Math.Vector2(x + f * px * s, y + py * s);
+  const Q = (px: number, py: number): [number, number] => [x + f * px * s, y + py * s];
+  dragonWing(g, P(1, -4).x, P(1, -4).y, f, s, flap * 0.85 + 0.1, true);
+  // The tail: a long whip ending in a barbed spade.
+  const tail = [P(-11, 1), P(-21, 4), P(-30, 2), P(-37, -3)];
+  g.lineStyle(4.5 * s, D.outline).strokePoints(tail);
+  g.lineStyle(2.6 * s, D.scale).strokePoints(tail);
+  g.fillStyle(D.edge).fillTriangle(...Q(-36, -3), ...Q(-42, -7), ...Q(-40, 0));
+  // Legs tucked under, claws hooked.
+  for (const lx of [-6, 6]) {
+    g.lineStyle(2.4 * s, D.outline).lineBetween(...Q(lx, 3), ...Q(lx + 2, 8));
+    g.lineStyle(1.2 * s, D.scale).lineBetween(...Q(lx, 3), ...Q(lx + 2, 8));
+    g.fillStyle(D.horn).fillRect(P(lx + 2, 8).x - 0.5, P(lx + 2, 8).y, Math.max(1, s), Math.max(1, s * 0.6));
+  }
+  // The body: outline, crimson scales, a lit ridge along the back, the glowing belly plates.
+  g.fillStyle(D.outline).fillEllipse(x, y, 28 * s, 12 * s);
+  g.fillStyle(D.scale).fillEllipse(x, y, 26 * s, 10 * s);
+  g.fillStyle(D.edge).fillEllipse(P(0, -3).x, P(0, -3).y, 18 * s, 2.5 * s);
+  g.fillStyle(D.belly).fillEllipse(P(2, 3).x, P(2, 3).y, 18 * s, 3.5 * s);
+  for (let i = -2; i <= 2; i++)
+    g.fillStyle(D.glow, 0.6).fillRect(P(2 + i * 3.4, 3).x - 0.5, P(2 + i * 3.4, 2.5).y, Math.max(1, s * 0.6), Math.max(1, s));
+  dragonHead(g, P(19, -9).x, P(19, -9).y, f, s * 0.75, open);
+  dragonWing(g, P(3, -4).x, P(3, -4).y, f, s, flap);
+}
+
 export const SKILLS: Record<WeaponId, WeaponSkills> = {
   pedang: {
     // Mana Burst Jatuh lands in a flare of prana: two blades of Invisible Air skim out along the floor both ways.
@@ -7650,89 +7818,168 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           sparks(scene, x, p.y, [0xff004d, 0xffa300], 3, 8);
         });
     },
-    // Dragon's Fear: Antares lets a sliver of what he is show. A colossal slit-pupiled dragon's eye opens in the sky
-    // above him, the air turns red, and the pressure rolls out in waves: every enemy around him freezes in terror,
-    // shaking where it stands, as the heat scorches it.
+    // Terkaman Naga lands claws-first: three molten furrows rake out along the floor ahead of him and fire spits up
+    // out of each.
+    onDiveLand: ({ p, world, scene, power }, x, gy) => {
+      const f = p.facing;
+      scene.cameras.main.shake(120, 0.01);
+      for (const o of [-3, 0, 3]) {
+        const g = scene.add.graphics().setDepth(11);
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          duration: 200,
+          ease: 'Quad.Out',
+          onUpdate: (tw) => {
+            const k = tw.getValue() ?? 0;
+            const x1 = x + f * (8 + 44 * k);
+            g.clear()
+              .lineStyle(3, DESTRUCTION.outline)
+              .lineBetween(x + f * 4, gy - 1 + o * 0.3, x1, gy - 1 + o * 0.3);
+            g.lineStyle(1, DESTRUCTION.belly).lineBetween(x + f * 4, gy - 1 + o * 0.3, x1, gy - 1 + o * 0.3);
+            if (Math.random() < 0.5) flameTongue(scene, x1, gy, 9, 260, FIRE);
+          },
+          onComplete: () => scene.tweens.add({ targets: g, alpha: 0, duration: 260, onComplete: () => g.destroy() }),
+        });
+      }
+      world.area(x + f * 26, gy - 8, 32, 0.8 * power, 160, 'proc', { burn: 0.2 });
+    },
+    // Dragon's Fear: Antares lets what he truly is show for a heartbeat. The spectral head of the King of Dragons
+    // (his spiritual body) rears up behind him, opens its jaws and roars; the roar rolls over the whole arena in rings
+    // of red pressure. Every enemy is gripped by terror: it seizes up where it stands, shaking, a red mark of dread over
+    // it, and anything in the air forgets how to fly and drops onto the floor. The heat of the breath scorches them all.
+    // In dragon form there is no spirit to call up: AUMAN RAJA NAGA, the dragon itself rears and roars, jaws wide; the
+    // terror lasts longer and burns hotter, and a wave of fire runs out along the floor both ways from under him.
     skill: ({ p, world, scene, power }) => {
-      const R = 160;
-      const { x, y } = p;
-      p.lock(400);
+      const f = p.facing;
+      const dk = p.dragon;
+      p.lock(600);
       p.setVelocityX(0);
       const cam = scene.cameras.main;
-      cam.flash(180, 179, 18, 46);
-      const ex = Phaser.Math.Clamp(x, 40, W - 40);
-      const ey = Math.max(30, y - 70);
-      const eye = scene.add.container(ex, ey).setDepth(7).setScale(1, 0);
-      eye.add([
-        scene.add.ellipse(0, 0, 70, 22, 0x1d0f2e, 0.85).setStrokeStyle(2, 0xb3122e),
-        scene.add.ellipse(0, 0, 50, 18, 0xff004d, 0.9),
-        scene.add.ellipse(0, 0, 30, 18, 0xffa300, 0.9),
-        scene.add.rectangle(0, 0, 4, 18, 0x000000),
-        scene.add.rectangle(-8, -4, 4, 2, 0xfff1e8, 0.8),
-      ]);
-      scene.tweens.add({ targets: eye, scaleY: 1, duration: 180, ease: 'Back.Out' });
-      scene.tweens.add({ targets: eye, scaleY: 0, alpha: 0, delay: 900, duration: 200, onComplete: () => eye.destroy() });
-      // The pupil narrows as it fixes on its prey.
-      scene.tweens.add({ targets: eye.list[3], scaleX: 0.4, delay: 200, duration: 250 });
+      if (dk) p.setData('roarUntil', scene.time.now + 1000);
+      const [hx, hy] = [Phaser.Math.Clamp(p.x - f * 16, 30, W - 30), Math.max(34, p.y - 34)];
+      const head = scene.add.graphics().setDepth(7);
       const veil = scene.add
-        .rectangle(0, 0, W, FLOOR_Y + 40, 0xb3122e, 0)
+        .rectangle(0, 0, W, FLOOR_Y + 40, DESTRUCTION.scale, 0)
         .setOrigin(0)
         .setDepth(6);
-      scene.tweens.add({ targets: veil, fillAlpha: 0.22, duration: 150, yoyo: true, hold: 600, onComplete: () => veil.destroy() });
-      for (let k = 0; k < 3; k++)
-        later(scene, 150 + k * 140, () => {
-          ring(scene, x, y, k % 2 ? 0x1d0f2e : 0xff004d, 8, R, 450, 3);
-          cam.shake(120, 0.01);
-        });
-      later(scene, 250, () => {
-        for (const t of world.targets(x, y)) {
-          if (Phaser.Math.Distance.Between(x, y, t.x, t.y) > R) continue;
-          world.strike(t, 1.6 * power, 'skill', false, { freeze: 1600, burn: 0.25 });
-          // Struck with terror: a red jolt flares over its head.
-          const jolt = scene.add.rectangle(t.x, t.y - 12, 2, 5, 0xff004d).setDepth(14);
-          scene.tweens.add({ targets: jolt, y: jolt.y - 4, alpha: 0, delay: 500, duration: 300, onComplete: () => jolt.destroy() });
+      scene.tweens.add({ targets: veil, fillAlpha: 0.25, duration: 160, yoyo: true, hold: 700, onComplete: () => veil.destroy() });
+      // The head rises out of him, translucent, and its jaws open for the roar.
+      const st = { k: 0, open: 0 };
+      scene.tweens.add({ targets: st, k: 1, duration: 260, ease: 'Back.Out' });
+      scene.tweens.add({ targets: st, open: 1, delay: 260, duration: 120 });
+      const draw = () => {
+        head.clear().setAlpha(0.8 * Math.min(1, st.k * 1.4));
+        if (!dk) dragonHead(head, hx, hy + (1 - st.k) * 20, f, 1.4 + st.k * 1.2, st.open);
+      };
+      scene.events.on('update', draw);
+      later(scene, 380, () => {
+        cam.flash(150, 179, 18, 46);
+        cam.shake(dk ? 650 : 450, dk ? 0.03 : 0.02);
+        const [mx, my] = dk ? [p.x + f * 23, p.y - 6] : [hx + f * 30, hy];
+        if (dk)
+          for (const side of [-1, 1])
+            for (let i = 0; i < 10; i++)
+              later(scene, i * 45, () => flameTongue(scene, p.x + side * (12 + i * 16), FLOOR_Y, 20 + i, 420, FIRE));
+        // The roar's pressure: thick crimson rings with a dark edge, rolling out over the whole arena.
+        for (let k = 0; k < 4; k++)
+          later(scene, k * 110, () => {
+            ring(scene, mx, my, DESTRUCTION.ash, 10, W, 560, 4);
+            ring(scene, mx, my, DESTRUCTION.edge, 8, W * 0.95, 520, 2);
+          });
+        for (const t of world.targets(p.x, p.y)) {
+          const d = Phaser.Math.Distance.Between(mx, my, t.x, t.y);
+          later(scene, d * 1.2, () => {
+            if (!t.active) return;
+            const boss = 'tier' in t;
+            world.strike(t, (dk ? 2.1 : 1.3) * power, 'skill', false, { freeze: dk ? 2600 : 1800, burn: dk ? 0.45 : 0.25 }, 0);
+            if (!t.active) return;
+            // Flyers drop out of the sky, too terrified to keep their wings going.
+            if (!boss && (t as unknown as { flying?: boolean }).flying) world.slam(t.x, t.y, 4, 420);
+            // The mark of dread: a red slit eye over it, trembling.
+            const m = scene.add.graphics().setDepth(14);
+            const shake = scene.time.addEvent({
+              delay: 50,
+              repeat: 30,
+              callback: () => {
+                m.clear();
+                if (!t.active) return;
+                const [x, y] = [t.x + Phaser.Math.Between(-1, 1), t.y - t.displayHeight / 2 - 7];
+                m.fillStyle(DESTRUCTION.outline).fillEllipse(x, y, 9, 5).fillStyle(DESTRUCTION.edge).fillEllipse(x, y, 7, 3);
+                m.fillStyle(0x000000).fillRect(x - 0.5, y - 1.5, 1, 3);
+              },
+            });
+            later(scene, 1600, () => (shake.remove(), m.destroy()));
+          });
         }
       });
+      later(scene, 1000, () =>
+        scene.tweens.add({
+          targets: head,
+          alpha: 0,
+          duration: 250,
+          onComplete: () => {
+            scene.events.off('update', draw);
+            head.destroy();
+          },
+        }),
+      );
+      return dk ? 'AUMAN RAJA NAGA' : undefined;
     },
-    // Breath of Destruction: the head of the Dragon of Destruction rises over his shoulder, draws in a breath of red
-    // and black fire and exhales it as one roaring beam along the line that burns the most enemies, scorching
-    // everything on it. Then the dragon swings its head and drags the beam across the arena onto every enemy it has
-    // not burned yet, one after another.
+    // Breath of Destruction: he takes the half-dragon form for an instant and the head of the King of Dragons rises
+    // over his shoulder, draws in a breath of red and black fire and exhales it as one roaring beam along the line that
+    // burns the most enemies; the Flames of Destruction leave nothing but ash. Then the dragon swings its head and
+    // drags the beam across the arena onto every enemy it has not burned yet, one after another.
+    // In dragon form NAPAS SANG RAJA NAGA comes out of his own jaws: a thicker, longer beam that burns half again as hot.
     fusion: ({ p, world, scene, power }) => {
       if (!world.targets(p.x, p.y).length) return false;
       const f = p.facing;
+      const dk = p.dragon;
+      const thick = dk ? 1.6 : 1;
+      power *= dk ? 1.5 : 1;
       p.lock(1500);
       p.invuln(1600);
       p.setVelocity(0, 0);
-      const hx = p.x - f * 4;
-      const hy = p.y - 22;
-      const head = scene.add
-        .image(hx, hy + 20, 'dragon')
-        .setFlipX(f < 0)
-        .setScale(3)
-        .setAlpha(0)
-        .setDepth(9);
-      scene.tweens.add({ targets: head, y: hy, alpha: 0.85, duration: 300, ease: 'Quad.Out' });
-      const mx = hx + f * 30;
-      const my = hy - 9;
-      const len = 360;
+      if (dk) p.setData('roarUntil', scene.time.now + 2400);
+      const [hx, hy] = [p.x - f * 6, p.y - 24];
+      const head = scene.add.graphics().setDepth(9);
+      const st = { rise: 0, open: 0, aim: f > 0 ? 0 : Math.PI, alpha: 1 };
+      scene.tweens.add({ targets: st, rise: 1, duration: 300, ease: 'Quad.Out' });
+      scene.tweens.add({ targets: st, open: 1, delay: 420, duration: 90 });
+      // The head tilts along the beam: it is drawn turned toward wherever the breath is pointed.
+      const draw = () => {
+        head.clear().setAlpha(st.alpha * Math.min(1, st.rise * 1.5));
+        const tilt = f > 0 ? st.aim : Math.PI - st.aim;
+        head.setPosition(hx, hy + (1 - st.rise) * 18).setRotation(f > 0 ? tilt : -tilt);
+        if (!dk) dragonHead(head, 0, 0, f, 1.8, st.open);
+      };
+      scene.events.on('update', draw);
+      const mouth = () =>
+        dk ? ([p.x + f * 23, p.y - 6] as const) : ([hx + Math.cos(st.aim) * 24, hy + Math.sin(st.aim) * 24 + 2] as const);
+      const len = dk ? 420 : 360;
       const onBeam = (a: number, t: Phaser.GameObjects.Sprite) => {
+        const [mx, my] = mouth();
         const dx = t.x - mx;
         const dy = t.y - my;
         const along = dx * Math.cos(a) + dy * Math.sin(a);
-        return along >= 0 && along <= len && Math.abs(-dx * Math.sin(a) + dy * Math.cos(a)) <= 20;
+        return along >= 0 && along <= len && Math.abs(-dx * Math.sin(a) + dy * Math.cos(a)) <= 20 * thick;
       };
+      // The breath drawn in: embers and black ash streaming into its jaws.
       for (let i = 0; i < 24; i++)
         later(scene, 200 + i * 12, () => {
+          const [mx, my] = mouth();
           const r = Phaser.Math.Between(20, 40);
           const ang = Math.random() * Math.PI * 2;
-          const m = scene.add.rectangle(mx + Math.cos(ang) * r, my + Math.sin(ang) * r, 2, 2, i % 3 ? 0xff004d : 0x1d0f2e).setDepth(13);
+          const m = scene.add
+            .rectangle(mx + Math.cos(ang) * r, my + Math.sin(ang) * r, 2, 2, i % 3 ? DESTRUCTION.edge : DESTRUCTION.ash)
+            .setDepth(13);
           scene.tweens.add({ targets: m, x: mx, y: my, duration: 180, onComplete: () => m.destroy() });
         });
       later(scene, 500, () => {
         // Aim when it fires: of the lines toward each enemy ahead (within 0.9 rad of straight ahead), take the one
         // that burns the most of them.
         const base = f > 0 ? 0 : Math.PI;
+        const [mx, my] = mouth();
         const foes = world.targets(mx, my);
         let a = base;
         let best = foes.filter((t) => onBeam(base, t)).length;
@@ -7742,16 +7989,51 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
           const n = foes.filter((e) => onBeam(base + off, e)).length;
           if (n > best) [a, best] = [base + off, n];
         }
+        st.aim = a;
+        // The beam: a black-red sheath of ash fire around a crimson flame, an orange core and a white-hot thread.
         const beam = (
           [
-            [34, 0x1d0f2e, 0.75],
-            [22, 0xb3122e, 0.9],
-            [12, 0xff004d, 1],
-            [4, 0xffa300, 1],
+            [36, DESTRUCTION.ash, 0.75],
+            [24, DESTRUCTION.membrane, 0.9],
+            [14, DESTRUCTION.edge, 1],
+            [6, DESTRUCTION.belly, 1],
+            [2, 0xfff1e8, 1],
           ] as const
-        ).map(([h, c, al]) => scene.add.rectangle(mx, my, len, h, c, al).setOrigin(0, 0.5).setRotation(a).setScale(0, 1).setDepth(12));
+        ).map(([h, c, al]) =>
+          scene.add
+            .rectangle(mx, my, len, h * thick, c, al)
+            .setOrigin(0, 0.5)
+            .setRotation(a)
+            .setScale(0, 1)
+            .setDepth(12),
+        );
         scene.tweens.add({ targets: beam, scaleX: 1, duration: 120 });
         const burned = new Set<Phaser.GameObjects.GameObject>();
+        // Where the beam meets the floor the ground burns.
+        const scorch = scene.time.addEvent({
+          delay: 45,
+          loop: true,
+          callback: () => {
+            const r = beam[0].rotation;
+            const [bx, by] = [beam[0].x, beam[0].y];
+            if (Math.sin(r) > 0.05) {
+              const d = (FLOOR_Y - by) / Math.sin(r);
+              if (d > 0 && d < len) flameTongue(scene, bx + Math.cos(r) * d + Phaser.Math.Between(-6, 6), FLOOR_Y, 12, 320, FIRE);
+            }
+            const d = Math.random() * len;
+            const ash = scene.add
+              .rectangle(bx + Math.cos(r) * d, by + Math.sin(r) * d, 1, 1, Math.random() < 0.5 ? DESTRUCTION.ash : 0x5f574f)
+              .setDepth(13);
+            scene.tweens.add({
+              targets: ash,
+              y: ash.y + 16,
+              x: ash.x + Phaser.Math.Between(-6, 6),
+              alpha: 0,
+              duration: 700,
+              onComplete: () => ash.destroy(),
+            });
+          },
+        });
         // The sweep: after the main burst the beam swings onto each enemy still standing outside it, nearest angle
         // first, and the fire washes over it when the beam lands; then the breath gutters out.
         later(scene, 600, () => {
@@ -7766,10 +8048,11 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
                 if (!t.active) return;
                 const to = rot + Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(mx, my, t.x, t.y) - rot);
                 scene.tweens.add({ targets: beam, rotation: to, duration: 90, ease: 'Sine.InOut' });
+                scene.tweens.add({ targets: st, aim: to, duration: 90, ease: 'Sine.InOut' });
                 rot = to;
                 later(scene, 90, () => {
                   if (!t.active) return;
-                  sparks(scene, t.x, t.y, [0xff004d, 0xffa300, 0x1d0f2e], 8, 14);
+                  sparks(scene, t.x, t.y, [DESTRUCTION.edge, DESTRUCTION.belly, DESTRUCTION.ash], 8, 14);
                   scene.cameras.main.shake(80, 0.01);
                   world.strike(t, 1.8 * power, 'skill', true, { burn: 0.4 });
                 });
@@ -7782,20 +8065,19 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
             alpha: 0,
             delay: at + 60,
             duration: 250,
-            onComplete: () => beam.forEach((b) => b.destroy()),
+            onComplete: () => {
+              scorch.remove();
+              beam.forEach((b) => b.destroy());
+            },
           });
-          scene.tweens.add({ targets: head, alpha: 0, delay: at + 60, duration: 300, onComplete: () => head.destroy() });
+          scene.tweens.add({ targets: st, alpha: 0, open: 0, delay: at + 60, duration: 300 });
+          later(scene, at + 400, () => {
+            scene.events.off('update', draw);
+            head.destroy();
+            p.setData('roarUntil', 0);
+          });
         });
-        scene.cameras.main.shake(600, 0.02);
-        // Flames boil off the beam.
-        for (let i = 0; i < 30; i++)
-          later(scene, i * 20, () => {
-            const d = Math.random() * len;
-            const fl = scene.add
-              .circle(mx + Math.cos(a) * d, my + Math.sin(a) * d, Phaser.Math.Between(2, 4), i % 2 ? 0xff004d : 0x1d0f2e, 0.8)
-              .setDepth(13);
-            scene.tweens.add({ targets: fl, y: fl.y - 10, scale: 0.2, alpha: 0, duration: 400, onComplete: () => fl.destroy() });
-          });
+        scene.cameras.main.shake(600, dk ? 0.028 : 0.02);
         for (let k = 0; k < 4; k++)
           later(scene, k * 150, () => {
             for (const t of world.targets(mx, my))
@@ -7805,91 +8087,167 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
               }
           });
       });
+      return dk ? 'NAPAS SANG RAJA NAGA' : undefined;
     },
-    // Monarch of Destruction: the sky turns blood-red and the colossal Dragon of Destruction rises behind the arena,
-    // its eye burning. Its roar summons the dragon army: dragons sweep across the sky raining fire on every enemy,
-    // until Antares himself is swallowed by a pillar of black fire and emerges as the dragon.
+    // Monarch of Destruction: the King of Dragons stops pretending to be a man. The sky goes the color of blood and his
+    // true body manifests over the arena: a colossal red dragon whose wings span the whole sky, beating slowly. It
+    // roars, and the dragon army answers: dragon after dragon (Kamish was one of them) stoops out of the clouds onto
+    // every enemy on the field, flyers too, bursting in fire as each one strikes. Then the great dragon itself opens
+    // its jaws and the Breath of Destruction rakes the arena from one wall to the other, floor to sky. KEHANCURAN:
+    // the last wave of fire takes everything, and Antares steps out of a pillar of black flame as the dragon.
+    // Called while he already is the dragon, RAJA SEGALA NAGA: four more dragons answer, every blow lands 30% harder,
+    // and the form starts over at full length.
     ult: ({ p, world, scene, power }) => {
+      const foes0 = world.targets(p.x, p.y);
+      if (!foes0.length) return false;
       const f = p.facing;
-      p.invuln(3200);
-      p.lock(2400);
+      const dk = p.dragon;
+      power *= dk ? 1.3 : 1;
+      // As many dragons as it takes to strike every enemy twice (6 to 10, 4 more in dragon form); the breath and the
+      // climax follow them.
+      const n = Phaser.Math.Clamp(foes0.length * 2, 6, 10) + (dk ? 4 : 0);
+      const SWEEP = 1000 + n * 110 + 500;
+      p.invuln(SWEEP + 1300);
+      p.lock(SWEEP + 900);
       p.setVelocity(0, 0);
       const cam = scene.cameras.main;
       cam.flash(250, 179, 18, 46);
       const sky = scene.add
-        .rectangle(0, 0, W, FLOOR_Y + 40, 0x2a0008, 0.65)
+        .rectangle(0, 0, W, FLOOR_Y + 40, 0x2a0008, 0.7)
         .setOrigin(0)
         .setDepth(2)
         .setAlpha(0);
       scene.tweens.add({ targets: sky, alpha: 1, duration: 400 });
-      // The colossal dragon behind everything: a black silhouette against the red sky, only its eye burning.
-      const giant = scene.add.container(W / 2, FLOOR_Y + 60).setDepth(3);
-      const eye = scene.add.circle(f * 76, -32, 5, 0xff004d);
-      giant.add([
-        scene.add
-          .image(0, 0, 'dragon')
-          .setFlipX(f < 0)
-          .setScale(9)
-          .setTint(0x12000a)
-          .setAlpha(0.9),
-        scene.add.circle(f * 76, -32, 12, 0xff004d, 0.3),
-        eye,
-      ]);
-      scene.tweens.add({ targets: giant, y: FLOOR_Y - 40, duration: 700, ease: 'Back.Out' });
-      scene.tweens.add({ targets: eye, scale: 1.5, duration: 200, yoyo: true, repeat: -1 });
-      later(scene, 700, () => {
-        floatText(scene, W / 2, 40, 'ROAAAR!', '#ff004d');
-        cam.shake(500, 0.025);
-        for (let k = 0; k < 4; k++) later(scene, k * 110, () => ring(scene, giant.x, giant.y - 30, 0xff004d, 10, 200, 500, 3));
+      // Embers drifting up through the red air the whole time.
+      const embers = scene.time.addEvent({
+        delay: 60,
+        loop: true,
+        callback: () => {
+          const e = scene.add
+            .rectangle(Phaser.Math.Between(0, W), FLOOR_Y, 1, 2, Math.random() < 0.5 ? DESTRUCTION.edge : DESTRUCTION.belly)
+            .setDepth(4);
+          scene.tweens.add({ targets: e, y: Phaser.Math.Between(30, 120), alpha: 0, duration: 1400, onComplete: () => e.destroy() });
+        },
       });
-      // The dragon army: dragons sweep over the arena, each breathing fire down on an enemy as it passes.
-      for (let i = 0; i < 8; i++)
-        later(scene, 900 + i * 140, () => {
+      // The colossus: drawn every frame, wings beating slow, jaws opening for the breath.
+      const big = scene.add.graphics().setDepth(3);
+      const cx = W / 2 - f * 40;
+      // Big enough that its wings fill the sky, small enough that the head stays below the HUD.
+      const BIG = 2.6;
+      const st = { y: -60, flap: 1, open: 0, alpha: 1 };
+      scene.tweens.add({ targets: st, y: 94, duration: 800, ease: 'Sine.Out' });
+      const drawBig = () => {
+        big.clear().setAlpha(st.alpha);
+        const beat = Math.sin(scene.time.now / 260);
+        redDragon(big, cx, st.y + beat * 2, f, BIG, 0.35 + beat * 0.55, st.open);
+      };
+      scene.events.on('update', drawBig);
+      // The snout tip: the head sits at (19, -9) on the body and its snout reaches 14 units further (at 0.75 scale).
+      const jaw = () => [cx + f * BIG * 29, st.y - BIG * 8.5] as const;
+      later(scene, 800, () => {
+        floatText(scene, W / 2, 34, 'ROAAAR!', '#ff004d');
+        cam.shake(500, 0.025);
+        const [jx, jy] = jaw();
+        for (let k = 0; k < 4; k++)
+          later(scene, k * 110, () => {
+            ring(scene, jx, jy, DESTRUCTION.ash, 12, W, 600, 5);
+            ring(scene, jx, jy, DESTRUCTION.edge, 10, W * 0.9, 560, 2);
+          });
+      });
+      // The dragon army: each one stoops on a target from high up and bursts in fire on it.
+      for (let i = 0; i < n; i++)
+        later(scene, 1000 + i * 110, () => {
+          const live = world.targets(p.x, p.y);
+          const t = live[i % Math.max(1, live.length)];
+          if (!t) return;
           const dir = i % 2 ? -1 : 1;
-          const y = Phaser.Math.Between(18, 60);
-          const d = scene.add
-            .image(dir > 0 ? -20 : W + 20, y, 'dragon')
-            .setFlipX(dir < 0)
-            .setScale(1.3)
-            .setDepth(13);
-          scene.tweens.add({ targets: d, x: dir > 0 ? W + 20 : -20, duration: 900, onComplete: () => d.destroy() });
-          later(scene, 350, () => {
-            const foes = world.targets(d.x, d.y);
-            const t = foes[i % Math.max(1, foes.length)];
-            if (!t || !d.active) return;
-            const ang = Phaser.Math.Angle.Between(d.x, d.y, t.x, t.y);
-            world.shot({
-              x: d.x,
-              y: d.y,
-              vx: Math.cos(ang) * 260,
-              vy: Math.sin(ang) * 260,
-              texture: 'fireball',
-              mult: 1.2 * power,
-              source: 'ult',
-              pierce: true,
-              explode: 18,
-              status: { burn: 0.4 },
-            });
+          const [x0, y0] = [dir > 0 ? -30 : W + 30, Phaser.Math.Between(10, 40)];
+          const [x1, y1] = [t.x, t.y];
+          const g = scene.add.graphics().setDepth(13);
+          scene.tweens.addCounter({
+            from: 0,
+            to: 1,
+            duration: 420,
+            ease: 'Quad.In',
+            onUpdate: (tw) => {
+              const k = tw.getValue() ?? 0;
+              const x = x0 + (x1 - x0) * k;
+              const y = (1 - k) ** 2 * y0 + 2 * (1 - k) * k * (y0 - 20) + k ** 2 * y1;
+              g.clear();
+              redDragon(g, x, y, Math.sign(x1 - x0) || 1, 0.7, Math.sin(k * 14) * 0.7);
+            },
+            onComplete: () => {
+              g.destroy();
+              explosion(scene, x1, y1, 16);
+              cam.shake(70, 0.008);
+              if (t.active) world.strike(t, 0.9 * power, 'ult', false, { burn: 0.3 }, 80);
+            },
           });
         });
-      // He is swallowed by black fire and the dragon emerges.
-      later(scene, 2200, () => {
-        const pillar = [
-          scene.add.rectangle(p.x, FLOOR_Y, 30, FLOOR_Y, 0x1d0f2e, 0.85),
-          scene.add.rectangle(p.x, FLOOR_Y, 16, FLOOR_Y, 0xff004d, 0.9),
-        ].map((r) => r.setOrigin(0.5, 1).setScale(0.2, 1).setDepth(11));
-        scene.tweens.add({ targets: pillar, scaleX: 1.6, alpha: 0, duration: 500, onComplete: () => pillar.forEach((r) => r.destroy()) });
-        cam.flash(250, 255, 0, 77);
-        cam.shake(400, 0.03);
-        world.area(p.x, p.y, 100, 2 * power, 260, 'ult', { burn: 0.4 });
-        p.transform(7000);
+      // The Breath of Destruction from the colossus: one sweep from wall to wall, the beam's foot dragged along the floor.
+      later(scene, SWEEP - 250, () => scene.tweens.add({ targets: st, open: 1, duration: 200 }));
+      later(scene, SWEEP, () => {
+        const beam = scene.add.graphics().setDepth(12);
+        const hit = new Set<Phaser.GameObjects.GameObject>();
+        const foot = { x: f > 0 ? 0 : W };
         scene.tweens.add({
-          targets: [sky, giant],
-          alpha: 0,
-          duration: 600,
-          onComplete: () => (scene.tweens.killTweensOf(eye), sky.destroy(), giant.destroy()),
+          targets: foot,
+          x: f > 0 ? W : 0,
+          duration: 700,
+          ease: 'Sine.InOut',
+          onUpdate: () => {
+            const [jx, jy] = jaw();
+            beam.clear();
+            for (const [w, c, al] of [
+              [26, DESTRUCTION.ash, 0.7],
+              [16, DESTRUCTION.membrane, 0.9],
+              [9, DESTRUCTION.edge, 1],
+              [4, DESTRUCTION.belly, 1],
+              [1, 0xfff1e8, 1],
+            ] as const)
+              beam.lineStyle(w, c, al).lineBetween(jx, jy, foot.x, FLOOR_Y);
+            flameTongue(scene, foot.x + Phaser.Math.Between(-8, 8), FLOOR_Y, 18, 360, FIRE);
+            cam.shake(40, 0.006);
+            // Everything near the line, floor to sky, is caught as it passes.
+            for (const t of world.targets(foot.x, FLOOR_Y)) {
+              if (hit.has(t)) continue;
+              const k = Phaser.Math.Clamp((t.y - jy) / (FLOOR_Y - jy), 0, 1);
+              if (Math.abs(t.x - (jx + (foot.x - jx) * k)) > 16) continue;
+              hit.add(t);
+              sparks(scene, t.x, t.y, [DESTRUCTION.edge, DESTRUCTION.belly, DESTRUCTION.ash], 10, 16);
+              world.strike(t, 2 * power, 'ult', false, { burn: 0.5 }, 140);
+            }
+          },
+          onComplete: () => scene.tweens.add({ targets: beam, alpha: 0, duration: 200, onComplete: () => beam.destroy() }),
         });
       });
+      // KEHANCURAN: the last wave of fire, and he comes out of the pillar of black flame as the dragon.
+      later(scene, SWEEP + 850, () => {
+        cam.flash(260, 255, 0, 77);
+        cam.shake(600, 0.035);
+        floatText(scene, W / 2, 34, 'KEHANCURAN!', '#ff004d');
+        for (let i = 0; i < 14; i++) flameTongue(scene, (i + 0.5) * (W / 14), FLOOR_Y, Phaser.Math.Between(26, 44), 600, FIRE);
+        for (const t of world.targets(p.x, p.y)) world.strike(t, 1.6 * power, 'ult', true, { burn: 0.5 }, 200);
+        const pillar = [
+          scene.add.rectangle(p.x, FLOOR_Y, 30, FLOOR_Y, DESTRUCTION.ash, 0.85),
+          scene.add.rectangle(p.x, FLOOR_Y, 16, FLOOR_Y, DESTRUCTION.edge, 0.9),
+        ].map((r) => r.setOrigin(0.5, 1).setScale(0.2, 1).setDepth(11));
+        scene.tweens.add({ targets: pillar, scaleX: 1.6, alpha: 0, duration: 500, onComplete: () => pillar.forEach((r) => r.destroy()) });
+        p.transform(7000);
+        embers.remove();
+        scene.tweens.add({ targets: st, alpha: 0, y: st.y - 40, duration: 600 });
+        scene.tweens.add({
+          targets: sky,
+          alpha: 0,
+          duration: 700,
+          onComplete: () => {
+            scene.events.off('update', drawBig);
+            big.destroy();
+            sky.destroy();
+          },
+        });
+      });
+      return dk ? 'RAJA SEGALA NAGA' : undefined;
     },
   },
 
@@ -10969,242 +11327,245 @@ export const SKILLS: Record<WeaponId, WeaponSkills> = {
         },
       });
     },
-    // Kuzuryusen, the Nine-Headed Dragon Flash: the nine strikes of the sword (karatake, kesagiri, migi-kesagiri,
-    // migi-nagi, hidari-nagi, hidari-kiriage, migi-kiriage, sakagiri and the tsuki thrust) delivered at the same
-    // instant, so there is nothing to block. He picks the enemy at the heart of the most enemies (air or ground) and
-    // shukuchis to it. For a heartbeat the nine heads of the dragon show: eight faint lines of attack fan out of the
-    // mark, each ending in a dragon's fang on an enemy of its own (the nearest ones first, flyers included; spare heads
-    // fan up into the empty sky, never into the floor), a phantom of him standing on each. Then all nine land at once:
-    // each cut is re-aimed at where its enemy is now and flashes from the mark to it, splitting the mark and anything
-    // else on the way; the thrust goes through the middle. Any enemy no head reached is caught by the backlash of the
-    // cuts. The blade clicks home.
+    // Sandan-giri, the three-level cut of Edo kenjutsu: the three targets of a duel, each struck in turn and each doing
+    // its own work. KOTE: a flick of the blade at the wrists of everything in front of him; their weapons drop, any
+    // attack being wound up is cancelled and they cannot strike for a moment. DO: he slides along the floor through the
+    // whole line in front of him, a level cut across the body of every enemy standing on the ground. MEN: he leaps and
+    // brings the blade straight down on the highest enemy (a flyer if there is one) from above, the cut running on down
+    // to the floor and swatting nearby flyers down with it. He lands and sheathes the blade:
+    // IPPON, a clean point: any enemy that took two or more of the three cuts has its wounds open together.
     fusion: ({ p, world, scene, power }) => {
-      const foes = world.targets(p.x, p.y);
-      if (!foes.length) return false;
+      if (!world.targets(p.x, p.y).length) return false;
       const cam = scene.cameras.main;
-      p.invuln(1300);
-      p.lock(1000);
+      const f = p.facing;
+      const cuts = new Map<Phaser.GameObjects.Sprite, number>();
+      const mark = (t: Phaser.GameObjects.Sprite) => cuts.set(t, (cuts.get(t) ?? 0) + 1);
+      p.invuln(1600);
+      p.lock(1300);
       p.setVelocity(0, 0);
-      glint(scene, p.x + p.facing * 6, p.y - 1);
-      const near = (e: Phaser.GameObjects.Sprite) => foes.filter((o) => Phaser.Math.Distance.Between(e.x, e.y, o.x, o.y) < 60).length;
-      const mark = foes.reduce((b, e) => (near(e) > near(b) ? e : b));
-      later(scene, 160, () => {
+      glint(scene, p.x + f * 4, p.y + 2);
+      // KOTE: the wrists of everything in front of him, near and far.
+      later(scene, 120, () => {
         if (!p.active) return;
-        // Shukuchi to the mark (aimed where it is now). The star sits on the mark but never below the floor line.
-        const [fx, fy] = [p.x, p.y];
-        const tx = mark.active ? mark.x : fx;
-        const ty = Math.min(mark.active ? mark.y : fy, FLOOR_Y - 8);
-        const side = Math.sign(fx - tx) || -p.facing;
-        const nx = Phaser.Math.Clamp(tx + side * 30, 8, W - 8);
-        const ny = ty;
-        afterimage(scene, p, fx, fy, 0.5);
-        bladeLine(scene, fx, fy, nx, ny, 0xff004d, 120);
-        p.body.reset(nx, ny);
-        p.facing = -side;
-        // The eight heads: one per enemy (nearest first), the spare ones fanned across the upper half of the sky.
-        const others = world.targets(tx, ty).filter((e) => e !== mark);
-        const prey = others.slice(0, 8);
-        const spare = 8 - prey.length;
-        type Head = { t?: Phaser.GameObjects.Sprite; a: number; len: number };
-        const aim = (h: Head) => {
-          if (!h.t?.active) return;
-          // Rays toward the floor are kept level with it, so no cut dives under the ground.
-          const hy = Math.min(h.t.y, FLOOR_Y - 4);
-          h.a = Phaser.Math.Angle.Between(tx, ty, h.t.x, hy);
-          h.len = Phaser.Math.Distance.Between(tx, ty, h.t.x, hy) + 10;
-        };
-        const heads: Head[] = [
-          ...prey.map((t) => ({ t, a: 0, len: 0 })),
-          ...Array.from({ length: spare }, (_, i) => ({ a: -Math.PI + ((i + 0.5) / spare) * Math.PI, len: 70 })),
-        ];
-        heads.forEach(aim);
-        const guide = scene.add.graphics().setDepth(12);
-        for (const { a, len } of heads) {
-          const [ex, ey] = [tx + Math.cos(a) * len, ty + Math.sin(a) * len];
-          guide.lineStyle(1, 0xff004d, 0.45).lineBetween(tx, ty, ex, ey);
-          // The dragon's fang at the head, pointing back at the mark.
-          const [px2, py2] = [-Math.sin(a) * 3, Math.cos(a) * 3];
-          const [ix, iy] = [ex - Math.cos(a) * 7, ey - Math.sin(a) * 7];
-          guide.fillStyle(0x7a2230).fillTriangle(ex + px2, ey + py2, ex - px2, ey - py2, ix, iy);
-          guide.fillStyle(0xfff1e8).fillTriangle(ex + px2 / 2, ey + py2 / 2, ex - px2 / 2, ey - py2 / 2, ix, iy);
-        }
-        guide.setAlpha(0);
-        scene.tweens.add({ targets: guide, alpha: 1, duration: 120 });
-        const ghosts = heads.map(({ a }, i) => {
-          const gx = tx + Math.cos(a) * 24;
-          const gy = Math.min(ty + Math.sin(a) * 24, FLOOR_Y - 8);
-          return scene.add
-            .image(gx, gy, p.texture.key)
-            .setFlipX(gx > tx)
-            .setTint(i % 2 ? 0xff004d : 0xfff1e8)
-            .setTintMode(Phaser.TintModes.FILL)
-            .setAlpha(0)
-            .setDepth(12);
-        });
-        scene.tweens.add({ targets: ghosts, alpha: 0.6, duration: 100 });
-        if (mark.active) world.strike(mark, 0.1 * power, 'skill', false, { freeze: 900 });
-        // All nine at once (a 25 ms ripple so the eye can count them).
-        later(scene, 330, () => {
+        floatText(scene, p.x + f * 30, p.y - 34, 'KOTE!', '#fff1e8');
+        bladeLine(scene, p.x, p.y + 1, Phaser.Math.Clamp(p.x + f * 40, 0, W), p.y - 2, 0xfff1e8, 80);
+        for (const t of world.targets(p.x, p.y)) {
+          const dx = (t.x - p.x) * f;
+          if (dx < -8 || dx > 120 || Math.abs(t.y - p.y) > 50) continue;
+          // A short flick across each forearm, the weapon knocked loose and spinning away.
+          const [hx, hy] = [t.x - f * 4, t.y + 2];
+          bladeLine(scene, hx - 5, hy - 3, hx + 5, hy + 3, 0xff004d, 60);
+          const drop = scene.add.rectangle(hx, hy, 6, 1, 0xc2c3c7).setDepth(12);
           scene.tweens.add({
-            targets: [guide, ...ghosts],
+            targets: drop,
+            x: hx + f * 10,
+            y: Math.min(hy + 18, FLOOR_Y - 1),
+            angle: 540,
             alpha: 0,
-            duration: 160,
-            onComplete: () => [guide, ...ghosts].forEach((o) => o.destroy()),
+            duration: 450,
+            onComplete: () => drop.destroy(),
           });
-          cam.flash(90, 255, 241, 232);
-          const cut = new Set<Phaser.GameObjects.GameObject>();
-          const split = (t: Phaser.GameObjects.Sprite, a: number) => {
-            cut.add(t);
-            cutMark(scene, t.x, t.y, 0xff004d, 26, a);
-            world.strike(t, 1.8 * power, 'skill', true);
-          };
-          heads.forEach((h, i) =>
-            later(scene, i * 25, () => {
-              aim(h);
-              const { a, len } = h;
-              const line = [scene.add.rectangle(tx, ty, len, 5, 0xff004d, 0.45), scene.add.rectangle(tx, ty, len, 1, 0xfff1e8)];
-              line.forEach((l) => l.setOrigin(0, 0.5).setRotation(a).setScale(0, 1).setDepth(14));
-              scene.tweens.add({ targets: line, scaleX: 1, duration: 50, ease: 'Quad.Out' });
-              scene.tweens.add({
-                targets: line,
-                scaleY: 0,
-                alpha: 0,
-                delay: 160,
-                duration: 200,
-                onComplete: () => line.forEach((l) => l.destroy()),
-              });
-              cam.shake(50, 0.006);
-              if (mark.active) world.strike(mark, 0.45 * power, 'skill', true);
-              // Its own enemy, and whatever else lies on the way to it, is split once.
-              if (h.t?.active && !cut.has(h.t)) split(h.t, a);
-              for (const t of world.targets(tx, ty)) {
-                if (t === mark || cut.has(t)) continue;
-                const [dx, dy] = [t.x - tx, t.y - ty];
-                const along = dx * Math.cos(a) + dy * Math.sin(a);
-                if (along >= 0 && along <= len && Math.abs(-dx * Math.sin(a) + dy * Math.cos(a)) <= 9) split(t, a);
-              }
-            }),
-          );
-          // The ninth: tsuki, a thrust straight through the heart of it.
-          later(scene, 8 * 25 + 40, () => {
-            if (!p.active) return;
-            const bx = Phaser.Math.Clamp(tx - side * 30, 8, W - 8);
-            bladeLine(scene, p.x, p.y, bx, ny, 0xfff1e8, 140);
-            afterimage(scene, p, p.x, p.y, 0.5, 0xff004d);
-            p.body.reset(bx, ny);
-            p.facing = -side;
-            ring(scene, tx, ty, 0xff004d, 4, 34, 260, 2);
-            ring(scene, tx, ty, 0xfff1e8, 2, 20, 200);
-            sparks(scene, tx, ty, [0xff004d, 0xfff1e8, 0xff77a8], 16, 30);
-            cam.shake(200, 0.018);
-            if (mark.active) world.strike(mark, 1.2 * power, 'skill', true);
-            // The backlash: anyone the nine heads did not reach (more than eight enemies) is cut where it stands.
-            for (const t of world.targets(tx, ty)) {
-              if (t === mark || cut.has(t)) continue;
-              cutMark(scene, t.x, t.y, 0xff004d, 22);
-              world.strike(t, 1.2 * power, 'skill', false);
-            }
-          });
-          later(scene, 620, () => floatText(scene, Phaser.Math.Clamp(p.x, 20, W - 20), p.y - 20, 'CHIN', '#fff1e8'));
-        });
+          mark(t);
+          world.strike(t, 0.6 * power, 'skill', true, undefined, 0);
+          if (!t.active || 'tier' in t) continue;
+          (t as Phaser.GameObjects.Sprite & { interrupt?: (ms: number) => void }).interrupt?.(1600);
+        }
+      });
+      // DO: a level cut through the body of the whole line in front of him, sliding along the floor.
+      later(scene, 450, () => {
+        if (!p.active) return;
+        const [fx, fy] = [p.x, p.y];
+        const nx = Phaser.Math.Clamp(fx + f * 150, 10, W - 10);
+        floatText(scene, (fx + nx) / 2, fy - 20, 'DO!', '#fff1e8');
+        afterimage(scene, p, fx, fy, 0.5);
+        bladeLine(scene, fx, fy - 1, nx, fy - 1, 0xff004d, 180);
+        p.body.reset(nx, fy);
+        cam.shake(120, 0.01);
+        for (const t of world.targets(fx, fy)) {
+          if ((t.x - fx) * f < -6 || (t.x - nx) * f > 8 || Math.abs(t.y - fy) > 18) continue;
+          mark(t);
+          cutMark(scene, t.x, t.y, 0xff004d, 24, 0);
+          world.strike(t, 1.8 * power, 'skill', true, undefined, 160);
+        }
+      });
+      // MEN: straight down on the highest enemy from above, on through to the floor.
+      later(scene, 850, () => {
+        if (!p.active) return;
+        const foes = world.targets(p.x, p.y);
+        if (!foes.length) return;
+        const top = foes.reduce((b, e) => (e.y < b.y ? e : b));
+        const [tx, ty] = [top.x, top.y];
+        floatText(scene, tx, Math.max(ty - 32, 16), 'MEN!', '#fff1e8');
+        afterimage(scene, p, p.x, p.y, 0.5);
+        afterimage(scene, p, tx, Math.max(ty - 22, 10), 0.8, 0xff004d);
+        bladeLine(scene, tx, Math.max(ty - 30, 0), tx, FLOOR_Y, 0xff004d, 200);
+        bladeLine(scene, tx, Math.max(ty - 30, 0), tx, FLOOR_Y, 0xfff1e8, 120);
+        p.body.reset(Phaser.Math.Clamp(tx - f * 6, 8, W - 8), FLOOR_Y - 8);
+        cam.flash(70, 255, 241, 232);
+        cam.shake(160, 0.014);
+        sparks(scene, tx, FLOOR_Y - 2, [0xfff1e8, 0x5f574f], 10, 18);
+        for (const t of foes) {
+          if (Math.abs(t.x - tx) > 12 && t !== top) continue;
+          mark(t);
+          cutMark(scene, t.x, t.y, 0xfff1e8, 26, Math.PI / 2);
+          world.strike(t, (t === top ? 2.2 : 1.2) * power, 'skill', true);
+        }
+        world.slam(tx, ty, 40, 320);
+      });
+      // Sheathe. Two or more cuts on one enemy is a clean point: the wounds open together.
+      later(scene, 1250, () => {
+        if (p.active) glint(scene, p.x - p.facing * 2, p.y + 3);
+        const ippon = [...cuts].filter(([t, n]) => n >= 2 && t.active).map(([t]) => t);
+        if (!ippon.length) return;
+        floatText(scene, W / 2, 40, 'IPPON!', '#ff004d');
+        cam.shake(220, 0.018);
+        for (const t of ippon) {
+          for (const a of [0, Math.PI / 2, 0.5]) cutMark(scene, t.x, t.y, 0xff004d, 34, a);
+          world.strike(t, 2 * power, 'skill', true);
+        }
       });
     },
-    // Musou Issen: the world goes dark under a red sun and falling sakura, and everything stops. The samurai becomes
-    // a streak of light bouncing between every enemy, cutting each on the way, then stands back where he began and
-    // slowly sheathes the katana. On the click, every cut opens at once.
+    // Ukiyo no Issen, the one cut of the floating world: the battle becomes an Edo woodblock print. Washi paper washes
+    // over the night, ink hills rise behind a red sun, and time stops. He stands in iai stance and never seems to move:
+    // one by one a black brush stroke is laid across every enemy (his ink silhouette flickers beside each), then the
+    // brush sweeps one enso, the zen circle, around the whole field. He sheathes the katana slowly. On the click every
+    // stroke turns red and opens, his red seal is stamped on the print, and the paper tears in two along a diagonal and
+    // falls away, back to the night.
     ult: ({ p, world, scene, power }) => {
       const foes = world.targets(p.x, p.y);
       if (!foes.length) return false;
-      const ox = p.x;
-      const oy = p.y;
-      const f = p.facing;
-      p.invuln(3000);
-      p.lock(2500);
+      const [ox, oy, f] = [p.x, p.y, p.facing];
+      const INK = 0x1d1b2a;
+      p.invuln(3600);
+      p.lock(3100);
       p.setVelocity(0, 0);
       const cam = scene.cameras.main;
-      cam.flash(150, 255, 255, 255);
-      // Stage: dark sky, a red sun behind him, sakura drifting down for the whole technique.
-      const dark = scene.add
-        .rectangle(0, 0, W, FLOOR_Y + 40, 0x05050f, 0.6)
-        .setOrigin(0)
-        .setDepth(8)
-        .setAlpha(0);
-      const sun = scene.add.circle(ox, oy - 16, 1, 0xff004d, 0.85).setDepth(8);
-      scene.tweens.add({ targets: dark, alpha: 1, duration: 300 });
-      scene.tweens.add({ targets: sun, radius: 36, duration: 500, ease: 'Back.Out' });
-      for (let i = 0; i < 40; i++) {
-        later(scene, i * 55, () => {
-          const petal = scene.add.rectangle(Phaser.Math.Between(0, W + 60), -4, 2, 1, i % 3 ? 0xff77a8 : 0xfff1e8).setDepth(14);
-          scene.tweens.add({
-            targets: petal,
-            x: petal.x - Phaser.Math.Between(60, 120),
-            y: FLOOR_Y,
-            angle: Phaser.Math.Between(180, 540),
-            duration: Phaser.Math.Between(1400, 2200),
-            onComplete: () => petal.destroy(),
-          });
-        });
-      }
-      floatText(scene, W / 2, 40, 'MUSOU...', '#ff77a8');
+      cam.flash(150, 255, 241, 232);
+      // The print: two halves of paper meeting along a ragged diagonal (so it can tear there later).
+      const tear: [number, number][] = [];
+      for (let i = 0; i <= 10; i++) tear.push([W * 0.62 - (W * 0.24 * i) / 10 + (i % 2 ? 3 : -3), (H * i) / 10]);
+      const half = (pts: [number, number][]) => {
+        const g = scene.add.graphics().setDepth(8).setAlpha(0);
+        g.fillStyle(0xf3e6c8, 0.75).fillPoints(
+          pts.map(([x, y]) => new Phaser.Math.Vector2(x, y)),
+          true,
+        );
+        return g;
+      };
+      const paper = [half([[0, 0], ...tear, [0, H]]), half([[W, 0], ...tear, [W, H]])];
+      // Ink landscape and the red sun, painted on the paper.
+      const art = scene.add.graphics().setDepth(8.2).setAlpha(0);
+      const sx = Phaser.Math.Clamp(ox, 50, W - 50);
+      art.fillStyle(0xff004d, 0.85).fillCircle(sx, 62, 26);
+      art.fillStyle(INK, 0.35).fillTriangle(-20, FLOOR_Y, 70, 70, 160, FLOOR_Y).fillTriangle(120, FLOOR_Y, 230, 52, 340, FLOOR_Y);
+      art.fillStyle(0xfff1e8, 0.5).fillTriangle(213, 64, 230, 52, 247, 64);
+      art.lineStyle(2, INK, 0.8).lineBetween(0, FLOOR_Y, W, FLOOR_Y);
+      for (let x = 10; x < W; x += 40) art.lineStyle(1, INK, 0.5).strokeEllipse(x, FLOOR_Y + 6, 18, 4);
+      scene.tweens.add({ targets: [...paper, art], alpha: 1, duration: 400 });
+      floatText(scene, W / 2, 34, 'UKIYO...', '#ff004d');
       glint(scene, ox + f * 6, oy - 1);
       // Time stops.
-      for (const t of foes) world.strike(t, 0.2 * power, 'ult', false, { freeze: 2400 });
-      // The flurry: 12 blinks cycling through (up to 12) enemies; each enemy's share adds up to about 2.4x.
-      const n = Math.min(foes.length, 12);
-      const hops = 12;
-      let px = ox;
-      let py = oy;
-      for (let i = 0; i < hops; i++) {
-        later(scene, 450 + i * 70, () => {
-          const t = foes[i % n];
-          if (!p.active || !t.active) return;
-          const dir = Math.sign(t.x - px) || f;
-          const nx = Phaser.Math.Clamp(t.x + dir * 16, 8, W - 8);
-          const ny = Math.min(t.y, FLOOR_Y - 8);
-          bladeLine(scene, px, py, nx, ny, i % 2 ? 0xff004d : 0xff77a8, 120);
-          afterimage(scene, p, px, py, 0.4);
-          p.body.reset(nx, ny);
-          p.facing = dir;
-          cutMark(scene, t.x, t.y, 0xff004d, 26);
-          world.strike(t, 0.2 * n * power, 'ult', false);
-          cam.shake(50, 0.006);
-          px = nx;
-          py = ny;
+      for (const t of foes) world.strike(t, 0.2 * power, 'ult', false, { freeze: 2900 }, 0);
+      // A tapered sumi stroke: thin at both ends, full in the middle, dry-brush hairs along it.
+      const brush = (g: Phaser.GameObjects.Graphics, x: number, y: number, a: number, len: number, color: number) => {
+        const [c, s] = [Math.cos(a), Math.sin(a)];
+        const pts: Phaser.Math.Vector2[] = [];
+        for (let i = 0; i <= 8; i++) {
+          const u = i / 8 - 0.5;
+          const w = 3.5 * Math.sin((i / 8) * Math.PI);
+          pts.push(new Phaser.Math.Vector2(x + c * u * len - s * w, y + s * u * len + c * w));
+        }
+        for (let i = 8; i >= 0; i--) {
+          const u = i / 8 - 0.5;
+          const w = 1.5 * Math.sin((i / 8) * Math.PI);
+          pts.push(new Phaser.Math.Vector2(x + c * u * len + s * w, y + s * u * len - c * w));
+        }
+        g.fillStyle(color).fillPoints(pts, true);
+        for (const o of [-4, 4.5])
+          g.lineStyle(1, color, 0.6).lineBetween(
+            x - c * len * 0.1 - s * o,
+            y - s * len * 0.1 + c * o,
+            x + c * len * 0.55 - s * o,
+            y + s * len * 0.55 + c * o,
+          );
+      };
+      const STEP = 80;
+      const strokes = foes.map((t, i) => {
+        const g = scene.add.graphics().setDepth(13);
+        const a = (i % 2 ? -1 : 1) * Phaser.Math.FloatBetween(0.5, 0.9);
+        later(scene, 600 + i * STEP, () => {
+          if (!t.active) return;
+          brush(g, t.x, t.y, a, 34, INK);
+          const gx = Phaser.Math.Clamp(t.x - (Math.sign(t.x - ox) || f) * 12, 8, W - 8);
+          afterimage(scene, p, gx, Math.min(t.y, FLOOR_Y - 8), 0.7, INK);
+          world.strike(t, 0.8 * power, 'ult', false, undefined, 0);
+          cam.shake(40, 0.004);
         });
-      }
-      // He returns to where he started and sheathes the blade slowly.
-      const back = 450 + hops * 70 + 60;
-      later(scene, back, () => {
-        if (!p.active) return;
-        bladeLine(scene, px, py, ox, oy, 0xfff1e8, 160);
-        p.body.reset(ox, oy);
-        p.facing = f;
-        floatText(scene, ox, oy - 22, '...', '#fff1e8');
+        return { g, t, a };
       });
-      later(scene, back + 500, () => {
-        floatText(scene, W / 2, 52, 'ISSEN!', '#ff004d');
-        cam.flash(250, 255, 241, 232);
+      // The enso: one sweep of the brush around the whole field, thick in the middle, a gap where it lifts.
+      const T1 = 600 + foes.length * STEP + 150;
+      const enso = scene.add.graphics().setDepth(8.4);
+      const [ex, ey] = [W / 2, 86];
+      later(scene, T1, () =>
+        scene.tweens.addCounter({
+          from: 0,
+          to: 1,
+          duration: 450,
+          ease: 'Sine.InOut',
+          onUpdate: (tw) => {
+            const k = tw.getValue() ?? 0;
+            enso.clear();
+            const N = Math.floor(48 * k);
+            for (let i = 0; i < N; i++) {
+              const [a0, a1] = [-2.3 + (i / 48) * Math.PI * 1.85, -2.3 + ((i + 1) / 48) * Math.PI * 1.85];
+              enso.lineStyle(2 + 4 * Math.sin((i / 48) * Math.PI), INK, 0.85);
+              enso.lineBetween(ex + Math.cos(a0) * 145, ey + Math.sin(a0) * 66, ex + Math.cos(a1) * 145, ey + Math.sin(a1) * 66);
+            }
+          },
+        }),
+      );
+      // The slow sheathe.
+      const T2 = T1 + 550;
+      later(scene, T2, () => {
+        if (!p.active) return;
+        p.facing = f;
+        floatText(scene, ox, oy - 22, '...', '#1d1b2a');
+      });
+      // The click: every stroke turns red and opens; the seal; then the paper tears and falls away.
+      const T3 = T2 + 450;
+      later(scene, T3, () => {
+        if (p.active) glint(scene, p.x - f * 2, p.y + 3);
+        floatText(scene, W / 2, 112, 'ZAN!', '#ff004d');
+        cam.flash(220, 255, 241, 232);
         cam.shake(450, 0.03);
-        for (const t of foes) {
+        for (const { g, t, a } of strokes) {
+          g.clear();
           if (!t.active) continue;
-          for (const a of [-0.7, 0, 0.7]) cutMark(scene, t.x, t.y, 0xff004d, 44, a);
-          world.strike(t, 2.5 * power, 'ult', true);
+          brush(g, t.x, t.y, a, 40, 0xff004d);
+          cutMark(scene, t.x, t.y, 0xff004d, 44, a);
+          world.strike(t, 4.6 * power, 'ult', true);
         }
-        // Petals scatter from the shockwave; the sky and sun fade back.
-        for (let i = 0; i < 24; i++) {
-          const a = (i / 24) * Math.PI * 2;
-          const petal = scene.add.rectangle(ox, oy, 2, 1, i % 2 ? 0xff77a8 : 0xfff1e8).setDepth(14);
+        // The seal: a red square stamped in the corner of the print, white strokes cut into it.
+        const seal = scene.add.graphics().setDepth(13);
+        seal.fillStyle(0xff004d).fillRect(W - 34, 26, 16, 16);
+        seal
+          .fillStyle(0xf3e6c8)
+          .fillRect(W - 31, 29, 10, 1)
+          .fillRect(W - 27, 29, 1, 10)
+          .fillRect(W - 31, 33, 4, 1)
+          .fillRect(W - 24, 32, 1, 7)
+          .fillRect(W - 31, 38, 10, 1);
+        later(scene, 350, () => {
+          scene.tweens.add({ targets: [paper[0], seal], x: -50, angle: -4, alpha: 0, duration: 550, ease: 'Quad.In' });
+          scene.tweens.add({ targets: paper[1], x: 50, angle: 4, alpha: 0, duration: 550, ease: 'Quad.In' });
           scene.tweens.add({
-            targets: petal,
-            x: ox + Math.cos(a) * Phaser.Math.Between(40, 90),
-            y: oy + Math.sin(a) * Phaser.Math.Between(20, 50),
-            angle: 360,
+            targets: [art, enso, ...strokes.map((s) => s.g)],
             alpha: 0,
-            duration: 700,
-            onComplete: () => petal.destroy(),
+            duration: 500,
+            onComplete: () => [...paper, seal, art, enso, ...strokes.map((s) => s.g)].forEach((o) => o.destroy()),
           });
-        }
-        scene.tweens.add({ targets: [dark, sun], alpha: 0, duration: 500, onComplete: () => (dark.destroy(), sun.destroy()) });
+        });
       });
     },
   },

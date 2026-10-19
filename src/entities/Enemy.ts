@@ -63,6 +63,23 @@ export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.stunUntil = this.scene.time.now + Math.min(250, Math.abs(force) * 3);
   }
 
+  // Skills often push a target right after the blow that may have killed it; a slain enemy has no body any more, so
+  // the push does nothing instead of throwing (a throw inside a timer stops every frame after it: the game froze).
+  override setVelocity(x: number, y?: number): this {
+    if (this.body) super.setVelocity(x, y);
+    return this;
+  }
+
+  override setVelocityX(x: number): this {
+    if (this.body) super.setVelocityX(x);
+    return this;
+  }
+
+  override setVelocityY(y: number): this {
+    if (this.body) super.setVelocityY(y);
+    return this;
+  }
+
   protected get target(): Phaser.GameObjects.Sprite {
     return this.arena.player;
   }

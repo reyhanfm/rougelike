@@ -55,6 +55,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   fury = 0;
   /** Dragon form (Antares ult) lasts until this time. */
   private formUntil = 0;
+  private breathAt = 0;
   private furyUntil = 0;
   private awakenAt = 0;
   private nextAura = 0;
@@ -707,6 +708,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return this.scene.time.now < this.formUntil;
   }
 
+  /** Milliseconds of dragon form left (0 when not transformed). */
+  get formLeft(): number {
+    return Math.max(0, this.formUntil - this.scene.time.now);
+  }
+
+  /** The dragon's jaws are open on a breath of fire this moment (STYLES.antares draws them open). */
+  get breathing(): boolean {
+    return this.scene.time.now - this.breathAt < 160;
+  }
+
   /** Turn into the dragon for `ms` (times stats.formTime). */
   transform(ms: number): void {
     this.formUntil = this.scene.time.now + ms * this.stats.formTime;
@@ -714,14 +725,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private attack(time: number): void {
-    // Dragon form: the attack is a stream of fire (hold to keep breathing).
+    // Dragon form: the attack is a stream of fire out of the jaws (hold to keep breathing).
     if (this.dragon) {
       this.swingReadyAt = time + this.stats.swingCooldown * 800;
+      this.breathAt = time;
       sfx('shoot');
       for (const a of [-0.15, 0, 0.15]) {
         this.world.shot({
-          x: this.x + this.facing * 10,
-          y: this.y,
+          x: this.x + this.facing * 23,
+          y: this.y - 6,
           vx: Math.cos(a) * 240 * this.facing,
           vy: Math.sin(a) * 240,
           texture: 'fireball',

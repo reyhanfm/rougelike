@@ -60,6 +60,8 @@ export const PALETTE: Record<string, number> = {
   M: 0x9fb4ff,
   // Extra: the Dark Lord's obsidian plate and cloak, and the soul fire that burns in his eyes, crown and blade.
   D: 0x2b2238,
+  // Extra: Antares' reddish-brown tailcoat.
+  A: 0x6b2e22,
   E: 0x3dff8f,
   // Extra: the Light Lord's radiant ivory-gold (hair, mantle, armor trim).
   F: 0xffe9a8,
@@ -474,6 +476,8 @@ export const SPRITES: Record<string, string[]> = {
   arrow: ['7.....6.', '74444466', '7.....6.'],
   w_senapan: ['.....55.........', '3335566666666655', '33355555555.....', '....55.55.......', '....55.55.......'],
   bullet: ['999aa777', '999aa777'],
+  // Madara's truth-seeking ball stretched into a black rod (DUKUNGAN II GUDODAMA).
+  gudodamaRod: ['.00000000.', '0d00000000', '.00000000.'],
   grenade: ['..66..', '.3333.', '335533', '333333', '.3333.'],
 
   slash: [
@@ -862,23 +866,11 @@ export const SPRITES: Record<string, string[]> = {
   w_gerbangBabilonia: ['..aa.......', '.a..aaaaaaa', '..aa...a.a.'],
   // Antares: black dragon-scale gauntlet with crimson talons; the dragon form (faces right): the black Dragon of
   // Destruction, crimson wing membranes and belly, bone horns, a red eye and fire at the jaw.
-  w_cakarNaga: ['..8..8..8.', '.h8.h8.h8.', 'jjjjjjjjjj', '.sssss....'],
-  dragon: [
-    '..s.................6.',
-    '..ss...............66.',
-    '..shs.............sss.',
-    '..shhs...........ss8ss',
-    '..shhhs.........sssss9',
-    '..shhhhs.......jjss...',
-    '...shhhhs....jjjjs....',
-    '....shhhhsjjjjjjj.....',
-    '.jj..shhjjjjjjjjj.....',
-    'jj.....jjhhhhhjjj.....',
-    'j.....jjhhhhhhjj......',
-    '......jj.jj..jj.......',
-    '.....jj..j...j........',
-    '.....s...s...s........',
-  ],
+  // Antares' dark red talons on a gauntlet of reddish silver.
+  w_cakarNaga: ['..8..8..8.', '.h8.h8.h8.', '66hh66hh66', '.hhhhh....'],
+  // Antares' dragon form only uses this as its (invisible) frame and hitbox size: the dragon itself is drawn every
+  // frame by STYLES.antares.attach with `redDragon`, wings beating and jaws opening on each breath.
+  dragon: Array.from({ length: 14 }, () => '.'.repeat(22)),
   w_enamLengan: ['.aaaa.', 'a7a7aa', 'a7a7a9', 'aaaaa9', '.aaa9.'],
   w_pedangGelap: ['..2.............', '0002000000000000', '0002222222222220', '..2.............'],
   // Jujutsu: Sukuna's Kai blade and Fuga arrow, Gojo's Blue / Red / Hollow Purple, Toji's Inverted Spear and Playful Cloud.

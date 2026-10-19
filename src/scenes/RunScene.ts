@@ -10,6 +10,7 @@ import { CHARGED } from '../entities/charged/index.ts';
 import { PASSIVES, type PassiveCtx } from '../entities/passives.ts';
 import { SUPPORTS, type Support, type SupportCtx } from '../entities/supports.ts';
 import { SIGNATURES } from '../entities/signatures.ts';
+import { SUPPORTS2 } from '../entities/supports2.ts';
 import { padConnected } from '../gamepad.ts';
 import { duckMusic, playMusic, sfx, soundLabel, stopMusic, toggleSound } from '../audio.ts';
 import { COLOR, PALETTE } from '../gfx/sprites.ts';
@@ -708,7 +709,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     const old = this.bench;
     this.benchPlayer?.destroy();
     this.benchPlayer = undefined;
-    if (old) this.dropSupport(`sup:${old}`);
+    if (old) for (const kind of ['sup', 'sup2']) this.dropSupport(`${kind}:${old}`);
     this.bench = cls;
     this.godHandLeft = Math.max(this.godHandLeft, this.heroStats(cls).godHand);
     floatText(this, this.player.x, this.player.y - 28, old ? `${CLASSES[old].name} PERGI` : 'PARTAI 2 HERO!', COLOR.blue);
@@ -740,6 +741,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
         'w_sabit',
         'tombakCahaya',
         'batangCakra',
+        'gudodamaRod',
       ].includes(spec.texture)
     )
       img.setRotation(Math.atan2(spec.vy, spec.vx));
@@ -864,15 +866,16 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
   }
 
   /**
-   * Hero techniques in play beside the class passive: the hero's own DUKUNGAN (on itself) and PASIF II, and the bench
-   * hero's DUKUNGAN (on the hero on the field).
+   * Hero techniques in play beside the class passive: the hero's own DUKUNGAN I & II (on itself) and PASIF II, and the
+   * bench hero's DUKUNGAN I & II (on the hero on the field).
    */
   private get effects(): { sup: Support; c: SupportCtx }[] {
     const list: [string, ClassId, Support][] = [
       ['sup', this.cls, SUPPORTS[this.cls]],
+      ['sup2', this.cls, SUPPORTS2[this.cls]],
       ['sig', this.cls, SIGNATURES[this.cls]],
     ];
-    if (this.bench) list.push(['sup', this.bench, SUPPORTS[this.bench]]);
+    if (this.bench) list.push(['sup', this.bench, SUPPORTS[this.bench]], ['sup2', this.bench, SUPPORTS2[this.bench]]);
     return list.map(([kind, cls, sup]) => ({
       sup,
       c: {
@@ -897,7 +900,8 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     };
     for (const v of Object.values(this.supportState[key] ?? {})) {
       drop(v);
-      if (v && typeof v === 'object' && !(v instanceof Phaser.GameObjects.GameObject)) Object.values(v).forEach(drop);
+      if (v && typeof v === 'object' && !(v instanceof Phaser.GameObjects.GameObject))
+        Object.values(v).forEach((x) => (Array.isArray(x) ? x.forEach(drop) : drop(x)));
     }
     delete this.supportState[key];
     if (key === 'sup:candra') for (const p of [this.player, this.benchPlayer]) p?.body.setGravityY(0);
@@ -1583,8 +1587,105 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     return this.rewards?.length ?? 0;
   }
 
+  /**
+   * PAHLAWAN gate: the heroes on offer as cards side by side, and under them all the highlighted one brings: both its
+   * DUKUNGAN in full (what it does from the bench, and on itself), then its own techniques for when it is swapped in.
+   * Tap a card to look, tap it again to take it; W/S and J work as on the other panels.
+   */
+  private buildHeroUi(): void {
+    const rewards = this.rewards ?? [];
+    const ui = this.add.container(0, 0).setDepth(200);
+    ui.add(this.add.rectangle(W / 2, H / 2 + 12, 290, 146, 0x000000, 0.85).setStrokeStyle(1, 0x83769c));
+    // The title also says who leaves the bench for the new hero (coins are on the HUD already).
+    const title = this.bench ? `PILIH PAHLAWAN (GANTI ${CLASSES[this.bench].name})` : 'PILIH PAHLAWAN CADANGAN';
+    ui.add(text(this, W / 2, 31, title, COLOR.gold).setOrigin(0.5, 0));
+    const cardW = 280 / Math.max(1, rewards.length);
+    rewards.forEach((r, i) => {
+      if (r.type !== 'hero') return;
+      const x = 20 + cardW * (i + 0.5);
+      const pick = () => {
+        if (this.rewardSel === i) return this.takeReward();
+        this.rewardSel = i;
+        sfx('move');
+        this.refreshRewards();
+      };
+      ui.add([
+        this.add
+          .rectangle(x, 51, cardW - 6, 20)
+          .setStrokeStyle(1, 0xffec27)
+          .setName(`sel${i}`),
+        this.add.image(x, 47, `hero_idle_${r.cls}`),
+        text(this, x, 54, CLASSES[r.cls].name, RARITY_COLOR[rewardRarity(r)], 6).setOrigin(0.5, 0),
+        this.add
+          .zone(x, 51, cardW - 6, 20)
+          .setInteractive({ useHandCursor: true })
+          .on('pointerdown', pick),
+      ]);
+    });
+    // The detail of the highlighted hero, filled (and stacked) in heroDetail().
+    const colors = [COLOR.gold, COLOR.text, COLOR.gold, COLOR.text, '#ff77a8', COLOR.gray];
+    colors.forEach((col, i) =>
+      ui.add(
+        text(this, 20, 0, '', col, 6)
+          .setWordWrapWidth(W - 40)
+          .setName(`hd${i}`),
+      ),
+    );
+    const skipY = 156;
+    const cost = this.rerollCost;
+    ui.add([
+      this.add
+        .zone(W / 2, skipY + 3, 280, 9)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => {
+          this.rewardSel = this.skipRow;
+          this.takeReward();
+        }),
+      text(this, 20, skipY, '>', COLOR.gold, 6).setName(`sel${this.skipRow}`),
+      text(this, 28, skipY, 'LEWATI (TIDAK AMBIL HERO)', COLOR.gray, 6),
+      text(
+        this,
+        W / 2,
+        skipY + 9,
+        `${padConnected() ? 'D-PAD PILIH  A' : 'W/S PILIH  J'} AMBIL  ${padConnected() ? 'Y' : 'R'} REFRESH ${cost || 'GRATIS'}`,
+        this.coins >= cost ? COLOR.blue : COLOR.gray,
+        6,
+      )
+        .setOrigin(0.5, 0)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.reroll()),
+    ]);
+    this.rewardUi = ui;
+    this.refreshRewards();
+  }
+
+  /** Fill the PAHLAWAN detail for the highlighted card, each block stacked under the one before. */
+  private heroDetail(): void {
+    const ui = this.rewardUi;
+    if (!ui) return;
+    const t = (i: number) => ui.getByName(`hd${i}`) as Phaser.GameObjects.Text;
+    const r = this.rewards?.[this.rewardSel];
+    if (r?.type !== 'hero') {
+      t(0).setText('TIDAK MENGAMBIL HERO').setY(63);
+      for (let i = 1; i < 6; i++) t(i).setText('');
+      return;
+    }
+    const c = CLASSES[r.cls];
+    const w = WEAPONS[c.weapon];
+    t(0).setText(`DUKUNGAN: ${c.support.name}`);
+    t(1).setText(c.support.desc);
+    t(2).setText(`DUKUNGAN II: ${c.support2.name}`);
+    t(3).setText(c.support2.desc);
+    t(4).setText(`SKILL ${w.skill.name} / FUSION ${w.fusion?.name ?? '-'} / ULTI ${w.ult.name}`);
+    t(5).setText(`PASIF ${c.passive.name} / PASIF II ${c.passive2.name} / TAHAN J ${CHARGED[r.cls].name}`);
+    // Each title (and the skill line) sits a little apart from the block above it.
+    t(0).setY(63);
+    for (let i = 1; i < 6; i++) t(i).setY(t(i - 1).y + t(i - 1).height + (i % 2 ? 0 : 3));
+  }
+
   private buildRewardUi(): void {
     this.rewardUi?.destroy();
+    if (this.panel === 'hero') return this.buildHeroUi();
     const rewards = this.rewards ?? [];
     const shop = this.panel === 'shop';
     const top = shop ? SHOP_Y : REWARD_Y;
@@ -1593,15 +1694,13 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     ui.add(this.add.rectangle(W / 2, H / 2 + 12, 290, 146, 0x000000, 0.85).setStrokeStyle(1, 0x83769c));
     const title = shop
       ? 'TOKO'
-      : this.panel === 'hero'
-        ? 'PILIH PAHLAWAN'
-        : this.cfg.boss
-          ? 'HADIAH BOSS!'
-          : this.cfg.eliteRound
-            ? 'HADIAH ELIT!'
-            : this.gate === 'kutukan'
-              ? 'HADIAH KUTUKAN!'
-              : 'PILIH HADIAH';
+      : this.cfg.boss
+        ? 'HADIAH BOSS!'
+        : this.cfg.eliteRound
+          ? 'HADIAH ELIT!'
+          : this.gate === 'kutukan'
+            ? 'HADIAH KUTUKAN!'
+            : 'PILIH HADIAH';
     ui.add(text(this, W / 2, top - 16, title, COLOR.gold).setOrigin(0.5, 0));
     ui.add([this.add.image(W - 50, top - 12, 'coin'), text(this, W - 44, top - 16, `${this.coins}`, COLOR.gold)]);
     const full = this.items.length >= this.slots;
@@ -1752,6 +1851,7 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
     for (let i = 0; i < this.rewardRows; i++) {
       (this.rewardUi?.getByName(`sel${i}`) as Phaser.GameObjects.Text | null)?.setVisible(i === this.rewardSel);
     }
+    if (this.panel === 'hero' && !this.replacing) return this.heroDetail();
     const name = this.rewardUi?.getByName('setName') as Phaser.GameObjects.Text | null;
     const desc = this.rewardUi?.getByName('setDesc') as Phaser.GameObjects.Text | null;
     if (!name || !desc) return;
@@ -1767,11 +1867,6 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
       return;
     }
     const r = this.rewards?.[this.rewardSel];
-    if (r?.type === 'hero') {
-      name.setText(this.bench ? `GANTI ${CLASSES[this.bench].name} (CADANGAN)` : 'JADI HERO CADANGAN').setColor(COLOR.blue);
-      desc.setText(`DUKUNGAN: ${CLASSES[r.cls].support.name}`).setColor(COLOR.gold);
-      return;
-    }
     if (r?.type !== 'item') return;
     // Tag progress if taken: the tier it would reach, or how far the next one is.
     const after = [...this.items, r.id];
@@ -1985,11 +2080,16 @@ export class RunScene extends Phaser.Scene implements Arena, PlayerWorld {
           `PASIF: ${CLASSES[this.cls].passive.name}`,
           `PASIF II: ${CLASSES[this.cls].passive2.name}`,
           `DUKUNGAN: ${CLASSES[this.cls].support.name}`,
+          `DUKUNGAN II: ${CLASSES[this.cls].support2.name}`,
           `TAHAN ${padConnected() ? 'X' : 'J'}: ${CHARGED[this.cls].name}`,
           '',
           ...(tags.length ? [`TAG: ${tags.join('  ')}`] : []),
           ...(this.bench
-            ? [`CADANGAN (${padConnected() ? 'LB' : 'U'}): ${CLASSES[this.bench].name}`, `+ DUKUNGAN: ${CLASSES[this.bench].support.name}`]
+            ? [
+                `CADANGAN (${padConnected() ? 'LB' : 'U'}): ${CLASSES[this.bench].name}`,
+                `+ DUKUNGAN: ${CLASSES[this.bench].support.name}`,
+                `+ DUKUNGAN II: ${CLASSES[this.bench].support2.name}`,
+              ]
             : []),
           ...(tags.length || this.bench ? [''] : []),
           pauseHint(),
